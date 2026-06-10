@@ -3,6 +3,7 @@
 use App\Http\Livewire\Admin\Dashboard as adminDashboard;
 use App\Http\Livewire\Auth\Login;
 use App\Http\Livewire\Auth\Register;
+use App\Http\Livewire\Student\BudgetSetup;
 use App\Http\Livewire\Student\Dashboard as studentDashboard;
 use Illuminate\Support\Facades\Route;
 
@@ -29,7 +30,11 @@ Route::middleware(['guest'])->group(function() {
 // Authenticated Routes
 Route::middleware(['auth'])->group(function() {
     // Student Routes
-    Route::get('/dashboard', studentDashboard::class)->name('student.dashboard');
+    Route::name('student.')
+        ->group(function() {
+            Route::get('/dashboard', studentDashboard::class)->name('dashboard');
+            Route::get('/budget-setup', BudgetSetup::class)->name('budget-setup');
+        });
     // Admin Routes
     Route::middleware(['admin'])
         ->prefix('admin')
