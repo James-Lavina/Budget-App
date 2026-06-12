@@ -3,8 +3,11 @@
 use App\Http\Livewire\Admin\Dashboard as adminDashboard;
 use App\Http\Livewire\Auth\Login;
 use App\Http\Livewire\Auth\Register;
+use App\Http\Livewire\Student\AllExpenses;
 use App\Http\Livewire\Student\BudgetSetup;
 use App\Http\Livewire\Student\Dashboard as studentDashboard;
+use App\Http\Livewire\Student\EditExpense;
+use App\Http\Livewire\Student\LogExpense;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -34,6 +37,10 @@ Route::middleware(['auth'])->group(function() {
         ->group(function() {
             Route::get('/dashboard', studentDashboard::class)->name('dashboard');
             Route::get('/budget-setup', BudgetSetup::class)->name('budget-setup');
+            
+            Route::get('/expenses', AllExpenses::class)->name('expenses.index');
+            Route::get('/expenses/create', LogExpense::class)->name('expenses.create');
+            Route::get('/expenses/{id}/edit', EditExpense::class)->name('expenses.edit');
         });
     // Admin Routes
     Route::middleware(['admin'])
@@ -43,7 +50,7 @@ Route::middleware(['auth'])->group(function() {
             Route::get('/dashboard', adminDashboard::class)->name('dashboard');
     });
     // Global Routes
-    Route::get('/logout', function() {
+    Route::post('/logout', function() {
         auth()->logout();
         request()->session()->invalidate();
         request()->session()->regenerateToken();

@@ -5,9 +5,10 @@
                 <h1 class="text-3xl font-extrabold tracking-tight text-white">System Administrative Panel</h1>
                 <p class="text-sm text-slate-400 mt-1">Logged in as: <span class="text-indigo-400 font-semibold">{{ auth()->user()->name }}</span></p>
             </div>
-            <a href="{{ route('logout') }}" class="px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-500 transition shadow-sm">
-                Log Out Securely
-            </a>
+            <form action="{{ route('logout') }}" method="POST">
+                @csrf
+                <button type="submit" class="px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-500 transition shadow-sm">Logout</button>
+            </form>
         </div>
 
         <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
