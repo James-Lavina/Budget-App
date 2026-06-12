@@ -8,6 +8,7 @@ use App\Http\Livewire\Student\BudgetSetup;
 use App\Http\Livewire\Student\Dashboard as studentDashboard;
 use App\Http\Livewire\Student\EditExpense;
 use App\Http\Livewire\Student\LogExpense;
+use App\Http\Livewire\Student\ScanExpense;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -40,6 +41,7 @@ Route::middleware(['auth'])->group(function() {
             
             Route::get('/expenses', AllExpenses::class)->name('expenses.index');
             Route::get('/expenses/create', LogExpense::class)->name('expenses.create');
+            Route::get('/expenses/receipt-scanner', ScanExpense::class)->name('receipt-scanner');
             Route::get('/expenses/{id}/edit', EditExpense::class)->name('expenses.edit');
         });
     // Admin Routes

@@ -57,18 +57,19 @@
 
         <!-- Practical Action Hub Selection -->
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <!-- Manual Track Card -->
             <a href="{{ route('student.expenses.create') }}" class="bg-white hover:bg-slate-50 border border-slate-200 rounded-2xl p-6 text-center shadow-sm flex flex-col justify-center items-center group transition">
                 <span class="text-2xl mb-1">📝</span>
                 <span class="font-bold text-slate-900 group-hover:text-indigo-600 transition text-sm">Track Expense Manually</span>
                 <span class="text-xs text-slate-400 mt-0.5">Quickly type in cash transactions item by item</span>
             </a>
-            <div class="bg-white border border-slate-200 rounded-2xl p-6 text-center shadow-sm flex flex-col justify-center items-center relative overflow-hidden group">
+        
+            <!-- Fixed Receipt Scanner Card -->
+            <a href="{{ route('student.receipt-scanner') }}" class="bg-white hover:bg-slate-50 border border-slate-200 rounded-2xl p-6 text-center shadow-sm flex flex-col justify-center items-center group transition">
                 <span class="text-2xl mb-1">📸</span>
-                <span class="font-bold text-slate-400 text-sm">AI Receipt Scanner</span>
-                <span class="text-xs text-indigo-600 font-semibold bg-indigo-50 px-2.5 py-1 rounded-lg mt-1 border border-indigo-100">
-                    Ready for Module Build (Process 2.3)
-                </span>
-            </div>
+                <span class="font-bold text-slate-900 group-hover:text-indigo-600 transition text-sm">Receipt Scanner AI</span>
+                <span class="text-xs text-slate-400 mt-0.5">Snap a photo to automatically extract and log total costs</span>
+            </a>
         </div>
 
         <!-- Transactions Ledger Container -->
