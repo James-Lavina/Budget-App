@@ -76,6 +76,6 @@ class LogExpense extends Component
     {
         return view('livewire.student.log-expense', [
             'categories' => ExpenseCategory::orderBy('name', 'asc')->get()
-        ]);
+        ])->layout('layouts.student');
     }
 }

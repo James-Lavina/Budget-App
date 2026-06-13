@@ -81,6 +81,6 @@ class EditExpense extends Component
     {
         return view('livewire.student.edit-expense', [
             'categories' => ExpenseCategory::orderBy('name', 'asc')->get()
-        ]);
+        ])->layout('layouts.student');
     }
 }

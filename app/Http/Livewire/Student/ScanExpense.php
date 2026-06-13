@@ -188,6 +188,6 @@ class ScanExpense extends Component
     {
         return view('livewire.student.scan-expense', [
             'availableCategories' => ExpenseCategory::all(),
-        ]);
+        ])->layout('layouts.student');
     }
 }

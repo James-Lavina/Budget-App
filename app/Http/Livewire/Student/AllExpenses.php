@@ -52,6 +52,6 @@ class AllExpenses extends Component
 
         return view('livewire.student.all-expenses', [
             'allExpenses' => $allExpenses
-        ]);
+        ])->layout('layouts.student');
     }
 }

@@ -122,6 +122,6 @@ class Dashboard extends Component
 
         return view('livewire.student.dashboard', [
             'recentExpenses' => $recentExpenses,
-        ]);
+        ])->layout('layouts.student');
     }
 }

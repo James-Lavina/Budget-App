@@ -1,114 +1,135 @@
-<div class="min-h-screen bg-slate-50 py-8 px-4 sm:px-6 lg:px-8">
-    <div class="max-w-2xl mx-auto space-y-6">
-        
-        <!-- Header Controls matching Scanner View tokens -->
-        <div class="flex items-center justify-between">
-            <a href="{{ route('student.dashboard') }}" class="text-xs font-bold text-slate-500 hover:text-indigo-600 transition">
-                ← Back to Dashboard
-            </a>
-            <span class="text-xs text-indigo-600 font-bold bg-indigo-50 px-3 py-1 rounded-full">
-                Manual Entry Mode
-            </span>
-        </div>
+<div class="min-h-screen bg-slate-50/50 py-10 px-4 sm:px-6 lg:px-8">
+    <div class="max-w-2xl mx-auto">
 
-        <!-- Main Form Container -->
-        <div class="bg-white rounded-2xl shadow-xl border border-slate-100 p-8 space-y-6">
-            <div>
-                <h1 class="text-xl font-bold text-slate-900">Log Manual Expense</h1>
-                <p class="text-xs text-slate-500 mt-1">Input your transaction details manually to adjust your budget frameworks.</p>
+        <!-- Form Card Container -->
+        <div class="bg-white rounded-2xl shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] border border-slate-200/80 p-8 space-y-6">
+            
+            <!-- Context Header with Integrated Breadcrumb -->
+            <div class="border-b border-slate-100 pb-5">
+                <nav class="flex items-center gap-1.5 text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">
+                    <a href="{{ route('student.dashboard') }}" class="hover:text-indigo-600 transition-colors">Dashboard</a>
+                    <svg class="w-2.5 h-2.5 text-slate-300 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 5l7 7-7 7"></path>
+                    </svg>
+                    <span class="text-slate-500">Manual Entry</span>
+                </nav>
+                
+                <h1 class="text-2xl font-black text-slate-900 tracking-tight">Log Manual Expense</h1>
+                <p class="text-xs text-slate-500 mt-1 leading-relaxed">
+                    Input your transaction details to immediately adjust your current budget framework.
+                </p>
             </div>
 
             <form wire:submit.prevent="storeExpense" class="space-y-5">
                 
-                <!-- ROW 1: Merchant & Description (Unified 2-Column Grid) -->
+                <!-- Row 1: Merchant & Description -->
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                        <label for="merchant_name" class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
-                            Store / Merchant <span class="text-[10px] font-normal text-slate-400 lowercase">(optional)</span>
+                    <div class="space-y-1.5">
+                        <label for="merchant_name" class="block text-xs font-extrabold text-slate-700 uppercase tracking-wider">
+                            Store / Merchant <span class="text-[10px] font-bold text-slate-400 lowercase tracking-normal">(optional)</span>
                         </label>
-                        <input id="merchant_name" type="text" wire:model.defer="merchant_name" placeholder="e.g., Cafeteria"
-                            class="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 text-sm font-medium text-slate-800 placeholder-slate-400">
+                        <input id="merchant_name" type="text" wire:model.defer="merchant_name" placeholder="e.g., University Cafeteria"
+                            class="block w-full px-4 py-3 border border-slate-200 bg-slate-50/30 text-sm font-semibold rounded-xl text-slate-900 focus:outline-none focus:ring-2 focus:border-indigo-500 focus:ring-indigo-500/20 transition-all">
                     </div>
                     
-                    <div>
-                        <label for="item_name" class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
+                    <div class="space-y-1.5">
+                        <label for="item_name" class="block text-xs font-extrabold text-slate-700 uppercase tracking-wider">
                             Item Name / Description
                         </label>
-                        <input id="item_name" type="text" wire:model.defer="item_name" placeholder="e.g., Lunch meal"
-                            class="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 text-sm font-medium text-slate-800 placeholder-slate-400">
+                        <input id="item_name" type="text" wire:model.defer="item_name" placeholder="e.g., Lunch Meal"
+                            class="block w-full px-4 py-3 border border-slate-200 bg-slate-50/30 text-sm font-semibold rounded-xl text-slate-900 focus:outline-none focus:ring-2 focus:border-indigo-500 focus:ring-indigo-500/20 transition-all">
                         @error('item_name') 
-                            <span class="text-xs text-rose-600 mt-1 block font-medium">⚠️ {{ $message }}</span> 
+                            <div class="p-2.5 bg-rose-50 border border-rose-100 rounded-lg text-rose-800 text-[11px] font-semibold mt-2 flex items-center gap-1.5">
+                                <span class="h-1 w-1 rounded-full bg-rose-500"></span>
+                                {{ $message }}
+                            </div>
                         @enderror
                     </div>
                 </div>
 
-                <!-- ROW 2: Date, Amount, & Category (Unified 3-Column Grid) -->
+                <!-- Row 2: Date, Amount, & Category -->
                 <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     
-                    <!-- Date Input Component -->
-                    <div>
-                        <label for="transaction_date" class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
+                    <!-- Date Input -->
+                    <div class="space-y-1.5">
+                        <label for="transaction_date" class="block text-xs font-extrabold text-slate-700 uppercase tracking-wider">
                             Transaction Date
                         </label>
                         <input id="transaction_date" type="date" wire:model.defer="transaction_date"
-                            class="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 text-sm font-bold text-slate-900 bg-white cursor-pointer">
+                            class="block w-full px-4 py-3 border border-slate-200 bg-slate-50/30 text-sm font-semibold rounded-xl text-slate-900 focus:outline-none focus:ring-2 focus:border-indigo-500 focus:ring-indigo-500/20 transition-all">
                         @error('transaction_date') 
-                            <span class="text-xs text-rose-600 mt-1 block font-medium">⚠️ {{ $message }}</span> 
+                            <div class="p-2.5 bg-rose-50 border border-rose-100 rounded-lg text-rose-800 text-[11px] font-semibold mt-2 flex items-center gap-1.5">
+                                <span class="h-1 w-1 rounded-full bg-rose-500"></span>
+                                {{ $message }}
+                            </div>
                         @enderror
                     </div>
 
-                    <!-- Currency/Amount Input Component -->
-                    <div>
-                        <label for="amount" class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
-                            Total Amount (₱)
+                    <!-- Amount Input -->
+                    <div class="space-y-1.5">
+                        <label for="amount" class="block text-xs font-extrabold text-slate-700 uppercase tracking-wider">
+                            Amount (₱)
                         </label>
                         <div class="relative rounded-xl shadow-sm">
                             <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                                <span class="text-slate-500 text-sm font-bold">₱</span>
+                                <span class="text-slate-400 font-bold text-sm">₱</span>
                             </div>
                             <input id="amount" type="number" step="0.01" wire:model.defer="amount" placeholder="0.00"
-                                class="w-full pl-8 pr-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 text-sm font-bold text-slate-900 placeholder-slate-400">
+                                class="block w-full pl-9 pr-4 py-3 border border-slate-200 bg-slate-50/30 text-sm font-bold rounded-xl text-slate-900 focus:outline-none focus:ring-2 focus:border-indigo-500 focus:ring-indigo-500/20 transition-all">
                         </div>
                         @error('amount') 
-                            <span class="text-xs text-rose-600 mt-1 block font-medium">⚠️ {{ $message }}</span> 
+                            <div class="p-2.5 bg-rose-50 border border-rose-100 rounded-lg text-rose-800 text-[11px] font-semibold mt-2 flex items-center gap-1.5">
+                                <span class="h-1 w-1 rounded-full bg-rose-500"></span>
+                                {{ $message }}
+                            </div>
                         @enderror
                     </div>
 
-                    <!-- Category Selector Component -->
-                    <div>
-                        <label for="expense_category_id" class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
-                            Expense Category
+                    <!-- Category Selector -->
+                    <div class="space-y-1.5">
+                        <label for="expense_category_id" class="block text-xs font-extrabold text-slate-700 uppercase tracking-wider">
+                            Category
                         </label>
                         <select id="expense_category_id" wire:model="expense_category_id" 
-                            class="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 text-sm font-bold text-slate-800 bg-white cursor-pointer">
-                            <option value="">-- Select --</option>
+                            class="block w-full px-4 py-3 border border-slate-200 bg-slate-50/30 text-sm font-semibold rounded-xl text-slate-900 focus:outline-none focus:ring-2 focus:border-indigo-500 focus:ring-indigo-500/20 transition-all">
+                            <option value="">Select...</option>
                             @foreach($categories as $category)
-                                <option value="{{ $category->id }}"> {{ $category->name }}</option>
+                                <option value="{{ $category->id }}">{{ $category->name }}</option>
                             @endforeach
                         </select>
                         @error('expense_category_id') 
-                            <span class="text-xs text-rose-600 mt-1 block font-medium">⚠️ {{ $message }}</span> 
+                            <div class="p-2.5 bg-rose-50 border border-rose-100 rounded-lg text-rose-800 text-[11px] font-semibold mt-2 flex items-center gap-1.5">
+                                <span class="h-1 w-1 rounded-full bg-rose-500"></span>
+                                {{ $message }}
+                            </div>
                         @enderror
                     </div>
                 </div>
 
-                <!-- Unified Action Button Controls -->
-                <div class="flex gap-3 pt-2">
+                <!-- Footer Action Buttons -->
+                <div class="pt-4 flex items-center justify-end gap-2.5">
                     <a href="{{ route('student.dashboard') }}" 
-                        class="w-1/3 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-xs text-center transition uppercase tracking-wider block shadow-sm">
+                        class="px-5 py-2.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-colors">
                         Cancel
                     </a>
                     
                     <button type="submit" wire:loading.attr="disabled" 
-                        class="w-2/3 py-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-bold text-xs transition shadow-md uppercase tracking-wider">
-                        <span wire:loading.remove wire:target="storeExpense">Save Manual Entry ✓</span>
+                        class="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-xl shadow-sm text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all disabled:opacity-50">
+                        <span wire:loading.remove wire:target="storeExpense" class="inline-flex items-center gap-1.5">
+                            <span>Save Entry</span>
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"></path>
+                            </svg>
+                        </span>
                         <span wire:loading wire:target="storeExpense" class="inline-flex items-center gap-2">
-                            <div class="animate-spin rounded-full h-3 w-3 border-2 border-white border-t-transparent"></div>
-                            Logging expense...
+                            <svg class="animate-spin h-3.5 w-3.5 text-white" fill="none" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                            <span>Processing...</span>
                         </span>
                     </button>
                 </div>
-
             </form>
         </div>
     </div>
