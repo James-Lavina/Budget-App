@@ -65,6 +65,8 @@ class LogExpense extends Component
             $currentBudget->save();
         });
 
+        app(\App\Services\RiskDetectionService::class)->evaluateSpendingRisk(auth()->user());
+
         session()->flash('success', 'Expense tracked successfully!');
 
         return redirect()->route('student.dashboard');

@@ -174,6 +174,8 @@ class ScanExpense extends Component
                 $currentBudget->decrement('remaining_allowance', $this->amount);
             }
 
+            app(\App\Services\RiskDetectionService::class)->evaluateSpendingRisk(auth()->user());
+
             session()->flash('success', 'Transaction processed and added to active expense ledger tracking!');
             return redirect()->route('student.dashboard');
 

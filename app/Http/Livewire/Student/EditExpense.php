@@ -71,6 +71,8 @@ class EditExpense extends Component
             ]);
         });
 
+        app(\App\Services\RiskDetectionService::class)->evaluateSpendingRisk(auth()->user());
+
         session()->flash('success', 'Transaction modified. Limits calculated smoothly!');
         return redirect()->route('student.dashboard');
     }
