@@ -11,6 +11,7 @@ use App\Http\Livewire\Student\GoalsManager;
 use App\Http\Livewire\Student\LogExpense;
 use App\Http\Livewire\Student\ScanExpense;
 use App\Http\Livewire\Student\SpendingForecast;
+use App\Http\Livewire\Student\WhatIfSimulator;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -40,15 +41,17 @@ Route::middleware(['auth'])->group(function() {
         ->group(function() {
             Route::get('/dashboard', studentDashboard::class)->name('dashboard');
             Route::get('/budget-setup', BudgetSetup::class)->name('budget-setup');
-            
+            // Expense Log 
             Route::get('/expenses', AllExpenses::class)->name('expenses.index');
             Route::get('/expenses/create', LogExpense::class)->name('expenses.create');
             Route::get('/expenses/receipt-scanner', ScanExpense::class)->name('receipt-scanner');
             Route::get('/expenses/{id}/edit', EditExpense::class)->name('expenses.edit');
-
+            // Forecasting 
             Route::get('/forecast', SpendingForecast::class)->name('forecast');
-
+            // Savings Goal 
             Route::get('/savings-goals', GoalsManager::class)->name('goals');
+            // What-If Simulation
+            Route::get('/simulation', WhatIfSimulator::class)->name('simulation');
         });
     // Admin Routes
     Route::middleware(['admin'])

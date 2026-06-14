@@ -140,7 +140,7 @@ class Dashboard extends Component
     public function render()
     {
         $recentExpenses = Expense::where('user_id', auth()->id())
-            ->latest('transaction_date')
+            ->latest('id')
             ->take(5)
             ->get();
 

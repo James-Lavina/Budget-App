@@ -85,31 +85,31 @@
         </div>
 
         <!-- Practical Action Hub Selection -->
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <!-- Manual Track Card -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
             <a href="{{ route('student.expenses.create') }}" class="bg-white hover:bg-slate-50/80 border border-slate-200/80 rounded-2xl p-6 text-center shadow-[0_2px_8px_-3px_rgba(0,0,0,0.04)] flex flex-col justify-center items-center group transition-all hover:shadow-sm">
                 <div class="h-10 w-10 bg-slate-50 border border-slate-200 text-slate-500 rounded-xl flex items-center justify-center mb-3 group-hover:bg-indigo-50 group-hover:border-indigo-100 group-hover:text-indigo-600 transition-colors">
-                    <!-- Document/Edit SVG Icon -->
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
                     </svg>
                 </div>
-                <span class="font-extrabold text-slate-900 group-hover:text-indigo-600 transition text-sm tracking-tight">Track Expense Manually</span>
-                <span class="text-xs text-slate-400 mt-1">Quickly log cash transactions item by item</span>
+                <span class="font-extrabold text-slate-900 group-hover:text-indigo-600 transition text-sm tracking-tight">Track Manually</span>
+                <span class="text-[11px] text-slate-400 mt-1 leading-normal">Quickly log cash transactions item by item</span>
             </a>
         
-            <!-- Fixed Receipt Scanner Card -->
             <a href="{{ route('student.receipt-scanner') }}" class="bg-white hover:bg-slate-50/80 border border-slate-200/80 rounded-2xl p-6 text-center shadow-[0_2px_8px_-3px_rgba(0,0,0,0.04)] flex flex-col justify-center items-center group transition-all hover:shadow-sm">
                 <div class="h-10 w-10 bg-slate-50 border border-slate-200 text-slate-500 rounded-xl flex items-center justify-center mb-3 group-hover:bg-indigo-50 group-hover:border-indigo-100 group-hover:text-indigo-600 transition-colors">
-                    <!-- Camera/Scan SVG Icon -->
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V3z"></path>
                         <circle cx="12" cy="13" r="3" stroke-width="2"></circle>
                     </svg>
                 </div>
                 <span class="font-extrabold text-slate-900 group-hover:text-indigo-600 transition text-sm tracking-tight">Receipt Scanner AI</span>
-                <span class="text-xs text-slate-400 mt-1">Snap a photo to automatically parse and log total costs</span>
+                <span class="text-[11px] text-slate-400 mt-1 leading-normal">Snap a photo to automatically parse total costs</span>
             </a>
+
+            <div>
+                <livewire:student.simulation-widget />
+            </div>
         </div>
 
         <livewire:student.savings-widget />

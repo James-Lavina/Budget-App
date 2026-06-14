@@ -73,7 +73,7 @@ class AllExpenses extends Component
     {
         $allExpenses = Expense::where('user_id', auth()->id())
             ->with('category') 
-            ->latest('transaction_date')
+            ->latest('id')
             ->paginate(10);
 
         return view('livewire.student.all-expenses', [

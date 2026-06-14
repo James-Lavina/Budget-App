@@ -13,9 +13,7 @@ class SpendingForecastService
 {
     public function generateForecast($user)
     {
-        // ===================================================
-        // LAYER 1: LOCAL MATHEMATICAL FORECASTING (Kept Exact)
-        // ===================================================
+
         $activeBudget = WeeklyBudget::where('user_id', $user->id)->latest()->first();
         if (!$activeBudget) {
             return ['status' => 'error', 'message' => 'No active tracking budget period established yet.'];
@@ -38,9 +36,7 @@ class SpendingForecastService
         $daysRemainingInCycle = 7 - $daysElapsed;
         $isCriticalState = $projectedDaysLeft < $daysRemainingInCycle;
 
-        // ===================================================
-        // LAYER 2: RISK LOG INTERACTION
-        // ===================================================
+
         if ($isCriticalState) {
             $alreadyLoggedToday = RiskLog::where('user_id', $user->id)
                 ->where('created_at', '>=', Carbon::today())
@@ -70,9 +66,6 @@ class SpendingForecastService
             'active_risks_count' => $riskLogsCountThisWeek
         ];
 
-        // ===================================================
-        // LAYER 3: REMOTE COGNITIVE AI PROCESSING (STUDENT PERSONA)
-        // ===================================================
         try {
             $response = Http::timeout(6)
                 ->withHeaders([
@@ -107,7 +100,6 @@ class SpendingForecastService
         } catch (\Exception $e) {
             Log::error("Spending Forecast Service Exception: " . $e->getMessage());
 
-            // NEW STUDENT-FRIENDLY OFFLINE FALLBACK
             $fallbackAdvice = "Heads up! Based on how fast you're spending right now (₱" . $localForecastMetrics['daily_velocity'] . "/day), your remaining allowance will only last about " . $localForecastMetrics['projected_days_left'] . " more days. You've also triggered " . $riskLogsCountThisWeek . " budget safety alerts this week, so it might be a good time to slow down your expenses.";
 
             return [
