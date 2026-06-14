@@ -7,6 +7,7 @@ use App\Http\Livewire\Student\AllExpenses;
 use App\Http\Livewire\Student\BudgetSetup;
 use App\Http\Livewire\Student\Dashboard as studentDashboard;
 use App\Http\Livewire\Student\EditExpense;
+use App\Http\Livewire\Student\GoalsManager;
 use App\Http\Livewire\Student\LogExpense;
 use App\Http\Livewire\Student\ScanExpense;
 use App\Http\Livewire\Student\SpendingForecast;
@@ -46,6 +47,8 @@ Route::middleware(['auth'])->group(function() {
             Route::get('/expenses/{id}/edit', EditExpense::class)->name('expenses.edit');
 
             Route::get('/forecast', SpendingForecast::class)->name('forecast');
+
+            Route::get('/savings-goals', GoalsManager::class)->name('goals');
         });
     // Admin Routes
     Route::middleware(['admin'])

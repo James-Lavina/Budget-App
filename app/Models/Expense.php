@@ -12,6 +12,7 @@ class Expense extends Model
     protected $fillable = [
         'user_id',
         'expense_category_id',
+        'savings_goal_id',
         'merchant_name',
         'item_name',
         'amount',
@@ -35,5 +36,10 @@ class Expense extends Model
     public function receipt()
     {
         return $this->hasOne(Receipt::class);
+    }
+
+    public function savingsGoal()
+    {
+        return $this->belongsTo(SavingsGoal::class);
     }
 }

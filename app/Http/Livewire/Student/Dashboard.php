@@ -89,25 +89,49 @@ class Dashboard extends Component
         $expense = Expense::where('id', $expenseId)
             ->where('user_id', auth()->id())
             ->first();
-
+    
         if(!$expense) {
             session()->flash('error', 'Expense record not found');
             return;
         }
-
+    
         if($this->currentBudget) {
             DB::transaction(function () use ($expense) {
-                // Update the property instance directly so memory and database stay synced
+                // 1. Update the property instance directly so memory and database stay synced
                 $this->currentBudget->remaining_allowance += $expense->amount;
                 $this->currentBudget->save();
     
+                // 2. Relational Rollover Check: If this transaction was a savings vault transfer
+                if ($expense->savings_goal_id) {
+                    $goal = \App\Models\SavingsGoal::find($expense->savings_goal_id);
+                    
+                    if ($goal) {
+                        // Deduct the money back out of the specific goal target counter
+                        $goal->current_saved -= $expense->amount;
+    
+                        // Absolute fallback safety guardrail to avoid negative numbers
+                        if ($goal->current_saved < 0) {
+                            $goal->current_saved = 0.00;
+                        }
+    
+                        // Revert milestone status if it drops back below target threshold
+                        if ($goal->status === 'achieved' && $goal->current_saved < $goal->target_amount) {
+                            $goal->status = 'active';
+                        }
+    
+                        $goal->save();
+                    }
+                }
+    
+                // 3. Purge the expense record safely out of the ledger
                 $expense->delete();
             });
     
             // Now this method reads the freshly updated property in memory!
             $this->computeBehavioralMetrics();
-            
-            session()->flash('success', 'Transaction has been removed. Balance safely restored');
+            $this->emit('refreshSavings');
+    
+            session()->flash('success', 'Transaction removed. Balance safely adjusted and savings progress updated!');
         } else {
             session()->flash('error', 'Unable to adjust framework. Active budget not found');
         }

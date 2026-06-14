@@ -18,6 +18,12 @@ class SavingsGoal extends Model
         'status',
     ];
 
+    protected $casts = [
+        'target_date' => 'date',
+        'target_amount' => 'float',
+        'current_saved' => 'float',
+    ];
+
     public function user()
     {
         return $this->belongsTo(User::class);

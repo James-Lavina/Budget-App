@@ -112,6 +112,8 @@
             </a>
         </div>
 
+        <livewire:student.savings-widget />
+
         <!-- Transactions Ledger Container -->
         <div class="bg-white rounded-2xl shadow-[0_4px_12px_-4px_rgba(0,0,0,0.05)] border border-slate-200/80 overflow-hidden">
             <div class="px-6 py-5 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
