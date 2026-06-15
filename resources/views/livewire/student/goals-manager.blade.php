@@ -1,13 +1,15 @@
 <div class="min-h-screen bg-slate-50/50 py-10 px-4 sm:px-6 lg:px-8">
     <div class="max-w-6xl mx-auto">
         
+        <!-- Header Component with Breadcrumbs and New Subheading -->
         <div class="mb-8">
             <nav class="flex items-center gap-1.5 text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-3">
                 <a href="{{ route('student.dashboard') }}" class="hover:text-indigo-600 transition-colors">Dashboard</a>
                 <svg class="w-2.5 h-2.5 text-slate-300 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 5l7 7-7 7"></path></svg>
                 <span class="text-slate-500">Savings & Milestones</span>
             </nav>
-            <h1 class="text-2xl font-black text-slate-900 tracking-tight">Financial Savings Goals</h1>
+            <h1 class="text-2xl font-black text-slate-900 tracking-tight">My Savings Goals</h1>
+            <p class="text-xs text-slate-500 font-medium mt-1">Build up your funds and track your progress for upcoming school expenses and personal milestones.</p>
         </div>
 
         @if (session()->has('success'))

@@ -7,6 +7,7 @@ use App\Models\ExpenseCategory;
 use App\Models\Receipt;
 use App\Models\WeeklyBudget;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
 use Livewire\Component;
@@ -129,7 +130,7 @@ class ScanExpense extends Component
             if($aiDate && preg_match('/^\d{4}-\d{2}-\d{2}$/', $aiDate)) {
                 $this->transaction_date = $aiDate;
             } else {
-                $this->transaction_date = Carbon::today()->format('M-d-y');
+                $this->transaction_date = Carbon::today()->format('Y-m-d');
             }
 
             $this->isProcessing = false;
@@ -145,34 +146,49 @@ class ScanExpense extends Component
         $this->validate([
             'merchant_name' => 'nullable|string|max:255', 
             'item_name' => 'required|string|max:255',
-            'amount' => 'required|numeric|min:0',
+            'amount' => 'required|numeric|min:0.01|max:999999',
             'transaction_date' => 'required|date|before_or_equal:today',
             'expense_category_id' => 'required|exists:expense_categories,id', 
         ]);
 
+        $currentBudget = WeeklyBudget::where('user_id', auth()->id())
+            ->latest()
+            ->first();
+
+        if (!$currentBudget) {
+            session()->flash('error', 'No active budget found. Set up your allowance first.');
+            return redirect()->route('student.budget-setup');
+        }
+
+        if ($this->amount > $currentBudget->remaining_allowance) {
+            $this->addError('amount', 'Insufficient allowance. Verified cost exceeds your remaining ₱' . number_format($currentBudget->remaining_allowance, 2) . '.');
+            return;
+        }
+
         try{
-            $expense = Expense::create([
-                'user_id' => auth()->id(),
-                'expense_category_id' => $this->expense_category_id,
-                'merchant_name' => $this->merchant_name,
-                'item_name' => $this->item_name,
-                'amount' => $this->amount,
-                'transaction_date' => $this->transaction_date,
-                'tracking_type' => 'ocr',
-            ]);
 
-            $receipt = Receipt::find($this->receiptId);
-            if($receipt) {
-                $receipt->update([
-                    'expense_id' => $expense->id,
-                    'status' => 'processed',
+            // FIXED: Wrapped atomic updates inside database transaction wrapper
+            DB::transaction(function() use ($currentBudget) {
+                $expense = Expense::create([
+                    'user_id' => auth()->id(),
+                    'expense_category_id' => $this->expense_category_id,
+                    'merchant_name' => $this->merchant_name,
+                    'item_name' => $this->item_name,
+                    'amount' => $this->amount,
+                    'transaction_date' => $this->transaction_date,
+                    'tracking_type' => 'ocr',
                 ]);
-            }
 
-            $currentBudget = WeeklyBudget::where('user_id', auth()->id())->latest()->first();
-            if($currentBudget) {
+                $receipt = Receipt::find($this->receiptId);
+                if($receipt) {
+                    $receipt->update([
+                        'expense_id' => $expense->id,
+                        'status' => 'processed',
+                    ]);
+                }
+
                 $currentBudget->decrement('remaining_allowance', $this->amount);
-            }
+            });
 
             app(\App\Services\RiskDetectionService::class)->evaluateSpendingRisk(auth()->user());
 

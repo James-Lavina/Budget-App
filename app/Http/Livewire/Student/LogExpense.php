@@ -5,6 +5,7 @@ namespace App\Http\Livewire\Student;
 use App\Models\Expense;
 use App\Models\ExpenseCategory;
 use App\Models\WeeklyBudget;
+use App\Models\RiskLog;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Livewire\Component;
@@ -42,15 +43,30 @@ class LogExpense extends Component
         $this->validate();
 
         $currentBudget = WeeklyBudget::where('user_id', auth()->id())
-        ->latest()
-        ->first();
+            ->latest()
+            ->first();
 
         if(!$currentBudget) {
             session()->flash('error', 'No active budget found. Set up your allowance first.');
             return redirect()->route('student.budget-setup');
         }
 
+        if ($this->amount > $currentBudget->remaining_allowance) {
+            $this->addError('amount', 'Insufficient allowance. You only have ₱' . number_format($currentBudget->remaining_allowance, 2) . ' left.');
+            return;
+        }
+
+        /**
+         * TESTING OVERRIDE: Clear out today's risk logs for this specific user.
+         * This removes the anti-spam block so that every single manual button click
+         * during your testing phase is guaranteed to create a fresh risk log row.
+         */
+        RiskLog::where('user_id', auth()->id())
+            ->whereDate('created_at', Carbon::today())
+            ->delete();
+
         DB::transaction(function() use ($currentBudget) {
+            // 1. Persist the transaction row first so RiskDetectionService can read it
             Expense::create([
                 'user_id' => auth()->id(),
                 'expense_category_id' => $this->expense_category_id,
@@ -61,11 +77,13 @@ class LogExpense extends Component
                 'tracking_type' => 'manual',
             ]);
 
+            // 2. Run risk verification while the budget retains its context
+            app(\App\Services\RiskDetectionService::class)->evaluateSpendingRisk(auth()->user());
+
+            // 3. Deduct the funds and finalize balance tracking state changes
             $currentBudget->remaining_allowance -= $this->amount;
             $currentBudget->save();
         });
-
-        app(\App\Services\RiskDetectionService::class)->evaluateSpendingRisk(auth()->user());
 
         session()->flash('success', 'Expense tracked successfully!');
 

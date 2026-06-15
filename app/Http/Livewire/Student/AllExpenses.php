@@ -4,6 +4,7 @@ namespace App\Http\Livewire\Student;
 
 use App\Models\Expense;
 use App\Models\WeeklyBudget;
+use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Livewire\Component;
 use Livewire\WithPagination;
@@ -59,6 +60,13 @@ class AllExpenses extends Component
 
                 // 3. Delete the transaction row safely
                 $expense->delete();
+
+                \App\Models\RiskLog::where('user_id', auth()->id())
+                    ->whereDate('created_at', Carbon::today())
+                    ->delete();
+
+                // 4. Run risk re-evaluation
+                app(\App\Services\RiskDetectionService::class)->evaluateSpendingRisk(auth()->user());
             });
 
             $this->emit('refreshSavings');

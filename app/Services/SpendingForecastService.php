@@ -13,7 +13,6 @@ class SpendingForecastService
 {
     public function generateForecast($user)
     {
-
         $activeBudget = WeeklyBudget::where('user_id', $user->id)->latest()->first();
         if (!$activeBudget) {
             return ['status' => 'error', 'message' => 'No active tracking budget period established yet.'];
@@ -36,7 +35,6 @@ class SpendingForecastService
         $daysRemainingInCycle = 7 - $daysElapsed;
         $isCriticalState = $projectedDaysLeft < $daysRemainingInCycle;
 
-
         if ($isCriticalState) {
             $alreadyLoggedToday = RiskLog::where('user_id', $user->id)
                 ->where('created_at', '>=', Carbon::today())
@@ -48,7 +46,7 @@ class SpendingForecastService
                     'user_id'       => $user->id,
                     'anomaly_type'  => 'early_week_depletion', 
                     'severity_tier' => 'high',                 
-                    'description'   => "Deficit Risk Warning: Student burn velocity is ₱" . number_format($dailyVelocity, 2) . "/day. Balance projection indicates early depletion in " . round($projectedDaysLeft, 1) . " days.",
+                    'description'   => "Deficit Risk Warning: Student burn velocity is PHP " . number_format($dailyVelocity, 2) . "/day. Balance projection indicates early depletion in " . round($projectedDaysLeft, 1) . " days.",
                     'resolved'      => false,
                 ]);
             }
@@ -66,6 +64,17 @@ class SpendingForecastService
             'active_risks_count' => $riskLogsCountThisWeek
         ];
 
+        // NEW: Generate the linear projection points for the burn trajectory chart
+        $chartLabels = [];
+        $chartValues = [];
+        $totalProjectedSteps = max(1, min(14, (int)ceil($projectedDaysLeft))); // Safeguard window bounds to max 14 days
+
+        for ($i = 0; $i <= $totalProjectedSteps; $i++) {
+            $chartLabels[] = Carbon::now()->addDays($i)->format('M d');
+            $calculatedValue = $remainingBalance - ($dailyVelocity * $i);
+            $chartValues[] = max(0, round($calculatedValue, 2));
+        }
+
         try {
             $response = Http::timeout(6)
                 ->withHeaders([
@@ -80,7 +89,7 @@ class SpendingForecastService
                         ],
                         [
                             'role' => 'user',
-                            'content' => "Total Weekly Allowance Pool: ₱{$actualStartingPool}. Left in Wallet: ₱{$remainingBalance}. Spending Speed: ₱{$dailyVelocity}/day. Days left before money runs out: {$projectedDaysLeft} days. Times they blew their budget limits this week: {$riskLogsCountThisWeek}."
+                            'content' => "Total Weekly Allowance Pool: PHP {$actualStartingPool}. Left in Wallet: PHP {$remainingBalance}. Spending Speed: PHP {$dailyVelocity}/day. Days left before money runs out: {$projectedDaysLeft} days. Times they blew their budget limits this week: {$riskLogsCountThisWeek}."
                         ]
                     ]
                 ]);
@@ -90,23 +99,30 @@ class SpendingForecastService
                     'status' => 'success',
                     'metrics' => $localForecastMetrics,
                     'ai_coach_text' => $response->json()['choices'][0]['message']['content'],
-                    'source' => 'Groq AI Predictive Engine'
+                    'source' => 'Groq AI Predictive Engine',
+                    'chart' => [
+                        'labels' => $chartLabels,
+                        'values' => $chartValues
+                    ]
                 ];
             }
 
-            Log::error("Groq API Error Status: " . $response->status() . " | Body: " . $response->body());
             throw new \Exception('API response failure');
 
         } catch (\Exception $e) {
             Log::error("Spending Forecast Service Exception: " . $e->getMessage());
 
-            $fallbackAdvice = "Heads up! Based on how fast you're spending right now (₱" . $localForecastMetrics['daily_velocity'] . "/day), your remaining allowance will only last about " . $localForecastMetrics['projected_days_left'] . " more days. You've also triggered " . $riskLogsCountThisWeek . " budget safety alerts this week, so it might be a good time to slow down your expenses.";
+            $fallbackAdvice = "Based on how fast you are spending right now (PHP " . $localForecastMetrics['daily_velocity'] . "/day), your remaining allowance will only last about " . $localForecastMetrics['projected_days_left'] . " more days. You have triggered " . $riskLogsCountThisWeek . " budget safety alerts this week, so it might be a good time to pace your expenses.";
 
             return [
                 'status' => 'success',
                 'metrics' => $localForecastMetrics,
                 'ai_coach_text' => $fallbackAdvice,
-                'source' => 'Local Statistical Module (System Offline)'
+                'source' => 'Local Statistical Module (System Offline)',
+                'chart' => [
+                    'labels' => $chartLabels,
+                    'values' => $chartValues
+                ]
             ];
         }
     }

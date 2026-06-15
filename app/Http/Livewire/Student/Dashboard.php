@@ -125,11 +125,26 @@ class Dashboard extends Component
     
                 // 3. Purge the expense record safely out of the ledger
                 $expense->delete();
+
+                /**
+                 * RISK METRIC SYNC: Clear today's lockout records before calculation.
+                 * Wiping this allows the service to determine if removing this transaction
+                 * completely drops their burn velocity back into the safe zone.
+                 */
+                \App\Models\RiskLog::where('user_id', auth()->id())
+                    ->whereDate('created_at', Carbon::today())
+                    ->delete();
+
+                // 4. Force calculation assessment based on lower spending totals
+                app(\App\Services\RiskDetectionService::class)->evaluateSpendingRisk(auth()->user());
             });
     
             // Now this method reads the freshly updated property in memory!
             $this->computeBehavioralMetrics();
+            
+            //  Livewire Event Dispatchers
             $this->emit('refreshSavings');
+            $this->emit('expenseUpdated'); // This tells your chart component to re-render instantly!
     
             session()->flash('success', 'Transaction removed. Balance safely adjusted and savings progress updated!');
         } else {

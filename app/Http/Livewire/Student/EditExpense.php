@@ -52,6 +52,7 @@ class EditExpense extends Component
 
         if(!$currentBudget) {
             session()->flash('error', 'Active budget cycle not found.');
+            return; 
         }
 
         DB::transaction(function () use ($expense, $currentBudget) {
@@ -71,6 +72,11 @@ class EditExpense extends Component
             ]);
         });
 
+        \App\Models\RiskLog::where('user_id', auth()->id())
+            ->whereDate('created_at', Carbon::today())
+            ->delete();
+
+        // Regenerate and evaluate the alert based on the edited numerical metrics
         app(\App\Services\RiskDetectionService::class)->evaluateSpendingRisk(auth()->user());
 
         session()->flash('success', 'Transaction modified. Limits calculated smoothly!');

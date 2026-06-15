@@ -49,78 +49,78 @@ class GoalsManager extends Component
     }
 
     public function addFunds()
-{
-    $goal = SavingsGoal::where('id', $this->fundingGoalId)
-        ->where('user_id', auth()->id())
-        ->firstOrFail();
+    {
+        $goal = SavingsGoal::where('id', $this->fundingGoalId)
+            ->where('user_id', auth()->id())
+            ->firstOrFail();
 
-    // 1. Fetch the active budget cycle
-    $currentBudget = WeeklyBudget::where('user_id', auth()->id())
-        ->latest() 
-        ->first();
+        // 1. Fetch the active budget cycle
+        $currentBudget = WeeklyBudget::where('user_id', auth()->id())
+            ->latest() 
+            ->first();
 
-    if (!$currentBudget) {
-        session()->flash('error', 'No active budget cycle found to draw funds from.');
-        return;
-    }
-
-    // Calculate exactly how much is left to complete the goal
-    $remainingNeeded = $goal->target_amount - $goal->current_saved;
-
-    // 2. Strict Dynamic Validation
-    $this->validate([
-        'fund_amount' => [
-            'required',
-            'numeric',
-            'min:0.01',
-            'max:' . $currentBudget->remaining_allowance, 
-            'max:' . $remainingNeeded,                    
-        ]
-    ], [
-        'fund_amount.max' => 'Injection halted! The amount exceeds either your remaining budget (₱' . number_format($currentBudget->remaining_allowance, 2) . ') or what is left to finish this goal (₱' . number_format($remainingNeeded, 2) . ').'
-    ]);
-
-    // 3. Database Transaction to sync all components safely
-    DB::transaction(function () use ($goal, $currentBudget) {
-        $newSavedBalance = $goal->current_saved + $this->fund_amount;
-        $status = $goal->status;
-        
-        if ($newSavedBalance >= $goal->target_amount) {
-            $status = 'achieved';
-            $newSavedBalance = $goal->target_amount; 
+        if (!$currentBudget) {
+            session()->flash('error', 'No active budget cycle found to draw funds from.');
+            return;
         }
 
-        // A. Update the Savings Goal record
-        $goal->update([
-            'current_saved' => $newSavedBalance,
-            'status' => $status
+        // Calculate exactly how much is left to complete the goal
+        $remainingNeeded = $goal->target_amount - $goal->current_saved;
+
+        // 2. Strict Dynamic Validation
+        $this->validate([
+            'fund_amount' => [
+                'required',
+                'numeric',
+                'min:0.01',
+                'max:' . $currentBudget->remaining_allowance, 
+                'max:' . $remainingNeeded,                    
+            ]
+        ], [
+            'fund_amount.max' => 'Injection halted! The amount exceeds either your remaining budget (₱' . number_format($currentBudget->remaining_allowance, 2) . ') or what is left to finish this goal (₱' . number_format($remainingNeeded, 2) . ').'
         ]);
 
-        // B. Subtract the amount from your actual wallet budget allowance
-        $currentBudget->decrement('remaining_allowance', $this->fund_amount);
+        // 3. Database Transaction to sync all components safely
+        DB::transaction(function () use ($goal, $currentBudget) {
+            $newSavedBalance = $goal->current_saved + $this->fund_amount;
+            $status = $goal->status;
+            
+            if ($newSavedBalance >= $goal->target_amount) {
+                $status = 'achieved';
+                $newSavedBalance = $goal->target_amount; 
+            }
 
-        // C. Fetch or generate the 'Savings' type category to satisfy foreign key constraint
-        $savingsCategory = \App\Models\ExpenseCategory::firstOrCreate(
-            ['name' => 'Savings'],
-            ['description' => 'Capital intentionally set aside for milestone savings targets.']
-        );
+            // A. Update the Savings Goal record
+            $goal->update([
+                'current_saved' => $newSavedBalance,
+                'status' => $status
+            ]);
 
-        // D. Log it as an official Expense transaction mapped to the category
-        \App\Models\Expense::create([
-            'user_id' => auth()->id(),
-            'expense_category_id' => $savingsCategory->id,
-            'savings_goal_id' => $goal->id, 
-            'item_name' => "Saved: {$goal->target_name}",
-            'merchant_name' => 'Piggy Bank Vault',
-            'amount' => $this->fund_amount,
-            'transaction_date' => now(),
-            'tracking_type' => 'manual',
-        ]);
-    });
+            // B. Subtract the amount from your actual wallet budget allowance
+            $currentBudget->decrement('remaining_allowance', $this->fund_amount);
 
-    $this->fundingGoalId = null;
-    session()->flash('success', 'Funds successfully transferred from your budget balance to your savings goal!');
-}
+            // C. Fetch or generate the 'Savings' type category to satisfy foreign key constraint
+            $savingsCategory = \App\Models\ExpenseCategory::firstOrCreate(
+                ['name' => 'Savings'],
+                ['description' => 'Capital intentionally set aside for milestone savings targets.']
+            );
+
+            // D. Log it as an official Expense transaction mapped to the category
+            \App\Models\Expense::create([
+                'user_id' => auth()->id(),
+                'expense_category_id' => $savingsCategory->id,
+                'savings_goal_id' => $goal->id, 
+                'item_name' => "{$goal->target_name}",
+                'merchant_name' => 'Savings Goal',
+                'amount' => $this->fund_amount,
+                'transaction_date' => now(),
+                'tracking_type' => 'manual',
+            ]);
+        });
+
+        $this->fundingGoalId = null;
+        session()->flash('success', 'Funds successfully transferred from your budget balance to your savings goal!');
+    }
 
     public function abandonGoal($id)
     {

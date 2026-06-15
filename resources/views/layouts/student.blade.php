@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" class="h-full bg-slate-50">
+<html lang="en" class="min-h-screen bg-slate-50">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -8,7 +8,7 @@
     <script src="{{ asset('js/chart.min.js') }}"></script>
     @livewireStyles
 </head>
-<body class="h-full font-sans antialiased text-slate-900">
+<body class="min-h-screen font-sans antialiased text-slate-900">
 
     <header class="bg-white border-b border-slate-200/80 sticky top-0 z-50 shadow-[0_2px_8px_-4px_rgba(0,0,0,0.05)]">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -16,9 +16,17 @@
                 
                 <div class="flex items-center gap-6">
                     <a href="{{ route('student.dashboard') }}" class="flex items-center gap-2.5 group">
+                        <!-- Upgraded Fintech Animal Icon (Geometric Frog for Agile Budgeting & Leaping Obstacles) -->
                         <div class="h-8 w-8 bg-indigo-600 rounded-lg flex items-center justify-center text-white shadow-sm shadow-indigo-600/20 transition-transform group-hover:scale-95">
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+                                <!-- Top prominent frog eyes -->
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M7 10a3 3 0 0 1 5-2.24A3 3 0 0 1 17 10"></path>
+                                <circle cx="9" cy="10" r="0.75" fill="currentColor"></circle>
+                                <circle cx="15" cy="10" r="0.75" fill="currentColor"></circle>
+                                <!-- Modern, clean jaw/face profile -->
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M4 12c0-1.5 1.5-3 4-3h8c2.5 0 4 1.5 4 3 0 3.5-3.5 6-8 6s-8-2.5-8-6z"></path>
+                                <!-- The "Leap" Chevron (Doubles as a mouth and a classic fintech chart growth indicator) -->
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 14l3-1.5 3 1.5"></path>
                             </svg>
                         </div>
                         <span class="font-black tracking-tight text-slate-900 text-sm sm:text-base group-hover:text-indigo-600 transition-colors">BehavioralBudget</span>
@@ -35,11 +43,11 @@
                         </a>
                         <a href="{{ route('student.simulation') }}" 
                            class="px-3 py-2 rounded-xl text-xs font-extrabold transition-all {{ request()->routeIs('student.simulation') ? 'bg-indigo-50 text-indigo-600' : 'text-slate-500 hover:bg-slate-50/80 hover:text-slate-900' }}">
-                            What-If Simulation
+                            Simulator
                         </a>
                         <a href="{{ route('student.goals') }}" 
                            class="px-3 py-2 rounded-xl text-xs font-extrabold transition-all {{ request()->routeIs('student.goals') ? 'bg-indigo-50 text-indigo-600' : 'text-slate-500 hover:bg-slate-50/80 hover:text-slate-900' }}">
-                            Savings Goal
+                            Goals
                         </a>
                     </nav>
                 </div>
@@ -65,10 +73,10 @@
                     Spending Forecast
                 </a>
                 <a href="{{ route('student.simulation') }}" class="px-3 py-1.5 rounded-lg text-xs font-extrabold whitespace-nowrap transition-colors {{ request()->routeIs('student.simulation') ? 'bg-indigo-50 text-indigo-600' : 'text-slate-500' }}">
-                    What-If Simulation
+                    Simulator
                 </a>
                 <a href="{{ route('student.goals') }}" class="px-3 py-1.5 rounded-lg text-xs font-extrabold whitespace-nowrap transition-colors {{ request()->routeIs('student.goals') ? 'bg-indigo-50 text-indigo-600' : 'text-slate-500' }}">
-                    Savings Goal
+                    Goals
                 </a>
             </div>
         </div>

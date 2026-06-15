@@ -14,7 +14,6 @@ class SpendingForecast extends Component
      */
     public function mount()
     {
-        // Execute our decoupled hybrid forecasting service architecture
         $service = app(SpendingForecastService::class);
         $this->forecastResult = $service->generateForecast(auth()->user());
     }
