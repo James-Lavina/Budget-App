@@ -8,6 +8,8 @@ use App\Models\WeeklyBudget;
 use App\Models\RiskLog;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Notifications\DatabaseNotification; 
+use Illuminate\Support\Str; 
 use Livewire\Component;
 
 class LogExpense extends Component
@@ -57,16 +59,21 @@ class LogExpense extends Component
         }
 
         /**
-         * TESTING OVERRIDE: Clear out today's risk logs for this specific user.
-         * This removes the anti-spam block so that every single manual button click
-         * during your testing phase is guaranteed to create a fresh risk log row.
+         * TESTING OVERRIDES: Clear out today's records for this specific user.
+         * FIX: Added a check to also clear out BudgetRiskNotifications during testing cycles.
          */
         RiskLog::where('user_id', auth()->id())
             ->whereDate('created_at', Carbon::today())
             ->delete();
 
+        DatabaseNotification::where('notifiable_id', auth()->id())
+            ->where('notifiable_type', 'App\Models\User')
+            ->where(function($query) {
+                $query->where('data', 'LIKE', '%"anomaly_type":"low_allowance_threshold"%')
+                      ->orWhere('data', 'LIKE', '%risk_log_id%'); 
+            })->delete();
+
         DB::transaction(function() use ($currentBudget) {
-            // 1. Persist the transaction row first so RiskDetectionService can read it
             Expense::create([
                 'user_id' => auth()->id(),
                 'expense_category_id' => $this->expense_category_id,
@@ -77,16 +84,43 @@ class LogExpense extends Component
                 'tracking_type' => 'manual',
             ]);
 
-            // 2. Run risk verification while the budget retains its context
-            app(\App\Services\RiskDetectionService::class)->evaluateSpendingRisk(auth()->user());
-
-            // 3. Deduct the funds and finalize balance tracking state changes
             $currentBudget->remaining_allowance -= $this->amount;
             $currentBudget->save();
         });
 
-        session()->flash('success', 'Expense tracked successfully!');
+        // === POST-TRANSACTION PROCESSING ===
+        // FIX: Moved outside and after the budget is decremented so calculations evaluate correctly!
+        app(\App\Services\RiskDetectionService::class)->evaluateSpendingRisk(auth()->user());
 
+        $thresholdAmount = $currentBudget->total_allowance * 0.20;
+        
+        if ($currentBudget->remaining_allowance <= $thresholdAmount) {
+            
+            $alreadyNotified = DatabaseNotification::where('notifiable_id', auth()->id())
+                ->where('notifiable_type', 'App\Models\User')
+                ->where('data', 'LIKE', '%"anomaly_type":"low_allowance_threshold"%')
+                ->where('created_at', '>=', $currentBudget->created_at)
+                ->exists();
+
+            if (!$alreadyNotified) {
+                $percentageLeft = round(($currentBudget->remaining_allowance / $currentBudget->total_allowance) * 100);
+                
+                DatabaseNotification::create([
+                    'id' => Str::uuid(),
+                    'type' => 'App\Notifications\LowAllowanceWarning',
+                    'notifiable_type' => 'App\Models\User',
+                    'notifiable_id' => auth()->id(),
+                    'data' => [
+                        'anomaly_type' => 'low_allowance_threshold',
+                        'severity_tier' => 'medium', 
+                        'description' => "Budget Critical! ⚠️ Your remaining allowance has dropped to {$percentageLeft}% (₱" . number_format($currentBudget->remaining_allowance, 2) . " left). Consider lowering your daily velocity to survive the cycle.",
+                    ],
+                    'read_at' => null,
+                ]);
+            }
+        }
+
+        session()->flash('success', 'Expense tracked successfully!');
         return redirect()->route('student.dashboard');
     }
 

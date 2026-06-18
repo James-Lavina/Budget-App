@@ -6,6 +6,8 @@ use App\Models\Expense;
 use App\Models\WeeklyBudget;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Notifications\DatabaseNotification; // 🧠 Added for tracking notifications
+use Illuminate\Support\Str; // 🧠 Added for compiling message UUIDs
 use Livewire\Component;
 
 class Dashboard extends Component
@@ -44,9 +46,13 @@ class Dashboard extends Component
             DB::transaction(function () {
                 // 1. Capture whatever unspent pocket money they managed to save
                 $unspentSavings = max(0.00, $this->currentBudget->remaining_allowance);
+                $oldTotalAllowance = $this->currentBudget->total_allowance;
+                
+                // Calculate historical performance metrics for the notification
+                $amountSpent = max(0.00, $oldTotalAllowance - $unspentSavings);
                 
                 // 2. Behavioral Rollover Logic: Standard Baseline + Unspent Savings Reward
-                $newWeeklyTotal = $this->currentBudget->total_allowance + $unspentSavings;
+                $newWeeklyTotal = $oldTotalAllowance + $unspentSavings;
 
                 // 3. Persist the updated configuration to advance the schedule forward to today
                 $this->currentBudget->update([
@@ -54,7 +60,29 @@ class Dashboard extends Component
                     'cycle_start_date' => Carbon::today(), // New week timeline officially starts now
                 ]);
                 
-                // 4. Set transactional success alert context for the UI feedback banner
+                // 4. Compile student-friendly text and write to Database Notifications
+                if ($unspentSavings > 0) {
+                    $description = "Weekly Review 📊: Outstanding financial discipline! Last week you spent ₱" . number_format($amountSpent, 2) . " and successfully saved ₱" . number_format($unspentSavings, 2) . ". Your fresh cycle starts with a boosted balance of ₱" . number_format($newWeeklyTotal, 2) . "!";
+                    $severity = 'success';
+                } else {
+                    $description = "Weekly Review 📊: Cycle complete! You used your full ₱" . number_format($oldTotalAllowance, 2) . " allowance last week. A fresh tracking week has started—let's focus on steady daily pacing!";
+                    $severity = 'info';
+                }
+
+                DatabaseNotification::create([
+                    'id' => Str::uuid(),
+                    'type' => 'App\Notifications\WeeklyBudgetReview',
+                    'notifiable_type' => 'App\Models\User',
+                    'notifiable_id' => auth()->id(),
+                    'data' => [
+                        'anomaly_type'  => 'weekly_review',
+                        'severity_tier' => $severity,
+                        'description'   => $description,
+                    ],
+                    'read_at' => null,
+                ]);
+                
+                // 5. Set transactional success alert context for the UI feedback banner
                 if ($unspentSavings > 0) {
                     session()->flash('success', 'Outstanding financial discipline! You saved ₱' . number_format($unspentSavings, 2) . ' last week, which has been rolled over into your balance.');
                 } else {

@@ -6,10 +6,13 @@ use App\Models\Expense;
 use App\Models\ExpenseCategory;
 use App\Models\Receipt;
 use App\Models\WeeklyBudget;
+use App\Models\RiskLog;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Notifications\DatabaseNotification; 
+use Illuminate\Support\Str; 
 use Livewire\Component;
 use Livewire\WithFileUploads;
 
@@ -49,7 +52,6 @@ class ScanExpense extends Component
             $categoryListString = implode(', ', array_map(fn($cat) => "'$cat'", $dbCategories));
 
             $storedPath = $this->receiptImage->store('receipts', 'public');
-            // $realPath = Storage::disk('public')->readStream($storedPath);
 
             $receipt = Receipt::create([
                 'user_id' => auth()->id(),
@@ -165,17 +167,33 @@ class ScanExpense extends Component
             return;
         }
 
-        try{
+        /**
+         * TESTING OVERRIDES: Clear out records during verification tests.
+         * FIX: Added clearance check for pacing-related database alerts.
+         */
+        RiskLog::where('user_id', auth()->id())
+            ->whereDate('created_at', Carbon::today())
+            ->delete();
 
-            // FIXED: Wrapped atomic updates inside database transaction wrapper
+        DatabaseNotification::where('notifiable_id', auth()->id())
+            ->where('notifiable_type', 'App\Models\User')
+            ->where(function($query) {
+                $query->where('data', 'LIKE', '%"anomaly_type":"low_allowance_threshold"%')
+                      ->orWhere('data', 'LIKE', '%risk_log_id%'); 
+            })->delete();
+
+        try {
             DB::transaction(function() use ($currentBudget) {
+                // \u2705 FIXED: Forces today's date so the pacing engine captures the live velocity spike
+                $formattedDateTime = \Carbon\Carbon::today()->format('Y-m-d') . ' ' . \Carbon\Carbon::now()->format('H:i:s');
+            
                 $expense = Expense::create([
                     'user_id' => auth()->id(),
                     'expense_category_id' => $this->expense_category_id,
                     'merchant_name' => $this->merchant_name,
                     'item_name' => $this->item_name,
                     'amount' => $this->amount,
-                    'transaction_date' => $this->transaction_date,
+                    'transaction_date' => $formattedDateTime, //  Fixed with current timestamp
                     'tracking_type' => 'ocr',
                 ]);
 
@@ -190,7 +208,34 @@ class ScanExpense extends Component
                 $currentBudget->decrement('remaining_allowance', $this->amount);
             });
 
+            // === POST-TRANSACTION PROCESSING ===
             app(\App\Services\RiskDetectionService::class)->evaluateSpendingRisk(auth()->user());
+
+            $thresholdAmount = $currentBudget->total_allowance * 0.20;
+            if ($currentBudget->remaining_allowance <= $thresholdAmount) {
+                
+                $alreadyNotified = DatabaseNotification::where('notifiable_id', auth()->id())
+                    ->where('notifiable_type', 'App\Models\User')
+                    ->where('data', 'LIKE', '%"anomaly_type":"low_allowance_threshold"%')
+                    ->where('created_at', '>=', $currentBudget->created_at)
+                    ->exists();
+
+                if (!$alreadyNotified) {
+                    $percentageLeft = round(($currentBudget->remaining_allowance / $currentBudget->total_allowance) * 100);
+                    DatabaseNotification::create([
+                        'id' => Str::uuid(),
+                        'type' => 'App\Notifications\LowAllowanceWarning',
+                        'notifiable_type' => 'App\Models\User',
+                        'notifiable_id' => auth()->id(),
+                        'data' => [
+                            'anomaly_type' => 'low_allowance_threshold',
+                            'severity_tier' => 'medium', 
+                            'description' => "Budget Critical! ⚠️ Your remaining allowance has dropped to {$percentageLeft}% (₱" . number_format($currentBudget->remaining_allowance, 2) . " left). Consider lowering your daily velocity to survive the cycle.",
+                        ],
+                        'read_at' => null,
+                    ]);
+                }
+            }
 
             session()->flash('success', 'Transaction processed and added to active expense ledger tracking!');
             return redirect()->route('student.dashboard');

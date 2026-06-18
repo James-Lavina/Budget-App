@@ -4,7 +4,11 @@ namespace App\Http\Livewire\Student;
 
 use App\Models\SavingsGoal;
 use App\Models\WeeklyBudget;
+use App\Models\RiskLog;
+use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Notifications\DatabaseNotification; 
+use Illuminate\Support\Str; 
 use Livewire\Component;
 
 class GoalsManager extends Component
@@ -54,7 +58,6 @@ class GoalsManager extends Component
             ->where('user_id', auth()->id())
             ->firstOrFail();
 
-        // 1. Fetch the active budget cycle
         $currentBudget = WeeklyBudget::where('user_id', auth()->id())
             ->latest() 
             ->first();
@@ -64,10 +67,8 @@ class GoalsManager extends Component
             return;
         }
 
-        // Calculate exactly how much is left to complete the goal
         $remainingNeeded = $goal->target_amount - $goal->current_saved;
 
-        // 2. Strict Dynamic Validation
         $this->validate([
             'fund_amount' => [
                 'required',
@@ -80,32 +81,43 @@ class GoalsManager extends Component
             'fund_amount.max' => 'Injection halted! The amount exceeds either your remaining budget (₱' . number_format($currentBudget->remaining_allowance, 2) . ') or what is left to finish this goal (₱' . number_format($remainingNeeded, 2) . ').'
         ]);
 
-        // 3. Database Transaction to sync all components safely
-        DB::transaction(function () use ($goal, $currentBudget) {
+        /**
+         * TESTING OVERRIDES: Wipe records before execution step to guarantee
+         * a clean run triggers warning indicators on active dashboards.
+         */
+        RiskLog::where('user_id', auth()->id())
+            ->whereDate('created_at', Carbon::today())
+            ->delete();
+
+        DatabaseNotification::where('notifiable_id', auth()->id())
+            ->where('notifiable_type', 'App\Models\User')
+            ->where('data', 'LIKE', '%"anomaly_type":"low_allowance_threshold"%')
+            ->delete();
+
+        $goalWasAchieved = false;
+
+        DB::transaction(function () use ($goal, $currentBudget, &$goalWasAchieved) {
             $newSavedBalance = $goal->current_saved + $this->fund_amount;
             $status = $goal->status;
             
             if ($newSavedBalance >= $goal->target_amount) {
                 $status = 'achieved';
                 $newSavedBalance = $goal->target_amount; 
+                $goalWasAchieved = true; 
             }
 
-            // A. Update the Savings Goal record
             $goal->update([
                 'current_saved' => $newSavedBalance,
                 'status' => $status
             ]);
 
-            // B. Subtract the amount from your actual wallet budget allowance
             $currentBudget->decrement('remaining_allowance', $this->fund_amount);
 
-            // C. Fetch or generate the 'Savings' type category to satisfy foreign key constraint
             $savingsCategory = \App\Models\ExpenseCategory::firstOrCreate(
                 ['name' => 'Savings'],
                 ['description' => 'Capital intentionally set aside for milestone savings targets.']
             );
 
-            // D. Log it as an official Expense transaction mapped to the category
             \App\Models\Expense::create([
                 'user_id' => auth()->id(),
                 'expense_category_id' => $savingsCategory->id,
@@ -118,8 +130,59 @@ class GoalsManager extends Component
             ]);
         });
 
+        // === POST-TRANSACTION PROCESSING ===
+
+        if ($goalWasAchieved) {
+            DatabaseNotification::create([
+                'id' => Str::uuid(), 
+                'type' => 'App\Notifications\SavingsGoalAchieved', 
+                'notifiable_type' => 'App\Models\User',
+                'notifiable_id' => auth()->id(),
+                'data' => [
+                    'anomaly_type' => 'goal_achieved',
+                    'severity_tier' => 'success', 
+                    'description' => 'Target Smashed! 🎯 You successfully saved ₱' . number_format($goal->target_amount, 2) . ' for your "' . $goal->target_name . '" goal.',
+                ],
+                'read_at' => null, 
+            ]);
+        }
+
+        app(\App\Services\RiskDetectionService::class)->evaluateSpendingRisk(auth()->user());
+
+        // FIX: Aligned property names and replaced arrow query string match parameters
+        $thresholdAmount = $currentBudget->total_allowance * 0.20;
+        if ($currentBudget->remaining_allowance <= $thresholdAmount) {
+            
+            $alreadyNotified = DatabaseNotification::where('notifiable_id', auth()->id())
+                ->where('notifiable_type', 'App\Models\User')
+                ->where('data', 'LIKE', '%"anomaly_type":"low_allowance_threshold"%')
+                ->where('created_at', '>=', $currentBudget->created_at)
+                ->exists();
+
+            if (!$alreadyNotified) {
+                $percentageLeft = round(($currentBudget->remaining_allowance / $currentBudget->total_allowance) * 100);
+                DatabaseNotification::create([
+                    'id' => Str::uuid(),
+                    'type' => 'App\Notifications\LowAllowanceWarning',
+                    'notifiable_type' => 'App\Models\User',
+                    'notifiable_id' => auth()->id(),
+                    'data' => [
+                        'anomaly_type' => 'low_allowance_threshold',
+                        'severity_tier' => 'medium', 
+                        'description' => "Budget Critical! ⚠️ Your remaining allowance has dropped to {$percentageLeft}% (₱" . number_format($currentBudget->remaining_allowance, 2) . " left). Consider lowering your daily velocity to survive the cycle.",
+                    ],
+                    'read_at' => null,
+                ]);
+            }
+        }
+
         $this->fundingGoalId = null;
-        session()->flash('success', 'Funds successfully transferred from your budget balance to your savings goal!');
+
+        if ($goalWasAchieved) {
+            session()->flash('success', 'Incredible! Target reached. Milestone shifted to your completed vault!');
+        } else {
+            session()->flash('success', 'Funds successfully transferred from your budget balance to your savings goal!');
+        }
     }
 
     public function abandonGoal($id)

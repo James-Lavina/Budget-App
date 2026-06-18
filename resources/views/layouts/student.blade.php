@@ -16,16 +16,12 @@
                 
                 <div class="flex items-center gap-6">
                     <a href="{{ route('student.dashboard') }}" class="flex items-center gap-2.5 group">
-                        <!-- Upgraded Fintech Animal Icon (Geometric Frog for Agile Budgeting & Leaping Obstacles) -->
                         <div class="h-8 w-8 bg-indigo-600 rounded-lg flex items-center justify-center text-white shadow-sm shadow-indigo-600/20 transition-transform group-hover:scale-95">
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                                <!-- Top prominent frog eyes -->
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M7 10a3 3 0 0 1 5-2.24A3 3 0 0 1 17 10"></path>
                                 <circle cx="9" cy="10" r="0.75" fill="currentColor"></circle>
                                 <circle cx="15" cy="10" r="0.75" fill="currentColor"></circle>
-                                <!-- Modern, clean jaw/face profile -->
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M4 12c0-1.5 1.5-3 4-3h8c2.5 0 4 1.5 4 3 0 3.5-3.5 6-8 6s-8-2.5-8-6z"></path>
-                                <!-- The "Leap" Chevron (Doubles as a mouth and a classic fintech chart growth indicator) -->
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 14l3-1.5 3 1.5"></path>
                             </svg>
                         </div>
@@ -56,6 +52,9 @@
                     <span class="hidden md:inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-bold bg-slate-100 text-slate-600 uppercase tracking-wider border border-slate-200/40">
                         Student Account
                     </span>
+                    
+                    <livewire:student.notification-center />
+                    
                     <form method="POST" action="{{ route('logout') }}" class="inline">
                         @csrf
                         <button type="submit" class="inline-flex items-center px-3 py-1.5 rounded-xl text-xs font-bold bg-slate-50 text-slate-600 border border-slate-200/80 hover:bg-rose-50 hover:text-rose-600 hover:border-rose-200/60 transition-all">

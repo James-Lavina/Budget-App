@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\Expense;
 use App\Models\WeeklyBudget;
 use App\Models\RiskLog; 
+use App\Notifications\BudgetRiskNotification; 
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log; 
 use Carbon\Carbon;
@@ -42,13 +43,16 @@ class SpendingForecastService
                 ->exists();
 
             if (!$alreadyLoggedToday) {
-                RiskLog::create([
+                // CHANGED HERE: Captured the model in a variable and notified the user
+                $riskLog = RiskLog::create([
                     'user_id'       => $user->id,
                     'anomaly_type'  => 'early_week_depletion', 
                     'severity_tier' => 'high',                 
                     'description'   => "Deficit Risk Warning: Student burn velocity is PHP " . number_format($dailyVelocity, 2) . "/day. Balance projection indicates early depletion in " . round($projectedDaysLeft, 1) . " days.",
                     'resolved'      => false,
                 ]);
+
+                $user->notify(new BudgetRiskNotification($riskLog));
             }
         }
 
