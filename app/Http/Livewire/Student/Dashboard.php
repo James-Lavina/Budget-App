@@ -6,8 +6,8 @@ use App\Models\Expense;
 use App\Models\WeeklyBudget;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Notifications\DatabaseNotification; // 🧠 Added for tracking notifications
-use Illuminate\Support\Str; // 🧠 Added for compiling message UUIDs
+use Illuminate\Notifications\DatabaseNotification; 
+use Illuminate\Support\Str; 
 use Livewire\Component;
 
 class Dashboard extends Component
@@ -92,6 +92,10 @@ class Dashboard extends Component
         }
     }
 
+    /**
+     * Behavioral Metrics Engine: Formulates an intuitive daily spending countdown.
+     * Subtracts today's live transaction volumes directly from today's quota.
+     */
     public function computeBehavioralMetrics() {
         $today = Carbon::today();
         $startDate = Carbon::parse($this->currentBudget->cycle_start_date);
@@ -107,7 +111,19 @@ class Dashboard extends Component
         $this->daysRemaining = $today->diffInDays($endDate) + 1;
 
         if($this->daysRemaining > 0) {
-            $this->safeToSpend = $this->currentBudget->remaining_allowance / $this->daysRemaining;
+            // 1. Calculate how much the user has already spent TODAY (Using transaction_date)
+            $spentToday = Expense::where('user_id', auth()->id())
+                ->whereDate('transaction_date', Carbon::today())
+                ->sum('amount');
+
+            // 2. Reconstruct what the wallet balance was this morning before today's transactions
+            $startingBudgetForRemainingDays = $this->currentBudget->remaining_allowance + $spentToday;
+
+            // 3. Pinpoint today's total maximum baseline allocation quota
+            $todayStartingQuota = $startingBudgetForRemainingDays / $this->daysRemaining;
+
+            // 4. Real-time Deduction: Safe-to-Spend drops directly as transactions log
+            $this->safeToSpend = max(0.00, $todayStartingQuota - $spentToday);
         } else {
             $this->safeToSpend = 0.00;
         }
