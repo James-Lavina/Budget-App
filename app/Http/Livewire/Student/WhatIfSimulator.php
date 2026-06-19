@@ -4,6 +4,7 @@ namespace App\Http\Livewire\Student;
 
 use Livewire\Component;
 use App\Models\WeeklyBudget;
+use App\Models\Expense; // 🧠 Added to look up today's live transactions
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Http;
 
@@ -53,7 +54,6 @@ class WhatIfSimulator extends Component
         $currentBudget = WeeklyBudget::where('user_id', $userId)->latest()->first();
 
         if ($currentBudget) {
-            // FIX: Successfully mapping your live database values back to the application state
             $this->totalAllowance = floatval($currentBudget->total_allowance);
             $this->currentRemaining = floatval($currentBudget->remaining_allowance);
             $this->alreadySpent = $this->totalAllowance - $this->currentRemaining;
@@ -82,8 +82,16 @@ class WhatIfSimulator extends Component
         if (!empty($this->purchaseAmount) && floatval($this->purchaseAmount) > 0) {
             $this->runSimulation();
         } else {
-            // Otherwise, keep the fields clean and just render your default starting values
-            $this->currentSafeToSpend = $this->currentRemaining / max(1, $this->daysRemaining);
+            // 🌟 SYNCED MATH: Replicate dashboard's daily spending calculation baseline
+            $spentToday = Expense::where('user_id', auth()->id())
+                ->whereDate('transaction_date', Carbon::today())
+                ->sum('amount');
+
+            $startingBudgetForRemainingDays = $this->currentRemaining + $spentToday;
+            $days = max(1, intval($this->daysRemaining));
+            $todayStartingQuota = $startingBudgetForRemainingDays / $days;
+
+            $this->currentSafeToSpend = max(0.00, $todayStartingQuota - $spentToday);
             $this->newSafeToSpend = $this->currentSafeToSpend;
             $this->newRemaining = $this->currentRemaining;
             $this->isDeficit = false;
@@ -109,18 +117,25 @@ class WhatIfSimulator extends Component
         $amount = floatval($this->purchaseAmount ?: 0);
         $days = max(1, intval($this->daysRemaining));
 
-        // Calculate baseline daily allowance limit
-        $this->currentSafeToSpend = $this->currentRemaining / $days;
+        // 🌟 SYNCED MATH: Calculate how much the user has ACTUALLY spent today in reality
+        $spentToday = Expense::where('user_id', auth()->id())
+            ->whereDate('transaction_date', Carbon::today())
+            ->sum('amount');
 
-        // Map post-purchase balances
+        // Reconstruct what the wallet balance was this morning before today's actual transactions
+        $startingBudgetForRemainingDays = $this->currentRemaining + $spentToday;
+        $todayStartingQuota = $startingBudgetForRemainingDays / $days;
+
+        // Current safe to spend right now (exactly matches dashboard metrics)
+        $this->currentSafeToSpend = max(0.00, $todayStartingQuota - $spentToday);
+
+        // Map post-purchase balances (Weekly Remaining perspective)
         $this->newRemaining = $this->currentRemaining - $amount;
         $this->isDeficit = $this->newRemaining < 0;
 
-        if ($this->isDeficit) {
-            $this->newSafeToSpend = 0;
-        } else {
-            $this->newSafeToSpend = $this->newRemaining / $days;
-        }
+        // 🌟 SYNCED MATH: Factor in both reality AND the hypothetical item allocation together
+        $simulatedTotalSpentToday = $spentToday + $amount;
+        $this->newSafeToSpend = max(0.00, $todayStartingQuota - $simulatedTotalSpentToday);
 
         // Dispatch variables to your frontend Chart.js instance canvas layer
         $this->dispatchBrowserEvent('renderWeeklyImpactChart', [
@@ -157,7 +172,7 @@ class WhatIfSimulator extends Component
             $financialFact = "This purchase is dangerous because it causes a budget overdraft of ₱{$deficitAmount}. It wipes out their entire remaining allowance, dropping their daily safe-to-spend cash from ₱" . number_format($this->currentSafeToSpend, 2) . " down to ₱0.00.";
         } else {
             $dropAmount = number_format(($this->currentSafeToSpend - $this->newSafeToSpend), 2);
-            $financialFact = "This purchase is mathematically safe, but it reduces their remaining allowance. It drops their daily safe-to-spend limit from ₱" . number_format($this->currentSafeToSpend, 2) . " down to ₱" . number_format($this->newSafeToSpend, 2) . " (a reduction of ₱{$dropAmount} per day).";
+            $financialFact = "This purchase is mathematically safe for the week, but it exhausts today's pocket money allowance. It drops their immediate daily safe-to-spend limit from ₱" . number_format($this->currentSafeToSpend, 2) . " down to ₱" . number_format($this->newSafeToSpend, 2) . " (a reduction of ₱{$dropAmount} for today).";
         }
 
         try {
@@ -201,6 +216,10 @@ class WhatIfSimulator extends Component
             } elseif ($percentageOfRemaining >= 100 || $this->newRemaining == 0) {
                 $this->aiInsight = "Buying {$item} right now will completely clean out every single peso you have left for the week. Your daily spending limit drops straight to ₱0.00, leaving you with nothing until the next reset.";
                 
+            } elseif ($this->newSafeToSpend == 0) {
+                // 🌟 EXCELLENT COMPLIANCE EDGE: Smart feedback if they exhaust today's allowance but have weekly runway
+                $this->aiInsight = "Grabbing {$item} will exhaust your entire safe daily allowance limit for today. While your remaining days are technically secure, your daily counter will drop to ₱0.00 until tomorrow morning.";
+
             } elseif ($percentageOfRemaining > 50) {
                 $dropPercent = number_format(($this->currentSafeToSpend - $this->newSafeToSpend), 2);
                 $this->aiInsight = "Grabbing {$item} eats up more than half of what you have left for the week. It drops your daily spending cash by ₱{$dropPercent}, so make sure it is worth pinching pennies.";
