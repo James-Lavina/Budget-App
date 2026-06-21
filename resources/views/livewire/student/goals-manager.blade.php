@@ -1,7 +1,7 @@
 <div class="min-h-screen bg-slate-50/50 py-10 px-4 sm:px-6 lg:px-8">
     <div class="max-w-6xl mx-auto">
         
-        <!-- Header Component with Breadcrumbs and New Subheading -->
+        <!-- Header Component Context -->
         <div class="mb-8">
             <nav class="flex items-center gap-1.5 text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-3">
                 <a href="{{ route('student.dashboard') }}" class="hover:text-indigo-600 transition-colors">Dashboard</a>
@@ -67,11 +67,12 @@
             </div>
         </div>
 
+        <!-- MODAL 1: ADD FUNDS INTO A TARGET GOAL -->
         @if($fundingGoalId)
             <div class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
                 <div class="bg-white w-full max-w-sm rounded-2xl shadow-xl border border-slate-200 p-6 space-y-5">
                     <div class="flex justify-between items-start">
-                        <h3 class="text-sm font-black text-slate-900 tracking-tight">Boost Your Goal</h3>
+                        <h3 class="text-sm font-black text-slate-900 tracking-tight">Add Savings to Goal</h3>
                         <button wire:click="$set('fundingGoalId', null)" class="text-slate-400 hover:text-slate-600"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l18 18"></path></svg></button>
                     </div>
 
@@ -87,9 +88,40 @@
 
                         <div class="flex items-center gap-2 pt-2">
                             <button type="button" wire:click="$set('fundingGoalId', null)" class="px-4 py-2 rounded-xl border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-50">Go Back</button>
-                            <button type="submit" class="flex-1 px-4 py-2 rounded-xl text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 text-center pt-2.5">Stash Now</button>
+                            <button type="submit" class="flex-1 px-4 py-2 rounded-xl text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 text-center pt-2.5">Confirm Savings</button>
                         </div>
                     </form>
+                </div>
+            </div>
+        @endif
+
+        <!-- MODAL 2: CONFIRM ARCHIVING GOAL -->
+        @if($confirmingAbandonId)
+            <div class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                <div class="bg-white w-full max-w-sm rounded-2xl shadow-xl border border-slate-200 p-6 space-y-4">
+                    <h3 class="text-sm font-black text-slate-900 tracking-tight">Archive Savings Goal?</h3>
+                    <p class="text-xs text-slate-500 font-medium leading-relaxed">Are you sure you want to archive this goal? You can still view or restore it inside your Archived folder later.</p>
+                    <div class="flex items-center gap-2 pt-2">
+                        <button type="button" wire:click="$set('confirmingAbandonId', null)" class="px-4 py-2 rounded-xl border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-50">Cancel</button>
+                        <button type="button" wire:click="executeAbandon" class="flex-1 px-4 py-2 rounded-xl text-xs font-bold text-white bg-amber-500 hover:bg-amber-600 text-center pt-2.5">Archive Goal</button>
+                    </div>
+                </div>
+            </div>
+        @endif
+
+        <!-- MODAL 3: CONFIRM PERMANENT DELETION WITH CASCADE WARNING -->
+        @if($confirmingDeleteId)
+            <div class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                <div class="bg-white w-full max-w-sm rounded-2xl shadow-xl border border-slate-200 p-6 space-y-4">
+                    <h3 class="text-sm font-black text-rose-600 tracking-tight flex items-center gap-1.5">
+                        <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+                        Permanently Delete Goal?
+                    </h3>
+                    <p class="text-xs text-slate-500 font-medium leading-relaxed">Warning! This action cannot be undone. All matching expense allocation records associated with this specific milestone will be permanently removed to keep ledger balances clean.</p>
+                    <div class="flex items-center gap-2 pt-2">
+                        <button type="button" wire:click="$set('confirmingDeleteId', null)" class="px-4 py-2 rounded-xl border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-50">Cancel</button>
+                        <button type="button" wire:click="executeDelete" class="flex-1 px-4 py-2 rounded-xl text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 text-center pt-2.5">Permanently Delete</button>
+                    </div>
                 </div>
             </div>
         @endif

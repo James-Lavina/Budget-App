@@ -1,7 +1,6 @@
 <div class="max-w-7xl mx-auto p-4 sm:p-6 lg:p-8 space-y-8" wire:init="initSimulation">
     
     <div class="border-b border-slate-200/60 pb-6">
-        
         <nav class="flex items-center gap-1.5 text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-3">
             <a href="{{ route('student.dashboard') }}" class="hover:text-indigo-600 transition-colors">Dashboard</a>
             <svg class="w-2.5 h-2.5 text-slate-300 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 5l7 7-7 7"></path></svg>
@@ -215,7 +214,7 @@
                 breakdownChart.data.datasets = [
                     { label: 'Already Consumed', data: [data.spent], backgroundColor: '#e2e8f0', borderRadius: 6 },
                     { label: 'Simulated Purchase Outlay', data: [data.simulated], backgroundColor: '#6366f1', borderRadius: 6 },
-                    { label: 'Residual Liquid Reserve', data: [data.remaining], backgroundColor: '#10b981', borderRadius: 6 }
+                    { label: 'Remaining Cash Balance', data: [data.remaining], backgroundColor: '#10b981', borderRadius: 6 }
                 ];
                 breakdownChart.update();
             });

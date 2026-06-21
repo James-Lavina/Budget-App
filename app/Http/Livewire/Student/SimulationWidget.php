@@ -12,7 +12,6 @@ class SimulationWidget extends Component
         'quickAmount' => 'required|numeric|min:1|max:50000',
     ];
 
-    // Customized error validation messages for a more supportive tone
     protected $messages = [
         'quickAmount.required' => 'Type in an amount first to test it out!',
         'quickAmount.numeric'  => 'Please enter numbers only.',
@@ -24,7 +23,7 @@ class SimulationWidget extends Component
     {
         $this->validate();
 
-        // Redirect directly to the full simulation route with parameters
+        // Pass fields forward through standard query parameters string configurations
         return redirect()->route('student.simulation', [
             'scenarioType' => 'major_purchase',
             'purchaseAmount' => $this->quickAmount

@@ -52,10 +52,19 @@
     @if($type === 'manager')
         <div class="pt-2 border-t border-slate-100 flex items-center justify-between gap-1.5">
             @if($goal->status === 'active')
-                <button wire:click="openFundingModal({{ $goal->id }})" class="flex-1 py-1.5 px-3 bg-indigo-50 hover:bg-indigo-100/80 text-indigo-700 font-bold text-[11px] rounded-lg transition-colors text-center">Inject Funds</button>
-                <button wire:click="abandonGoal({{ $goal->id }})" wire:confirm="Archive this milestone?" class="py-1.5 px-2.5 border border-slate-200 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all text-center"><svg class="w-3.5 h-3.5 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-14v4M1 7h22"></path></svg></button>
+                <button type="button" wire:click="openFundingModal({{ $goal->id }})" class="flex-1 py-1.5 px-3 bg-indigo-50 hover:bg-indigo-100/80 text-indigo-700 font-bold text-[11px] rounded-lg transition-colors text-center">Add Savings</button>
+                <button type="button" wire:click="abandonGoal({{ $goal->id }})" class="py-1.5 px-2.5 border border-slate-200 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all text-center"><svg class="w-3.5 h-3.5 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-14v4M1 7h22"></path></svg></button>
+            
+            @elseif($goal->status === 'abandoned')
+                <button type="button" wire:click="unarchiveGoal({{ $goal->id }})" class="flex-1 py-1.5 px-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-[11px] rounded-lg transition-colors text-center">
+                    Unarchive
+                </button>
+                <button type="button" wire:click="deleteGoal({{ $goal->id }})" class="py-1.5 px-2.5 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-lg transition-all text-center">
+                    <svg class="w-3.5 h-3.5 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-14v4M1 7h22"></path></svg>
+                </button>
+
             @else
-                <button wire:click="deleteGoal({{ $goal->id }})" wire:confirm="Permanently delete this history record?" class="w-full py-1.5 px-3 bg-slate-50 hover:bg-rose-50 text-slate-400 hover:text-rose-600 font-bold text-[11px] rounded-lg transition-colors flex items-center justify-center gap-1"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-14v4M1 7h22"></path></svg>Purge History Log</button>
+                <button type="button" wire:click="deleteGoal({{ $goal->id }})" class="w-full py-1.5 px-3 bg-slate-50 hover:bg-rose-50 text-slate-400 hover:text-rose-600 font-bold text-[11px] rounded-lg transition-colors flex items-center justify-center gap-1"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-14v4M1 7h22"></path></svg>Delete Permanently</button>
             @endif
         </div>
     @endif
