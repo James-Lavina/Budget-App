@@ -62,24 +62,38 @@ class WhatIfSimulator extends Component
             return;
         }
 
+        $today = Carbon::today();
         $cycleStartDate = Carbon::parse($currentBudget->cycle_start_date)->startOfDay();
-        $cycleEndDate = $cycleStartDate->copy()->addDays(6)->endOfDay();
+        
+        // 🌟 SYNCHRONIZED FIX: Calculate the dynamic tracking boundary using chosen day-name configs
+        $cycleEndDate = $cycleStartDate->copy()->next($currentBudget->reset_day)->subDay()->endOfDay();
+
+        // Check if calendar dates have advanced past active monitoring states
+        if ($today->greaterThan($cycleEndDate)) {
+            $this->daysRemaining = 0;
+            $this->currentSafeToSpend = 0.00;
+            $this->newSafeToSpend = 0.00;
+            return;
+        }
+
+        // 🌟 SYNCHRONIZED FIX: Mirror the precise mathematical day count steps used on Dashboard
+        $this->daysRemaining = $today->diffInDays($cycleEndDate->copy()->startOfDay()) + 1;
 
         $realConsumed = Expense::where('user_id', auth()->id())
             ->whereBetween('transaction_date', [$cycleStartDate, $cycleEndDate])
             ->sum('amount');
 
-        $now = Carbon::now()->startOfDay();
-        $this->daysRemaining = max(1, $now->diffInDays($cycleEndDate->copy()->startOfDay(), false) + 1);
-
         $todaySpent = Expense::where('user_id', auth()->id())
             ->whereDate('transaction_date', Carbon::today())
             ->sum('amount');
 
-        $morningBalance = $currentBudget->remaining_allowance + $todaySpent;
-        $todayStartingQuota = $morningBalance / $this->daysRemaining;
-        
-        $this->currentSafeToSpend = max(0, $todayStartingQuota - $todaySpent);
+        if ($this->daysRemaining > 0) {
+            $morningBalance = $currentBudget->remaining_allowance + $todaySpent;
+            $todayStartingQuota = $morningBalance / $this->daysRemaining;
+            $this->currentSafeToSpend = max(0, $todayStartingQuota - $todaySpent);
+        } else {
+            $this->currentSafeToSpend = 0.00;
+        }
         
         $this->newSafeToSpend = $this->currentSafeToSpend;
         $this->newRemaining = $currentBudget->remaining_allowance;
@@ -109,8 +123,11 @@ class WhatIfSimulator extends Component
 
         $this->loadingAi = true;
 
+        $today = Carbon::today();
         $cycleStartDate = Carbon::parse($currentBudget->cycle_start_date)->startOfDay();
-        $cycleEndDate = $cycleStartDate->copy()->addDays(6)->endOfDay();
+        
+        // 🌟 SYNCHRONIZED FIX: Ensure identical query bounds mapping rules apply to predictions
+        $cycleEndDate = $cycleStartDate->copy()->next($currentBudget->reset_day)->subDay()->endOfDay();
         
         $realConsumed = Expense::where('user_id', auth()->id())
             ->whereBetween('transaction_date', [$cycleStartDate, $cycleEndDate])
@@ -130,16 +147,17 @@ class WhatIfSimulator extends Component
         if ($this->isDeficit) {
             $this->newSafeToSpend = 0;
         } else {
-            // 🌟 FIXED MATHEMATICAL LOGIC: 
-            // We recalculate the daily allowance limits smoothly based on the new reduced pool
             $todaySpent = Expense::where('user_id', auth()->id())
                 ->whereDate('transaction_date', Carbon::today())
                 ->sum('amount');
 
-            $hypotheticalMorningBalance = $this->newRemaining + $todaySpent;
-            $hypotheticalStartingQuota = $hypotheticalMorningBalance / $this->daysRemaining;
-            
-            $this->newSafeToSpend = max(0, $hypotheticalStartingQuota - $todaySpent);
+            if ($this->daysRemaining > 0) {
+                $hypotheticalMorningBalance = $this->newRemaining + $todaySpent;
+                $hypotheticalStartingQuota = $hypotheticalMorningBalance / $this->daysRemaining;
+                $this->newSafeToSpend = max(0, $hypotheticalStartingQuota - $todaySpent);
+            } else {
+                $this->newSafeToSpend = 0.00;
+            }
         }
 
         // Update frontend Chart.js smoothly

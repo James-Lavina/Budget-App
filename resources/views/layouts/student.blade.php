@@ -6,6 +6,7 @@
     <title>Student Behavioral Budget System</title>
     <link rel="stylesheet" href="{{ asset('css/app.css') }}">
     <script src="{{ asset('js/chart.min.js') }}"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
     @livewireStyles
 </head>
 <body class="min-h-screen font-sans antialiased text-slate-900">
@@ -55,12 +56,43 @@
                     
                     <livewire:student.notification-center />
                     
-                    <form method="POST" action="{{ route('logout') }}" class="inline">
-                        @csrf
-                        <button type="submit" class="inline-flex items-center px-3 py-1.5 rounded-xl text-xs font-bold bg-slate-50 text-slate-600 border border-slate-200/80 hover:bg-rose-50 hover:text-rose-600 hover:border-rose-200/60 transition-all">
-                            Logout
+                    <div class="relative" x-data="{ open: false }" @click.outside="open = false">
+                        <button @click="open = !open" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-slate-50 text-slate-600 border border-slate-200/80 hover:bg-slate-100 transition-all select-none">
+                            <span class="truncate max-w-[100px] sm:max-w-[140px]">{{ auth()->user()->name }}</span>
+                            <svg class="w-3.5 h-3.5 flex-shrink-0 transition-transform text-slate-400" :class="open ? 'rotate-180' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"></path>
+                            </svg>
                         </button>
-                    </form>
+
+                        <div x-show="open" 
+                             x-transition:enter="transition ease-out duration-100"
+                             x-transition:enter-start="transform opacity-0 scale-95"
+                             x-transition:enter-end="transform opacity-100 scale-100"
+                             x-transition:leave="transition ease-in duration-75"
+                             x-transition:leave-start="transform opacity-100 scale-100"
+                             x-transition:leave-end="transform opacity-0 scale-95"
+                             class="absolute right-0 mt-2 w-48 bg-white border border-slate-200 rounded-xl shadow-xl z-50 py-1"
+                             style="display: none;">
+                            
+                            <a href="{{ route('student.profile') }}" class="flex items-center px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-50 hover:text-indigo-600 transition-colors">
+                                User Profile
+                            </a>
+                            
+                            <a href="{{ route('student.settings') }}" class="flex items-center px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-50 hover:text-indigo-600 transition-colors">
+                                Budget Settings
+                            </a>
+
+                            <hr class="border-slate-100 my-1">
+
+                            <form method="POST" action="{{ route('logout') }}" class="block w-full">
+                                @csrf
+                                <button type="submit" class="flex w-full items-center px-4 py-2 text-xs font-bold text-rose-600 hover:bg-rose-50/50 transition-colors">
+                                    Logout
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+
                 </div>
             </div>
             
@@ -76,6 +108,12 @@
                 </a>
                 <a href="{{ route('student.goals') }}" class="px-3 py-1.5 rounded-lg text-xs font-extrabold whitespace-nowrap transition-colors {{ request()->routeIs('student.goals') ? 'bg-indigo-50 text-indigo-600' : 'text-slate-500' }}">
                     Goals
+                </a>
+                <a href="{{ route('student.profile') }}" class="px-3 py-1.5 rounded-lg text-xs font-extrabold whitespace-nowrap transition-colors {{ request()->routeIs('student.profile') ? 'bg-indigo-50 text-indigo-600' : 'text-slate-500' }}">
+                    Profile
+                </a>
+                <a href="{{ route('student.settings') }}" class="px-3 py-1.5 rounded-lg text-xs font-extrabold whitespace-nowrap transition-colors {{ request()->routeIs('student.settings') ? 'bg-indigo-50 text-indigo-600' : 'text-slate-500' }}">
+                    Settings
                 </a>
             </div>
         </div>

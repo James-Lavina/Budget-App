@@ -9,7 +9,9 @@ use App\Http\Livewire\Student\Dashboard as studentDashboard;
 use App\Http\Livewire\Student\EditExpense;
 use App\Http\Livewire\Student\GoalsManager;
 use App\Http\Livewire\Student\LogExpense;
+use App\Http\Livewire\Student\Profile;
 use App\Http\Livewire\Student\ScanExpense;
+use App\Http\Livewire\Student\Settings;
 use App\Http\Livewire\Student\SpendingForecast;
 use App\Http\Livewire\Student\WhatIfSimulator;
 use Illuminate\Support\Facades\Route;
@@ -52,6 +54,10 @@ Route::middleware(['auth'])->group(function() {
             Route::get('/savings-goals', GoalsManager::class)->name('goals');
             // What-If Simulation
             Route::get('/simulation', WhatIfSimulator::class)->name('simulation');
+            // Settings
+            Route::get('/settings', Settings::class)->name('settings');
+            // Profile
+            Route::get('/profile', Profile::class)->name('profile');
         });
     // Admin Routes
     Route::middleware(['admin'])

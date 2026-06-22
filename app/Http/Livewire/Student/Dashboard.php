@@ -16,6 +16,9 @@ class Dashboard extends Component
     public $currentBudget;
     public $daysRemaining = 7;
 
+    // Register listener so that when Settings updates the current week, the Dashboard re-renders live
+    protected $listeners = ['refreshBudgetMetrics' => 'mount'];
+
     public function mount() {
         $this->currentBudget = WeeklyBudget::where('user_id', auth()->id())
             ->latest()
@@ -25,42 +28,48 @@ class Dashboard extends Component
             return redirect()->route('student.budget-setup');
         }
 
-        // 🌟 STEP 1: Run the automated refresh check before computing anything else
+        // 🌟 STEP 1: Run automated reset checking logic using day string rules
         $this->checkAndResetWeeklyCycle();
 
-        // STEP 2: Compute metrics using the fresh or updated budget attributes
+        // STEP 2: Compute real-time dashboard safety metrics
         $this->computeBehavioralMetrics();
     }
 
     /**
-     * Automated Engine Check: Detects if the previous financial week has concluded.
-     * If concluded, rolls over remaining funds as savings and triggers a new week.
+     * Automated Engine Check: Evaluates boundaries using custom reset string names (e.g. "Friday").
      */
     private function checkAndResetWeeklyCycle() {
         $today = Carbon::today();
-        $startDate = Carbon::parse($this->currentBudget->cycle_start_date);
-        $endDate = $startDate->copy()->addDays(6);
+        $startDate = Carbon::parse($this->currentBudget->cycle_start_date)->startOfDay();
+        
+        // DYNAMIC BOUNDARY MATCHING: Find the next exact calendar occurrence of their reset day, 
+        // then step backward 1 day to mark the final valid active monitoring day of this cycle.
+        $endDate = $startDate->copy()->next($this->currentBudget->reset_day)->subDay()->startOfDay();
 
-        // If today has passed the active 7-day monitoring frame boundaries
+        // If today has officially advanced completely past the active weekly cycle row boundary
         if ($today->greaterThan($endDate)) {
             DB::transaction(function () {
-                // 1. Capture whatever unspent pocket money they managed to save
                 $unspentSavings = max(0.00, $this->currentBudget->remaining_allowance);
                 $oldTotalAllowance = $this->currentBudget->total_allowance;
-                
-                // Calculate historical performance metrics for the notification
                 $amountSpent = max(0.00, $oldTotalAllowance - $unspentSavings);
                 
-                // 2. Behavioral Rollover Logic: Standard Baseline + Unspent Savings Reward
-                $newWeeklyTotal = $oldTotalAllowance + $unspentSavings;
+                // 🌟 FETCH PROFILE TEMPLATE: Build next week using profile preferences
+                $user = auth()->user();
+                $nextCycleBaseline = (float) ($user->default_allowance ?? 1000.00);
+                $nextCycleResetDay = $user->default_reset_day ?? 'Monday';
 
-                // 3. Persist the updated configuration to advance the schedule forward to today
+                // Reward Rollover Calculation
+                $newWeeklyTotal = $nextCycleBaseline + $unspentSavings;
+
+                // Advance track attributes into next cycle row smoothly
                 $this->currentBudget->update([
+                    'total_allowance'     => $nextCycleBaseline,
                     'remaining_allowance' => $newWeeklyTotal,
-                    'cycle_start_date' => Carbon::today(), // New week timeline officially starts now
+                    'reset_day'           => $nextCycleResetDay,
+                    'cycle_start_date'    => Carbon::today(), 
                 ]);
                 
-                // 4. Compile student-friendly text and write to Database Notifications
+                // Notifications Processing
                 if ($unspentSavings > 0) {
                     $description = "Weekly Review 📊: Outstanding financial discipline! Last week you spent ₱" . number_format($amountSpent, 2) . " and successfully saved ₱" . number_format($unspentSavings, 2) . ". Your fresh cycle starts with a boosted balance of ₱" . number_format($newWeeklyTotal, 2) . "!";
                     $severity = 'success';
@@ -82,7 +91,6 @@ class Dashboard extends Component
                     'read_at' => null,
                 ]);
                 
-                // 5. Set transactional success alert context for the UI feedback banner
                 if ($unspentSavings > 0) {
                     session()->flash('success', 'Outstanding financial discipline! You saved ₱' . number_format($unspentSavings, 2) . ' last week, which has been rolled over into your balance.');
                 } else {
@@ -93,36 +101,31 @@ class Dashboard extends Component
     }
 
     /**
-     * Behavioral Metrics Engine: Formulates an intuitive daily spending countdown.
-     * Subtracts today's live transaction volumes directly from today's quota.
+     * Behavioral Metrics Engine: Recalculates remaining days dynamically based on the day-name end boundaries.
      */
     public function computeBehavioralMetrics() {
         $today = Carbon::today();
-        $startDate = Carbon::parse($this->currentBudget->cycle_start_date);
-        $endDate = $startDate->copy()->addDays(6);
+        $startDate = Carbon::parse($this->currentBudget->cycle_start_date)->startOfDay();
+        $endDate = $startDate->copy()->next($this->currentBudget->reset_day)->subDay()->startOfDay();
 
-        // Double check boundary safety (fallback case)
+        // Safety fallback guard
         if($today->greaterThan($endDate)) {
             $this->daysRemaining = 0;
             $this->safeToSpend = 0.00;
             return;
         }
 
+        // Accurately compute relative remaining steps (e.g., from Monday to Sunday + 1 inclusive = 7 days)
         $this->daysRemaining = $today->diffInDays($endDate) + 1;
 
         if($this->daysRemaining > 0) {
-            // 1. Calculate how much the user has already spent TODAY (Using transaction_date)
             $spentToday = Expense::where('user_id', auth()->id())
                 ->whereDate('transaction_date', Carbon::today())
                 ->sum('amount');
 
-            // 2. Reconstruct what the wallet balance was this morning before today's transactions
             $startingBudgetForRemainingDays = $this->currentBudget->remaining_allowance + $spentToday;
-
-            // 3. Pinpoint today's total maximum baseline allocation quota
             $todayStartingQuota = $startingBudgetForRemainingDays / $this->daysRemaining;
 
-            // 4. Real-time Deduction: Safe-to-Spend drops directly as transactions log
             $this->safeToSpend = max(0.00, $todayStartingQuota - $spentToday);
         } else {
             $this->safeToSpend = 0.00;
@@ -141,54 +144,36 @@ class Dashboard extends Component
     
         if($this->currentBudget) {
             DB::transaction(function () use ($expense) {
-                // 1. Update the property instance directly so memory and database stay synced
                 $this->currentBudget->remaining_allowance += $expense->amount;
                 $this->currentBudget->save();
     
-                // 2. Relational Rollover Check: If this transaction was a savings vault transfer
                 if ($expense->savings_goal_id) {
                     $goal = \App\Models\SavingsGoal::find($expense->savings_goal_id);
-                    
                     if ($goal) {
-                        // Deduct the money back out of the specific goal target counter
                         $goal->current_saved -= $expense->amount;
-    
-                        // Absolute fallback safety guardrail to avoid negative numbers
                         if ($goal->current_saved < 0) {
                             $goal->current_saved = 0.00;
                         }
-    
-                        // Revert milestone status if it drops back below target threshold
                         if ($goal->status === 'achieved' && $goal->current_saved < $goal->target_amount) {
                             $goal->status = 'active';
                         }
-    
                         $goal->save();
                     }
                 }
     
-                // 3. Purge the expense record safely out of the ledger
                 $expense->delete();
 
-                /**
-                 * RISK METRIC SYNC: Clear today's lockout records before calculation.
-                 * Wiping this allows the service to determine if removing this transaction
-                 * completely drops their burn velocity back into the safe zone.
-                 */
                 \App\Models\RiskLog::where('user_id', auth()->id())
                     ->whereDate('created_at', Carbon::today())
                     ->delete();
 
-                // 4. Force calculation assessment based on lower spending totals
                 app(\App\Services\RiskDetectionService::class)->evaluateSpendingRisk(auth()->user());
             });
     
-            // Now this method reads the freshly updated property in memory!
             $this->computeBehavioralMetrics();
             
-            //  Livewire Event Dispatchers
             $this->emit('refreshSavings');
-            $this->emit('expenseUpdated'); // This tells your chart component to re-render instantly!
+            $this->emit('expenseUpdated'); 
     
             session()->flash('success', 'Transaction removed. Balance safely adjusted and savings progress updated!');
         } else {
