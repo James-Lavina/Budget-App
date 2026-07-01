@@ -102,7 +102,7 @@ class ScanExpense extends Component
             $groqResponse = Http::withHeaders([
                 'Authorization' => 'Bearer ' . env('GROQ_API_KEY'), 
             ])->post('https://api.groq.com/openai/v1/chat/completions', [
-                'model' => 'llama-3.1-8b-instant',
+                'model' => env('GROQ_MODEL'),
                 'messages' => [
                     ['role' => 'system', 'content' => $systemInstruction],
                     ['role' => 'user', 'content' => $userContext],

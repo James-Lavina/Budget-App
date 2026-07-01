@@ -85,7 +85,7 @@ class SpendingForecastService
                     'Authorization' => 'Bearer ' . env('GROQ_API_KEY'),
                     'Content-Type' => 'application/json'
                 ])->post('https://api.groq.com/openai/v1/chat/completions', [
-                    'model' => 'llama-3.1-8b-instant', 
+                    'model' => env('GROQ_MODEL'), 
                     'messages' => [
                         [
                             'role' => 'system',
