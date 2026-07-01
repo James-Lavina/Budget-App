@@ -1000,6 +1000,9 @@ input:where([type='file']):focus {
 .max-w-7xl {
   max-width: 80rem;
 }
+.max-w-\[100px\] {
+  max-width: 100px;
+}
 .max-w-\[200px\] {
   max-width: 200px;
 }
@@ -1017,9 +1020,6 @@ input:where([type='file']):focus {
 }
 .max-w-xs {
   max-width: 20rem;
-}
-.max-w-\[100px\] {
-  max-width: 100px;
 }
 .flex-1 {
   flex: 1 1 0%;
@@ -2594,12 +2594,12 @@ input:where([type='file']):focus {
     display: none;
   }
 
-  .sm\:max-w-md {
-    max-width: 28rem;
-  }
-
   .sm\:max-w-\[140px\] {
     max-width: 140px;
+  }
+
+  .sm\:max-w-md {
+    max-width: 28rem;
   }
 
   .sm\:flex-1 {

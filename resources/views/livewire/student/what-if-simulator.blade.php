@@ -1,12 +1,10 @@
 <div class="max-w-7xl mx-auto p-4 sm:p-6 lg:p-8 space-y-8" wire:init="initSimulation">
-    
     <div class="border-b border-slate-200/60 pb-6">
         <nav class="flex items-center gap-1.5 text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-3">
             <a href="{{ route('student.dashboard') }}" class="hover:text-indigo-600 transition-colors">Dashboard</a>
             <svg class="w-2.5 h-2.5 text-slate-300 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 5l7 7-7 7"></path></svg>
             <span class="text-slate-500">Predictive Modeling</span>
         </nav>
-
         <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
             <div>
                 <div class="flex items-baseline gap-2.5">
@@ -21,15 +19,13 @@
     </div>
 
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
-        
         <div class="bg-white rounded-3xl border border-slate-200/70 shadow-sm p-6 space-y-6 h-fit sticky top-6">
-            <div class="border-b border-slate-100 pb-4">
+            <div class="border-b border-slate-100 pb-4 flex items-center justify-between">
                 <h2 class="text-xs font-bold text-slate-900 uppercase tracking-widest flex items-center gap-2">
                     <span class="w-1.5 h-3 bg-amber-500 rounded-full"></span>
                     Simulation Controls
                 </h2>
             </div>
-
             <div class="space-y-5">
                 <div class="space-y-2">
                     <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Simulated Purchase Item</label>
@@ -40,10 +36,10 @@
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M6 6h.008v.008H6V6z" />
                             </svg>
                         </div>
-                        <input type="text" 
-                               wire:model.defer="itemName" 
-                               placeholder="e.g., Shoes, Mechanical Keyboard, Food" 
-                               class="w-full text-xs pl-10 pr-4 py-3 rounded-xl border border-slate-200 bg-slate-50/30 font-semibold text-slate-800 placeholder-slate-400 focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/10 focus:outline-none">
+                        <input type="text"
+                            wire:model.defer="itemName"
+                            placeholder="e.g., Shoes, Mechanical Keyboard, Food"
+                            class="w-full text-xs pl-10 pr-4 py-3 rounded-xl border border-slate-200 bg-slate-50/30 font-semibold text-slate-800 placeholder-slate-400 focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/10 focus:outline-none">
                     </div>
                 </div>
 
@@ -53,23 +49,22 @@
                         <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none font-mono text-xs font-bold text-slate-400">
                             ₱
                         </div>
-                        <input type="number" 
-                               min="0" 
-                               step="1" 
-                               wire:model.defer="purchaseAmount" 
-                               class="w-full text-xs pl-9 pr-4 py-3 rounded-xl border border-slate-200 bg-slate-50/30 font-bold text-slate-800 placeholder-slate-400 font-mono focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/10 focus:outline-none" 
-                               placeholder="0.00">
+                        <input type="number"
+                            min="0"
+                            step="1"
+                            wire:model.defer="purchaseAmount"
+                            class="w-full text-xs pl-9 pr-4 py-3 rounded-xl border border-slate-200 bg-slate-50/30 font-bold text-slate-800 placeholder-slate-400 font-mono focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/10 focus:outline-none"
+                            placeholder="0.00">
                     </div>
                 </div>
 
                 <div class="grid grid-cols-3 gap-2 pt-2">
-                    <button wire:click="resetSimulation" 
-                            class="col-span-1 bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-bold py-3.5 px-3 rounded-xl transition-all duration-200 uppercase tracking-wider flex items-center justify-center">
+                    <button wire:click="resetSimulation"
+                        class="col-span-1 bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-bold py-3.5 px-3 rounded-xl transition-all duration-200 uppercase tracking-wider flex items-center justify-center">
                         Clear
                     </button>
-                    
-                    <button wire:click="runSimulation" 
-                            class="col-span-2 bg-indigo-600 hover:bg-indigo-700 active:scale-[0.98] text-white text-xs font-black py-3.5 px-4 rounded-xl transition-all duration-200 uppercase tracking-wider shadow-sm shadow-indigo-600/20 flex items-center justify-center gap-2">
+                    <button wire:click="runSimulation"
+                        class="col-span-2 bg-indigo-600 hover:bg-indigo-700 active:scale-[0.98] text-white text-xs font-black py-3.5 px-4 rounded-xl transition-all duration-200 uppercase tracking-wider shadow-sm shadow-indigo-600/20 flex items-center justify-center gap-2">
                         <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
                         </svg>
@@ -80,7 +75,6 @@
         </div>
 
         <div class="lg:col-span-2 space-y-6">
-            
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div class="bg-white border border-slate-200/70 rounded-3xl p-5 shadow-sm flex items-center gap-4 transition-all hover:border-slate-300">
                     <div class="h-12 w-12 bg-slate-50 border border-slate-100 text-slate-700 rounded-2xl flex items-center justify-center shrink-0">
@@ -139,51 +133,56 @@
 
             <div class="bg-gradient-to-br from-indigo-50/40 via-white to-white text-slate-800 p-6 rounded-3xl border border-indigo-100/80 shadow-sm flex gap-4 items-start relative overflow-hidden transition-all hover:shadow-[0_4px_20px_-4px_rgba(99,102,241,0.06)]">
                 <div class="absolute -right-10 -top-10 w-32 h-32 bg-indigo-500/5 rounded-full blur-2xl pointer-events-none"></div>
-                
+
                 <div class="p-2.5 bg-indigo-600 text-white rounded-xl shadow-sm shadow-indigo-600/10 shrink-0">
                     <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
                     </svg>
                 </div>
-                
-                <div class="space-y-2.5 z-10 w-full">
+
+                <div class="space-y-2.5 z-10 w-full" wire:key="livewire-analysis-payload">
                     <div class="flex items-center justify-between gap-2 w-full">
                         <h4 class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Behavioral Strategy Analysis</h4>
-                        
-                        @if(!$loadingAi && !empty($aiInsight))
-                            @if($isOfflineMode)
-                                <span class="inline-flex items-center px-2 py-0.5 rounded-md text-[9px] font-bold bg-amber-500/10 text-amber-700 ring-1 ring-amber-500/20 uppercase tracking-wider transition animate-fade-in">
-                                    Offline Engine
-                                </span>
-                            @else
-                                <span class="inline-flex items-center px-2 py-0.5 rounded-md text-[9px] font-bold bg-indigo-50 text-indigo-700 ring-1 ring-indigo-700/10 uppercase tracking-wider flex items-center gap-1 transition animate-fade-in">
-                                    <span class="w-1 h-1 bg-indigo-500 rounded-full animate-pulse"></span>
-                                    Live Groq AI
-                                </span>
+
+                        <div wire:loading.remove wire:target="runSimulation, resetSimulation">
+                            @if(!empty($aiInsight))
+                                @if($isOfflineMode)
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded-md text-[9px] font-bold bg-amber-500/10 text-amber-700 ring-1 ring-amber-500/20 uppercase tracking-wider">
+                                        Fallback Engine
+                                    </span>
+                                @else
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded-md text-[9px] font-bold bg-indigo-50 text-indigo-700 ring-1 ring-indigo-700/10 uppercase tracking-wider flex items-center gap-1">
+                                        <span class="w-1 h-1 bg-indigo-500 rounded-full animate-pulse"></span>
+                                        Live Groq AI
+                                    </span>
+                                @endif
                             @endif
-                        @endif
+                        </div>
+
+                        <span wire:loading wire:target="runSimulation" class="inline-flex items-center px-2 py-0.5 rounded-md text-[9px] font-bold bg-indigo-50 text-indigo-700 ring-1 ring-indigo-700/10 uppercase tracking-wider flex items-center gap-1">
+                            Processing Stream...
+                        </span>
                     </div>
 
-                    <p class="text-xs text-slate-600 font-semibold leading-relaxed">
-                        @if($loadingAi)
-                            <span class="animate-pulse text-indigo-600 italic font-black flex items-center gap-1.5">
-                                <span class="w-1 h-1 bg-indigo-500 rounded-full animate-ping"></span>
-                                Asking your upperclassman financial coach...
-                            </span>
-                        @else
+                    <div class="text-xs text-slate-600 font-semibold leading-relaxed">
+                        <div wire:loading wire:target="runSimulation" class="animate-pulse text-indigo-600 italic font-black flex items-center gap-1.5 py-1">
+                            <span class="w-1.5 h-1.5 bg-indigo-500 rounded-full log-pulse animate-ping"></span>
+                            Querying specialized LLM context windows...
+                        </div>
+
+                        <div wire:loading.remove wire:target="runSimulation">
                             {{ $aiInsight }}
-                        @endif
-                    </p>
+                        </div>
+                    </div>
                 </div>
             </div>
-
         </div>
     </div>
 
     <script>
         document.addEventListener('livewire:load', function () {
             const ctx = document.getElementById('weeklyBreakdownChart').getContext('2d');
-            
+
             let breakdownChart = new Chart(ctx, {
                 type: 'bar',
                 data: {
@@ -195,10 +194,10 @@
                     responsive: true,
                     maintainAspectRatio: false,
                     plugins: {
-                        legend: { 
-                            display: true, 
+                        legend: {
+                            display: true,
                             position: 'top',
-                            labels: { boxWidth: 12, boxHeight: 12, usePointStyle: true, font: { size: 10, weight: '700' } } 
+                            labels: { boxWidth: 12, boxHeight: 12, usePointStyle: true, font: { size: 10, weight: '700' } }
                         },
                         tooltip: { padding: 12, bodyFont: { size: 11, weight: 'bold' }, callbacks: { label: (ctx) => ` ${ctx.dataset.label}: ₱${ctx.raw.toLocaleString()}` } }
                     },

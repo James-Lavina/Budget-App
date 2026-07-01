@@ -10,7 +10,7 @@ class Profile extends Component
 {
     public $name;
     public $email;
-    public $email_confirmation; // Added to handle safety validation rules
+    public $email_confirmation;
     public $current_password;
     public $new_password;
     public $new_password_confirmation;
@@ -20,14 +20,13 @@ class Profile extends Component
         $user = auth()->user();
         $this->name = $user->name;
         $this->email = $user->email;
-        $this->email_confirmation = $user->email; // Synchronize on initial render
+        $this->email_confirmation = $user->email;
     }
 
     public function updateProfile()
     {
         $user = auth()->user();
 
-        // Detect dynamic security state flags
         $isChangingEmail = ($this->email !== $user->email);
         $isChangingPassword = !empty($this->new_password);
 
@@ -37,10 +36,10 @@ class Profile extends Component
                 'required',
                 'email',
                 'max:255',
-                'confirmed', // Enforces that email matches email_confirmation
+                'confirmed',
                 Rule::unique('users', 'email')->ignore($user->id),
             ],
-            // Core Security Fix: Password is now required if modifying email OR password values
+
             'current_password' => [
                 ($isChangingEmail || $isChangingPassword) ? 'required' : 'nullable',
                 'string'
@@ -51,7 +50,6 @@ class Profile extends Component
             'email.confirmed' => 'The email confirmation field does not match your new email address.'
         ]);
 
-        // Cryptographic guard check before mutating database attributes
         if ($isChangingEmail || $isChangingPassword) {
             if (!Hash::check($this->current_password, $user->password)) {
                 $this->addError('current_password', 'The provided current password does not match your records.');
@@ -59,17 +57,14 @@ class Profile extends Component
             }
         }
 
-        // Apply password change if supplied
         if ($isChangingPassword) {
             $user->password = Hash::make($this->new_password);
         }
 
-        // Save identity records
         $user->name = $this->name;
         $user->email = $this->email;
         $user->save();
 
-        // Flush credentials safely, preserving visible identity parameters
         $this->reset(['current_password', 'new_password', 'new_password_confirmation']);
 
         session()->flash('success', 'Your profile details have been successfully secured and updated.');

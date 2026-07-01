@@ -23,7 +23,6 @@ class SimulationWidget extends Component
     {
         $this->validate();
 
-        // Pass fields forward through standard query parameters string configurations
         return redirect()->route('student.simulation', [
             'scenarioType' => 'major_purchase',
             'purchaseAmount' => $this->quickAmount

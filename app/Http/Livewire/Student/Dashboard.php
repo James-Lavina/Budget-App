@@ -16,7 +16,6 @@ class Dashboard extends Component
     public $currentBudget;
     public $daysRemaining = 7;
 
-    // Register listener so that when Settings updates the current week, the Dashboard re-renders live
     protected $listeners = ['refreshBudgetMetrics' => 'mount'];
 
     public function mount() {
@@ -28,32 +27,23 @@ class Dashboard extends Component
             return redirect()->route('student.budget-setup');
         }
 
-        // 🌟 STEP 1: Run automated reset checking logic using day string rules
         $this->checkAndResetWeeklyCycle();
 
-        // STEP 2: Compute real-time dashboard safety metrics
         $this->computeBehavioralMetrics();
     }
 
-    /**
-     * Automated Engine Check: Evaluates boundaries using custom reset string names (e.g. "Friday").
-     */
     private function checkAndResetWeeklyCycle() {
         $today = Carbon::today();
         $startDate = Carbon::parse($this->currentBudget->cycle_start_date)->startOfDay();
         
-        // DYNAMIC BOUNDARY MATCHING: Find the next exact calendar occurrence of their reset day, 
-        // then step backward 1 day to mark the final valid active monitoring day of this cycle.
         $endDate = $startDate->copy()->next($this->currentBudget->reset_day)->subDay()->startOfDay();
 
-        // If today has officially advanced completely past the active weekly cycle row boundary
         if ($today->greaterThan($endDate)) {
             DB::transaction(function () {
                 $unspentSavings = max(0.00, $this->currentBudget->remaining_allowance);
                 $oldTotalAllowance = $this->currentBudget->total_allowance;
                 $amountSpent = max(0.00, $oldTotalAllowance - $unspentSavings);
                 
-                // 🌟 FETCH PROFILE TEMPLATE: Build next week using profile preferences
                 $user = auth()->user();
                 $nextCycleBaseline = (float) ($user->default_allowance ?? 1000.00);
                 $nextCycleResetDay = $user->default_reset_day ?? 'Monday';
@@ -100,9 +90,6 @@ class Dashboard extends Component
         }
     }
 
-    /**
-     * Behavioral Metrics Engine: Recalculates remaining days dynamically based on the day-name end boundaries.
-     */
     public function computeBehavioralMetrics() {
         $today = Carbon::today();
         $startDate = Carbon::parse($this->currentBudget->cycle_start_date)->startOfDay();

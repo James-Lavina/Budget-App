@@ -58,10 +58,6 @@ class LogExpense extends Component
             return;
         }
 
-        /**
-         * TESTING OVERRIDES: Clear out today's records for this specific user.
-         * FIX: Added a check to also clear out BudgetRiskNotifications during testing cycles.
-         */
         RiskLog::where('user_id', auth()->id())
             ->whereDate('created_at', Carbon::today())
             ->delete();
@@ -88,8 +84,6 @@ class LogExpense extends Component
             $currentBudget->save();
         });
 
-        // === POST-TRANSACTION PROCESSING ===
-        // FIX: Moved outside and after the budget is decremented so calculations evaluate correctly!
         app(\App\Services\RiskDetectionService::class)->evaluateSpendingRisk(auth()->user());
 
         $thresholdAmount = $currentBudget->total_allowance * 0.20;

@@ -167,10 +167,6 @@ class ScanExpense extends Component
             return;
         }
 
-        /**
-         * TESTING OVERRIDES: Clear out records during verification tests.
-         * FIX: Added clearance check for pacing-related database alerts.
-         */
         RiskLog::where('user_id', auth()->id())
             ->whereDate('created_at', Carbon::today())
             ->delete();
@@ -184,7 +180,6 @@ class ScanExpense extends Component
 
         try {
             DB::transaction(function() use ($currentBudget) {
-                // \u2705 FIXED: Forces today's date so the pacing engine captures the live velocity spike
                 $formattedDateTime = \Carbon\Carbon::today()->format('Y-m-d') . ' ' . \Carbon\Carbon::now()->format('H:i:s');
             
                 $expense = Expense::create([
@@ -193,7 +188,7 @@ class ScanExpense extends Component
                     'merchant_name' => $this->merchant_name,
                     'item_name' => $this->item_name,
                     'amount' => $this->amount,
-                    'transaction_date' => $formattedDateTime, //  Fixed with current timestamp
+                    'transaction_date' => $formattedDateTime,
                     'tracking_type' => 'ocr',
                 ]);
 
@@ -208,7 +203,6 @@ class ScanExpense extends Component
                 $currentBudget->decrement('remaining_allowance', $this->amount);
             });
 
-            // === POST-TRANSACTION PROCESSING ===
             app(\App\Services\RiskDetectionService::class)->evaluateSpendingRisk(auth()->user());
 
             $thresholdAmount = $currentBudget->total_allowance * 0.20;
