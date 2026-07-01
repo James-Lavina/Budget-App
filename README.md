@@ -43,12 +43,3 @@ This application served as the final capstone project fulfillment for an undergr
   * **Groq AI Engine** (LLM-based parsing and predictive budgeting analytics)
 
 ---
-
-## 🚀 Local Installation & Deployment Guide
-
-Follow these sequential steps to compile and run the application footprint within a local Macintosh or development workstation environment:
-
-### 1. Clone the Workspace
-```bash
-git clone [https://github.com/your-repository/student-budget-system.git](https://github.com/your-repository/student-budget-system.git)
-cd student-budget-system
