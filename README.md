@@ -11,26 +11,6 @@ This application served as the final capstone project fulfillment for an undergr
 
 ---
 
-## ⚡ Core Systems & Features
-
-### 1. Dynamic Daily Safe-to-Spend Calculation Engine
-* Automatically breaks down a student's remaining weekly allowance against the days left in their custom billing cycle.
-* Recalculates constraints immediately following any logged expense transaction to provide an absolute spending ceiling for the day.
-
-### 2. Intelligent AI Data Capture Pipeline
-* **Receipt Scanning:** Integrated with the **OCR.space API** to perform high-speed Optical Character Recognition scanning on uploaded physical paper receipts.
-* **Smart Information Extraction:** Raw textual OCR fragments are handled dynamically by the **Groq AI API** to automatically parse merchants, dates, line items, and transaction totals.
-
-### 3. Granular Role-Based Access Control (RBAC)
-* **Student Workspace:** Personalized interface featuring allowance parameters, historical transaction graphs, custom categorizations, and automated budgeting logs.
-* **Administrative Security Panel:** Centralized command center allowing system monitors to audit system operational logs (`activity_logs`), analyze user enrollment counts, and maintain system health parameters.
-
-### 4. Real-Time UI Reactivity
-* Built entirely over custom full-page Livewire modules for smooth data synchronization without complete browser reloads.
-* Employs server-driven validation loops (`updated()` hooks) to provide immediate input-field verification highlighting and error rendering for user credentials.
-
----
-
 ## 🛠️ Technical Architecture & Stack
 
 * **Backend Framework:** Laravel 8.x (PHP 7.4+ / 8.0+)
