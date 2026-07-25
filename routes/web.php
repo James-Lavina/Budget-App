@@ -32,7 +32,7 @@ Route::middleware(['guest'])->group(function() {
     Route::get('/register', Register::class)->name('register');
     Route::get('/login', Login::class)->name('login');
     Route::get('/', function() {
-        return redirect()->route('login');
+        return view('welcome');
     });
 });
 
@@ -71,6 +71,6 @@ Route::middleware(['auth'])->group(function() {
         auth()->logout();
         request()->session()->invalidate();
         request()->session()->regenerateToken();
-        return redirect()->route('login');
+        return view('welcome');
     })->name('logout');
 });
