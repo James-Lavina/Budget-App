@@ -41,7 +41,9 @@ Route::middleware(['auth'])->group(function() {
     // Student Routes
     Route::name('student.')
         ->group(function() {
+            // Dashboard
             Route::get('/dashboard', studentDashboard::class)->name('dashboard');
+            // Budget Setup
             Route::get('/budget-setup', BudgetSetup::class)->name('budget-setup');
             // Expense Log 
             Route::get('/expenses', AllExpenses::class)->name('expenses.index');
