@@ -10,6 +10,7 @@ use App\Http\Livewire\Student\Dashboard as studentDashboard;
 use App\Http\Livewire\Student\EditExpense;
 use App\Http\Livewire\Student\GoalsManager;
 use App\Http\Livewire\Student\LogExpense;
+use App\Http\Livewire\Student\NotificationIndex;
 use App\Http\Livewire\Student\Profile;
 use App\Http\Livewire\Student\ScanExpense;
 use App\Http\Livewire\Student\Settings;
@@ -60,9 +61,10 @@ Route::middleware(['auth'])->group(function() {
             // What-If Simulation
             Route::get('/simulation', WhatIfSimulator::class)->name('simulation');
             // Notification
-            Route::get('/notifications', function() {
-                return view('student.notifications');
-            })->name('notifications');
+            // Route::get('/notifications', function() {
+            //     return view('student.notifications');
+            // })->name('notifications');
+            Route::get('/notification', NotificationIndex::class)->name('notifications');
             // Settings
             Route::get('/settings', Settings::class)->name('settings');
             // Profile
