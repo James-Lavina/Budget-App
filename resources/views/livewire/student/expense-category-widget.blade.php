@@ -1,10 +1,8 @@
-<div class="bg-white rounded-3xl border border-slate-200/70 shadow-sm p-6 w-full" wire:init="loadCategoryBreakdown">
-    <div class="border-b border-slate-100 pb-4 mb-5">
-        <h3 class="text-xs font-bold text-slate-900 uppercase tracking-widest flex items-center gap-2">
-            <span class="w-1.5 h-3 bg-cyan-500 rounded-full"></span>
-            Expenses by Category
-        </h3>
-        <p class="text-[11px] text-slate-400 font-medium mt-0.5">A visual breakdown of where your money went this month.</p>
+<div class="bg-white rounded-3xl border border-slate-100 shadow-sm p-5 sm:p-6 w-full flex flex-col justify-between" wire:init="loadCategoryBreakdown">
+    
+    <!-- HEADER SECTION -->
+    <div class="pb-2">
+        <h3 class="text-sm font-extrabold text-slate-900">Expense Categories</h3>
     </div>
 
     @if(!$hasExpenses)
@@ -19,37 +17,42 @@
         </div>
     @else
         @php
-            // Define the visual color palette in PHP so it matches Chart.js exactly and renders instantly
-            $colorPalette = ['#6366f1', '#10b981', '#f59e0b', '#f43f5e', '#8b5cf6', '#06b6d4'];
+            // Updated color palette matching the reference image slices
+            $colorPalette = [
+                '#ff7052', // Coral / Orange
+                '#5b46f6', // Purple / Indigo
+                '#4fd1c5', // Teal / Cyan
+                '#ffc043', // Yellow
+                '#f43f5e', // Pink
+                '#3b82f6', // Blue
+                '#10b981', // Emerald
+                '#8b5cf6'  // Violet
+            ];
         @endphp
 
-        <div class="grid grid-cols-1 sm:grid-cols-5 gap-6 items-center">
+        <div class="flex flex-col gap-4">
             
-            <div class="sm:col-span-2 relative flex items-center justify-center h-40 w-40 mx-auto shrink-0" wire:ignore>
-                <canvas id="categoryDistributionChart"></canvas>
-                
-                <div class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none text-center transform translate-y-1">
-                    <span class="text-[9px] uppercase tracking-wider font-bold text-slate-400">Total Spent</span>
-                    <span class="text-sm font-black text-slate-800 font-mono">₱{{ number_format($totalSpent, 2) }}</span>
+            <!-- CENTERED DOUGHNUT CHART -->
+            <div class="py-2 flex items-center justify-center">
+                <div class="relative h-44 w-44 mx-auto shrink-0" wire:ignore>
+                    <canvas id="categoryDistributionChart"></canvas>
                 </div>
             </div>
 
-            <div class="sm:col-span-3 space-y-2 max-h-[168px] overflow-y-auto pr-1.5 custom-dashboard-scrollbar">
+            <!-- CLEAN CATEGORY LIST LEGEND -->
+            <div class="space-y-2.5 max-h-[170px] overflow-y-auto pr-1 custom-dashboard-scrollbar">
                 @foreach($categoriesData as $index => $category)
                     @php
-                        // Cycle through colors based on loop index to guarantee accurate chart-to-text mapping
                         $assignedColor = $colorPalette[$index % count($colorPalette)];
                     @endphp
-                    <div class="flex items-center justify-between p-2 rounded-xl border border-slate-50 bg-slate-50/20 hover:bg-slate-50 transition-colors">
+                    <div class="flex items-center justify-between text-xs">
                         <div class="flex items-center gap-2.5 min-w-0">
-                            <span class="w-2.5 h-2.5 rounded-full shrink-0 shadow-sm" style="background-color: {{ $assignedColor }};"></span>
-                            
-                            <span class="text-xs font-bold text-slate-700 tracking-tight truncate">{{ $category['name'] }}</span>
+                            <span class="w-2.5 h-2.5 rounded-full shrink-0" style="background-color: {{ $assignedColor }};"></span>
+                            <span class="font-semibold text-slate-600 truncate">{{ $category['name'] }}</span>
                         </div>
-                        <div class="text-right shrink-0 pl-2">
-                            <span class="text-xs font-black text-slate-900 font-mono">₱{{ number_format($category['total'], 0) }}</span>
-                            <span class="text-[10px] text-slate-400 font-bold block">{{ $category['percentage'] }}%</span>
-                        </div>
+                        <span class="font-black text-slate-900 font-mono shrink-0 pl-2">
+                            ₱{{ number_format($category['total'], 0) }}
+                        </span>
                     </div>
                 @endforeach
             </div>
@@ -65,11 +68,11 @@
             background: transparent;
         }
         .custom-dashboard-scrollbar::-webkit-scrollbar-thumb {
-            background: #cbd5e1; /* slate-300 */
+            background: #e2e8f0;
             border-radius: 10px;
         }
         .custom-dashboard-scrollbar::-webkit-scrollbar-thumb:hover {
-            background: #94a3b8; /* slate-400 */
+            background: #cbd5e1;
         }
     </style>
 
@@ -79,16 +82,14 @@
             if (!chartCanvas) return;
 
             const colorPalette = [
-                '#6366f1', // indigo-500
-                '#10b981', // emerald-500
-                '#f59e0b', // amber-500
-                '#f43f5e', // rose-500
-                '#8b5cf6', // violet-500
-                '#06b6d4', // cyan-500
-                '#ec4899', // pink-500 (New)
-                '#f97316', // orange-500 (New)
-                '#84cc16', // lime-500 (New)
-                '#64748b'  // slate-500 (New)
+                '#ff7052', // Coral / Orange
+                '#5b46f6', // Purple / Indigo
+                '#4fd1c5', // Teal / Cyan
+                '#ffc043', // Yellow
+                '#f43f5e', // Pink
+                '#3b82f6', // Blue
+                '#10b981', // Emerald
+                '#8b5cf6'  // Violet
             ];
 
             const ctx = chartCanvas.getContext('2d');
@@ -99,7 +100,7 @@
                     datasets: [{
                         data: [],
                         backgroundColor: colorPalette,
-                        borderWidth: 2,
+                        borderWidth: 2.5,
                         borderColor: '#ffffff',
                         hoverOffset: 4
                     }]
@@ -107,7 +108,7 @@
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
-                    cutout: '72%',
+                    cutout: '68%',
                     plugins: {
                         legend: { display: false },
                         tooltip: {

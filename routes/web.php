@@ -3,6 +3,7 @@
 use App\Http\Livewire\Admin\Dashboard as adminDashboard;
 use App\Http\Livewire\Auth\Login;
 use App\Http\Livewire\Auth\Register;
+use App\Http\Livewire\Student\AddBudgetFunds;
 use App\Http\Livewire\Student\AllExpenses;
 use App\Http\Livewire\Student\BudgetSetup;
 use App\Http\Livewire\Student\Dashboard as studentDashboard;
@@ -50,12 +51,18 @@ Route::middleware(['auth'])->group(function() {
             Route::get('/expenses/create', LogExpense::class)->name('expenses.create');
             Route::get('/expenses/receipt-scanner', ScanExpense::class)->name('receipt-scanner');
             Route::get('/expenses/{id}/edit', EditExpense::class)->name('expenses.edit');
+            // Add BudgetFunds
+            Route::get('/budget/add-funds', AddBudgetFunds::class)->name('budget.add');
             // Forecasting 
             Route::get('/forecast', SpendingForecast::class)->name('forecast');
             // Savings Goal 
             Route::get('/savings-goals', GoalsManager::class)->name('goals');
             // What-If Simulation
             Route::get('/simulation', WhatIfSimulator::class)->name('simulation');
+            // Notification
+            Route::get('/notifications', function() {
+                return view('student.notifications');
+            })->name('notifications');
             // Settings
             Route::get('/settings', Settings::class)->name('settings');
             // Profile
@@ -69,7 +76,7 @@ Route::middleware(['auth'])->group(function() {
             Route::get('/dashboard', adminDashboard::class)->name('dashboard');
     });
     // Global Routes
-    Route::post('/logout', function() {
+    Route::post('/', function() {
         auth()->logout();
         request()->session()->invalidate();
         request()->session()->regenerateToken();

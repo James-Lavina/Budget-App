@@ -151,13 +151,12 @@ class RiskDetectionService
 
         $nudge = " To finish the week safely, try to limit your spending to PHP {$safeDailyCap}/day.";
 
-        // Calculate days remaining: 
-// If cycle ends tomorrow, you have Today (1) + Tomorrow (1) = 2 days.
-$daysRemaining = max(1, 7 - ($daysElapsed - 1)); 
+        // If cycle ends tomorrow, you have Today (1) + Tomorrow (1) = 2 days.
+        $daysRemaining = max(1, 7 - ($daysElapsed - 1)); 
 
-// This ensures that even if you are on Day 6, 
-// the system calculates: 7 - (6 - 1) = 7 - 5 = 2 days.
-$safeDailyCap = number_format($trueRemaining / $daysRemaining, 2);
+        // This ensures that even if you are on Day 6, 
+        // the system calculates: 7 - (6 - 1) = 7 - 5 = 2 days.
+        $safeDailyCap = number_format($trueRemaining / $daysRemaining, 2);
 
         return "Budget Pace Alert: Your spending is at PHP {$velocityFormatted}/day. You have PHP {$remaining} remaining. To safely stretch this until the end of your cycle, try to limit your average spending to PHP {$safeDailyCap}/day.";
     }

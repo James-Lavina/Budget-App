@@ -9,19 +9,23 @@ use App\Models\Expense;
 use App\Models\ExpenseCategory;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Notifications\DatabaseNotification; 
-use Illuminate\Support\Str; 
+use Illuminate\Notifications\DatabaseNotification;
+use Illuminate\Support\Str;
 use Livewire\Component;
 
 class GoalsManager extends Component
 {
+    // Form & Modal State
+    public $showCreateModal = false;
     public $target_name;
     public $target_amount;
+    public $already_saved = 0.00;
     public $target_date;
     
+    // Action Modals & State
     public $fundingGoalId;
     public $fund_amount;
-    public $activeTab = 'active'; 
+    public $activeTab = 'active';
 
     // Confirmation Flags
     public $confirmingAbandonId = null;
@@ -30,25 +34,48 @@ class GoalsManager extends Component
     protected $rules = [
         'target_name' => 'required|string|max:255',
         'target_amount' => 'required|numeric|min:1|max:999999',
+        'already_saved' => 'nullable|numeric|min:0',
         'target_date' => 'nullable|date|after_or_equal:today',
     ];
 
     protected $listeners = ['refreshSavings' => '$refresh'];
 
+    public function openCreateModal()
+    {
+        $this->resetForm();
+        $this->showCreateModal = true;
+    }
+
+    public function closeCreateModal()
+    {
+        $this->showCreateModal = false;
+        $this->resetForm();
+    }
+
     public function storeGoal()
     {
         $this->validate();
 
+        $initialSaved = $this->already_saved ? floatval($this->already_saved) : 0.00;
+        $targetAmount = floatval($this->target_amount);
+
+        // Cap initial saved amount at target amount
+        if ($initialSaved > $targetAmount) {
+            $initialSaved = $targetAmount;
+        }
+
+        $status = ($initialSaved >= $targetAmount && $targetAmount > 0) ? 'achieved' : 'active';
+
         SavingsGoal::create([
             'user_id' => auth()->id(),
             'target_name' => $this->target_name,
-            'target_amount' => $this->target_amount,
-            'current_saved' => 0.00,
+            'target_amount' => $targetAmount,
+            'current_saved' => $initialSaved,
             'target_date' => $this->target_date ?: null,
-            'status' => 'active',
+            'status' => $status,
         ]);
 
-        $this->resetForm();
+        $this->closeCreateModal();
         session()->flash('success', 'Savings milestone established successfully!');
     }
 
@@ -65,7 +92,7 @@ class GoalsManager extends Component
             ->firstOrFail();
 
         $currentBudget = WeeklyBudget::where('user_id', auth()->id())
-            ->latest() 
+            ->latest()
             ->first();
 
         if (!$currentBudget) {
@@ -80,8 +107,8 @@ class GoalsManager extends Component
                 'required',
                 'numeric',
                 'min:0.01',
-                'max:' . $currentBudget->remaining_allowance, 
-                'max:' . $remainingNeeded,                    
+                'max:' . $currentBudget->remaining_allowance,
+                'max:' . $remainingNeeded,                   
             ]
         ], [
             'fund_amount.max' => 'Transfer halted! The amount exceeds either your remaining budget (₱' . number_format($currentBudget->remaining_allowance, 2) . ') or what is left to finish this goal (₱' . number_format($remainingNeeded, 2) . ').'
@@ -104,8 +131,8 @@ class GoalsManager extends Component
             
             if ($newSavedBalance >= $goal->target_amount) {
                 $status = 'achieved';
-                $newSavedBalance = $goal->target_amount; 
-                $goalWasAchieved = true; 
+                $newSavedBalance = $goal->target_amount;
+                $goalWasAchieved = true;
             }
 
             $goal->update([
@@ -123,7 +150,7 @@ class GoalsManager extends Component
             Expense::create([
                 'user_id' => auth()->id(),
                 'expense_category_id' => $savingsCategory->id,
-                'savings_goal_id' => $goal->id, 
+                'savings_goal_id' => $goal->id,
                 'item_name' => "{$goal->target_name}",
                 'merchant_name' => 'Savings Goal',
                 'amount' => $this->fund_amount,
@@ -134,24 +161,24 @@ class GoalsManager extends Component
 
         if ($goalWasAchieved) {
             DatabaseNotification::create([
-                'id' => Str::uuid(), 
-                'type' => 'App\Notifications\SavingsGoalAchieved', 
+                'id' => Str::uuid(),
+                'type' => 'App\Notifications\SavingsGoalAchieved',
                 'notifiable_type' => 'App\Models\User',
                 'notifiable_id' => auth()->id(),
                 'data' => [
                     'anomaly_type' => 'goal_achieved',
-                    'severity_tier' => 'success', 
+                    'severity_tier' => 'success',
                     'description' => 'Target Smashed! 🎯 You successfully saved ₱' . number_format($goal->target_amount, 2) . ' for your "' . $goal->target_name . '" goal.',
                 ],
-                'read_at' => null, 
+                'read_at' => null,
             ]);
         }
 
         app(\App\Services\RiskDetectionService::class)->evaluateSpendingRisk(auth()->user());
 
         $thresholdAmount = $currentBudget->total_allowance * 0.20;
+
         if ($currentBudget->remaining_allowance <= $thresholdAmount) {
-            
             $alreadyNotified = DatabaseNotification::where('notifiable_id', auth()->id())
                 ->where('notifiable_type', 'App\Models\User')
                 ->where('data', 'LIKE', '%"anomaly_type":"low_allowance_threshold"%')
@@ -167,7 +194,7 @@ class GoalsManager extends Component
                     'notifiable_id' => auth()->id(),
                     'data' => [
                         'anomaly_type' => 'low_allowance_threshold',
-                        'severity_tier' => 'medium', 
+                        'severity_tier' => 'medium',
                         'description' => "Budget Critical! ⚠️ Your remaining allowance has dropped to {$percentageLeft}% (₱" . number_format($currentBudget->remaining_allowance, 2) . " left). Consider lowering your daily velocity to survive the cycle.",
                     ],
                     'read_at' => null,
@@ -198,8 +225,8 @@ class GoalsManager extends Component
             ->firstOrFail();
 
         $goal->update(['status' => 'abandoned']);
-        
         $this->confirmingAbandonId = null;
+
         session()->flash('success', 'Goal marked as archived.');
     }
 
@@ -210,7 +237,6 @@ class GoalsManager extends Component
             ->firstOrFail();
 
         $goal->update(['status' => 'active']);
-        
         session()->flash('success', 'Savings goal successfully restored to your active dashboard!');
     }
 
@@ -227,12 +253,11 @@ class GoalsManager extends Component
             ->where('user_id', auth()->id())
             ->firstOrFail();
 
-        // Safe relational cascading execution block
         DB::transaction(function () use ($goal) {
             Expense::where('savings_goal_id', $goal->id)->delete();
             $goal->delete();
         });
-        
+
         $this->confirmingDeleteId = null;
         session()->flash('success', 'Savings milestone and its associated transaction logs were completely cleared.');
     }
@@ -241,7 +266,9 @@ class GoalsManager extends Component
     {
         $this->target_name = '';
         $this->target_amount = '';
+        $this->already_saved = '';
         $this->target_date = '';
+        $this->resetErrorBag();
     }
 
     public function render()

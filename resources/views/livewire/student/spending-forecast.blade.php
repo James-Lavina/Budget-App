@@ -1,16 +1,19 @@
-<div class="min-h-screen bg-slate-50/50 py-8 px-4 sm:px-6 lg:px-8">
-    <div class="max-w-4xl mx-auto space-y-8">
+@php
+    $chartLabels = $forecastResult['chart']['labels'] ?? ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    $chartActual = $forecastResult['chart']['actual'] ?? [];
+    $chartPredicted = $forecastResult['chart']['predicted'] ?? [];
+    $chartAllowance = $forecastResult['chart']['allowance'] ?? 2000;
+@endphp
 
-        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-slate-200/60 pb-5">
+<div class="min-h-screen py-6 px-4 sm:px-6 lg:px-8">
+    <div class="max-w-5xl mx-auto space-y-6">
+        
+        <!-- Header -->
+        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-2">
             <div>
-                <div class="flex items-center gap-2.5">
-                    <h2 class="text-xl font-black text-slate-900 tracking-tight sm:text-2xl">Spending Forecast</h2>
-                    <span class="text-[10px] font-bold bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-md ring-1 ring-indigo-700/10 uppercase tracking-wider">
-                        AI-Assisted
-                    </span>
-                </div>
-                <p class="text-xs text-slate-500 font-medium mt-1">
-                    Smart future projections based on your weekly habits.
+                <h2 class="text-2xl font-black text-slate-900 tracking-tight">Spending Forecast</h2>
+                <p class="text-xs text-slate-500 font-medium mt-0.5">
+                    A look at where your week is heading.
                 </p>
             </div>
         </div>
@@ -20,130 +23,197 @@
                 <svg class="w-4 h-4 text-rose-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                 </svg>
-                <span>{{ $forecastResult['message'] }}</span>
+                <span>{{ $forecastResult['message'] ?? 'An error occurred while loading the forecast.' }}</span>
             </div>
         @else
-            <div class="grid grid-cols-1 sm:grid-cols-3 gap-5">
+
+            <!-- Top 3 Status Cards -->
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 
-                <div class="bg-white border border-slate-200/70 p-6 rounded-3xl shadow-sm transition-all hover:border-slate-300">
-                    <span class="block text-slate-400 font-bold text-[10px] uppercase tracking-widest">Your Daily Spending</span>
-                    <div class="text-2xl font-black text-slate-900 mt-2.5 tracking-tight font-mono">
-                        ₱{{ $forecastResult['metrics']['daily_velocity'] }}
+                <!-- Card 1: On Track -->
+                <div class="bg-white border {{ !($forecastResult['metrics']['is_critical'] ?? false) && !($forecastResult['metrics']['is_faster'] ?? false) ? 'border-emerald-400 ring-2 ring-emerald-400/20' : 'border-slate-200/80' }} p-5 rounded-3xl shadow-sm transition-all">
+                    <div class="h-8 w-8 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center font-bold mb-3">
+                        ✓
                     </div>
-                    <span class="text-[11px] text-slate-400 font-medium mt-1 block">Average spent per day</span>
+                    <h3 class="text-base font-bold text-slate-900">On Track</h3>
+                    <p class="text-xs text-slate-500 font-medium mt-0.5">You'll finish within budget.</p>
                 </div>
 
-                <div class="bg-white border border-slate-200/70 p-6 rounded-3xl shadow-sm transition-all hover:border-slate-300">
-                    <span class="block text-slate-400 font-bold text-[10px] uppercase tracking-widest">How Long It Will Last</span>
-                    <div class="text-2xl font-black text-slate-900 mt-2.5 tracking-tight font-mono">
-                        {{ $forecastResult['metrics']['projected_days_left'] }} Days
+                <!-- Card 2: Spending Faster -->
+                <div class="bg-white border {{ ($forecastResult['metrics']['is_faster'] ?? false) ? 'border-amber-400 ring-2 ring-amber-400/20' : 'border-slate-200/80' }} p-5 rounded-3xl shadow-sm transition-all">
+                    <div class="h-8 w-8 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center font-bold mb-3">
+                        ↗
                     </div>
-                    <div class="mt-2">
-                        @if($forecastResult['metrics']['is_critical'])
-                            <span class="inline-flex items-center gap-1.5 text-[10px] bg-rose-50 text-rose-700 px-2 py-0.5 rounded-md font-bold ring-1 ring-rose-700/10 uppercase tracking-wider">
-                                <span class="w-1 h-1 bg-rose-500 rounded-full animate-pulse"></span>
-                                Deficit Risk
-                            </span>
-                        @else
-                            <span class="inline-flex items-center gap-1.5 text-[10px] bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-md font-bold ring-1 ring-emerald-700/10 uppercase tracking-wider">
-                                <span class="w-1 h-1 bg-emerald-500 rounded-full"></span>
-                                Stable Pacing
-                            </span>
-                        @endif
-                    </div>
+                    <h3 class="text-base font-bold text-slate-900">Spending Faster</h3>
+                    <p class="text-xs text-slate-500 font-medium mt-0.5">Slightly ahead of plan.</p>
                 </div>
 
-                <div class="bg-white border border-slate-200/70 p-6 rounded-3xl shadow-sm transition-all hover:border-slate-300">
-                    <span class="block text-slate-400 font-bold text-[10px] uppercase tracking-widest">Estimated Empty Date</span>
-                    <div class="text-2xl font-black text-indigo-600 mt-2.5 tracking-tight font-mono">
-                        {{ $forecastResult['metrics']['depletion_date'] }}
+                <!-- Card 3: Budget Risk -->
+                <div class="bg-white border {{ ($forecastResult['metrics']['is_critical'] ?? false) ? 'border-rose-400 ring-2 ring-rose-400/20' : 'border-slate-200/80' }} p-5 rounded-3xl shadow-sm transition-all">
+                    <div class="h-8 w-8 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center font-bold mb-3">
+                        ⚠
                     </div>
-                    <span class="text-[11px] text-slate-400 font-medium mt-1 block">When your cash runs out</span>
+                    <h3 class="text-base font-bold text-slate-900">Budget Risk</h3>
+                    <p class="text-xs text-slate-500 font-medium mt-0.5">Likely to overspend.</p>
                 </div>
 
             </div>
 
-            <div class="bg-white p-6 rounded-3xl border border-slate-200/70 shadow-sm">
-                <div class="mb-5">
-                    <h3 class="text-xs font-bold text-slate-900 uppercase tracking-wider">Days Until Zero</h3>
-                    <p class="text-[11px] text-slate-400 font-medium mt-0.5">A line graph showing your balance countdown toward your estimated empty date.</p>
+            <!-- Main Weekly Spending Trend Graph -->
+            <div class="bg-white p-6 sm:p-7 rounded-3xl border border-slate-200/80 shadow-sm space-y-4">
+                <div class="flex items-center justify-between">
+                    <h3 class="text-lg font-extrabold text-slate-900">Weekly Spending Trend</h3>
+                    @if($forecastResult['metrics']['is_critical'] ?? false)
+                        <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-rose-50 text-rose-600 border border-rose-100">
+                            <span class="w-2 h-2 rounded-full bg-rose-500 animate-pulse"></span> Deficit Risk
+                        </span>
+                    @else
+                        <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-600 border border-emerald-100">
+                            <span class="w-2 h-2 rounded-full bg-emerald-500"></span> On track
+                        </span>
+                    @endif
                 </div>
-                <div class="h-64 relative w-full" wire:ignore>
+
+                <!-- Chart Canvas Container -->
+                <div class="h-72 relative w-full pt-2" wire:ignore>
                     <canvas id="forecastTrajectoryChart"></canvas>
                 </div>
+
+                <!-- Custom Bottom Chart Legend -->
+                <div class="flex items-center gap-6 pt-2 text-xs font-semibold text-slate-600">
+                    <div class="flex items-center gap-2">
+                        <span class="w-6 h-2 rounded-full bg-indigo-600 inline-block"></span>
+                        <span>Actual spending</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="w-6 h-2 rounded-full bg-teal-400 border border-dashed border-teal-500 inline-block"></span>
+                        <span>Predicted</span>
+                    </div>
+                </div>
             </div>
 
-            <div class="bg-white border border-slate-200/70 rounded-3xl shadow-sm overflow-hidden">
+            <!-- Bottom Section: Predicted Remaining Budget & AI Insights -->
+            <div class="grid grid-cols-1 md:grid-cols-5 gap-5">
                 
-                <div class="bg-slate-50/70 px-6 py-4 flex justify-between items-center border-b border-slate-100">
-                    <div class="flex items-center gap-3">
-                        <div class="h-8 w-8 bg-indigo-600 rounded-lg flex items-center justify-center shadow-sm shadow-indigo-600/20 text-white shrink-0">
-                            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
-                            </svg>
-                        </div>
-                        <div>
-                            <h3 class="text-xs font-bold text-slate-900 uppercase tracking-wide">Behavioral Budget Insights</h3>
-                            <span class="text-[9px] font-bold text-slate-400 tracking-widest uppercase block mt-0.5">
-                                Engine: {{ str_contains($forecastResult['source'], 'Groq') ? 'Llama 3.1 Cloud Intelligence' : 'Local Backup Framework' }}
-                            </span>
+                <!-- Left Indigo Card -->
+                <div class="md:col-span-2 bg-indigo-600 text-white rounded-3xl p-7 flex flex-col justify-between shadow-lg shadow-indigo-600/10 min-h-[220px]">
+                    <div class="space-y-1">
+                        <span class="text-xs font-semibold text-indigo-200 block uppercase tracking-wider">Predicted remaining budget</span>
+                        <div class="text-4xl font-black tracking-tight font-mono">
+                            ₱{{ $forecastResult['metrics']['predicted_remaining'] ?? '0' }}
                         </div>
                     </div>
-                    
-                    <div class="flex items-center gap-2 bg-white px-2.5 py-1 rounded-md border border-slate-200 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-                        <span class="relative flex h-1.5 w-1.5">
-                            <span class="animate-ping absolute inline-flex h-full w-full rounded-full {{ str_contains($forecastResult['source'], 'Offline') ? 'bg-amber-400' : 'bg-emerald-400' }} opacity-75"></span>
-                            <span class="relative inline-flex rounded-full h-1.5 w-1.5 {{ str_contains($forecastResult['source'], 'Offline') ? 'bg-amber-500' : 'bg-emerald-500' }}"></span>
-                        </span>
-                        <span>{{ str_contains($forecastResult['source'], 'Offline') ? 'Offline Fallback' : 'Connected' }}</span>
+                    <div class="text-xs text-indigo-200 font-medium">
+                        by the end of the week (Sunday)
                     </div>
                 </div>
 
-                <div class="p-6 space-y-5">
-                    <div class="p-5 bg-gradient-to-br from-indigo-50/40 via-white to-white rounded-2xl border border-indigo-100/70 shadow-sm text-xs font-semibold text-slate-600 leading-relaxed border-l-4 border-l-indigo-600">
-                        <p class="px-1">
-                            {{ $forecastResult['ai_coach_text'] }}
-                        </p>
+                <!-- Right White Insights Card -->
+                <div class="md:col-span-3 bg-white rounded-3xl p-6 border border-slate-200/80 shadow-sm flex flex-col justify-between">
+                    <div>
+                        <div class="flex items-center gap-2 mb-4">
+                            <div class="h-7 w-7 rounded-full bg-orange-100 text-orange-500 flex items-center justify-center font-bold text-sm">
+                                💡
+                            </div>
+                            <h3 class="text-base font-extrabold text-slate-900">Friendly AI Insights</h3>
+                        </div>
+
+                        <div class="space-y-3">
+                            @if(!empty($forecastResult['ai_coach_text']))
+                                @foreach(explode('|', $forecastResult['ai_coach_text']) as $tip)
+                                    @if(trim($tip))
+                                        <div class="p-3.5 bg-slate-50/80 border border-slate-100 rounded-2xl flex items-start gap-3">
+                                            <span class="text-amber-500 font-bold shrink-0 mt-0.5">💡</span>
+                                            <p class="text-xs font-semibold text-slate-600 leading-relaxed">
+                                                {{ trim($tip) }}
+                                            </p>
+                                        </div>
+                                    @endif
+                                @endforeach
+                            @endif
+                        </div>
+                    </div>
+
+                    <div class="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-[10px] text-slate-400 font-bold uppercase tracking-wider">
+                        <span>Engine: {{ str_contains($forecastResult['source'] ?? '', 'Groq') ? 'gpt-oss-20b' : 'Local Module' }}</span>
+                        <span class="{{ str_contains($forecastResult['source'] ?? '', 'Offline') ? 'text-amber-500' : 'text-emerald-500' }}">● {{ str_contains($forecastResult['source'] ?? '', 'Offline') ? 'Offline' : 'Connected' }}</span>
                     </div>
                 </div>
 
             </div>
-        @endif
 
+        @endif
     </div>
 </div>
 
 <script>
     document.addEventListener('livewire:load', function () {
         const ctx = document.getElementById('forecastTrajectoryChart').getContext('2d');
-        
+        const allowanceAmount = {{ $chartAllowance }};
+
+        // Custom plugin to draw the "Allowance" label with proper padding
+        const allowanceLabelPlugin = {
+            id: 'allowanceLabel',
+            afterDraw(chart) {
+                const { ctx, chartArea, scales } = chart;
+                if (!chartArea) return;
+                const yPos = scales.y.getPixelForValue(allowanceAmount);
+                if (yPos >= chartArea.top && yPos <= chartArea.bottom) {
+                    ctx.save();
+                    ctx.font = 'bold 10px sans-serif';
+                    ctx.fillStyle = '#f43f5e';
+                    ctx.textAlign = 'right';
+                    ctx.fillText('Allowance', chartArea.right - 8, yPos - 8);
+                    ctx.restore();
+                }
+            }
+        };
+
         let trajectoryChart = new Chart(ctx, {
             type: 'line',
+            plugins: [allowanceLabelPlugin],
             data: {
-                labels: @json($forecastResult['chart']['labels'] ?? []),
-                datasets: [{
-                    label: 'Projected Cash Balance',
-                    data: @json($forecastResult['chart']['values'] ?? []),
-                    borderColor: '#6366f1',
-                    borderWidth: 2.5,
-                    fill: true,
-                    backgroundColor: function(context) {
-                        const chart = context.chart;
-                        const {ctx, chartArea} = chart;
-                        if (!chartArea) return null;
-                        const gradient = ctx.createLinearGradient(0, chartArea.top, 0, chartArea.bottom);
-                        gradient.addColorStop(0, 'rgba(99, 102, 241, 0.12)');
-                        gradient.addColorStop(1, 'rgba(99, 102, 241, 0.0)');
-                        return gradient;
+                labels: @json($chartLabels),
+                datasets: [
+                    {
+                        label: 'Actual spending',
+                        data: @json($chartActual),
+                        borderColor: '#6366f1',
+                        backgroundColor: '#6366f1',
+                        borderWidth: 3,
+                        tension: 0.35,
+                        pointRadius: 5,
+                        pointHoverRadius: 7,
+                        pointBackgroundColor: '#6366f1',
+                        pointBorderColor: '#ffffff',
+                        pointBorderWidth: 2,
+                        spanGaps: false
                     },
-                    tension: 0.35,
-                    pointRadius: 0,
-                    pointHoverRadius: 5,
-                    pointHitRadius: 12,
-                    pointBackgroundColor: '#6366f1',
-                    pointBorderColor: '#ffffff',
-                    pointBorderWidth: 2
-                }]
+                    {
+                        label: 'Predicted',
+                        data: @json($chartPredicted),
+                        borderColor: '#2dd4bf',
+                        backgroundColor: '#2dd4bf',
+                        borderWidth: 3,
+                        borderDash: [6, 6],
+                        tension: 0.35,
+                        pointRadius: 4,
+                        pointHoverRadius: 6,
+                        pointBackgroundColor: '#2dd4bf',
+                        pointBorderColor: '#ffffff',
+                        pointBorderWidth: 2,
+                        spanGaps: false
+                    },
+                    {
+                        label: 'Allowance',
+                        data: Array(7).fill(allowanceAmount),
+                        borderColor: '#f43f5e',
+                        borderWidth: 1.5,
+                        borderDash: [5, 5],
+                        pointRadius: 0,
+                        fill: false
+                    }
+                ]
             },
             options: {
                 responsive: true,
@@ -151,36 +221,39 @@
                 plugins: {
                     legend: { display: false },
                     tooltip: {
-                        padding: 12,
-                        titleFont: { size: 10, weight: '700' },
-                        bodyFont: { size: 11, weight: '600' },
+                        padding: 10,
+                        titleFont: { size: 11, weight: '700' },
+                        bodyFont: { size: 12, weight: '600' },
                         callbacks: {
-                            label: (ctx) => ` Balance: ₱${ctx.raw.toLocaleString(undefined, {minimumFractionDigits: 2})}`
+                            label: (ctx) => ` ${ctx.dataset.label}: ₱${ctx.raw ? ctx.raw.toLocaleString(undefined, {minimumFractionDigits: 2}) : 0}`
                         }
                     }
                 },
                 scales: {
                     x: {
                         grid: { display: false },
-                        ticks: { font: { size: 9, weight: '600' }, color: '#94a3b8', maxRotation: 0 }
+                        ticks: { font: { size: 11, weight: '600' }, color: '#94a3b8' }
                     },
                     y: {
                         grid: { color: '#f1f5f9' },
-                        ticks: { 
-                            font: { size: 9, weight: '600' }, 
+                        suggestedMax: allowanceAmount * 1.15, // Adds 15% headroom so Allowance text never gets clipped!
+                        ticks: {
+                            font: { size: 10, weight: '600' },
                             color: '#94a3b8',
-                            callback: (value) => '₱' + value
+                            callback: (value) => value
                         }
                     }
                 }
             }
         });
 
-        // Event listener bridge for real-time reactivity without page refreshes
         window.addEventListener('renderForecastChart', event => {
             const data = event.detail;
             trajectoryChart.data.labels = data.labels;
-            trajectoryChart.data.datasets[0].data = data.values;
+            trajectoryChart.data.datasets[0].data = data.actual;
+            trajectoryChart.data.datasets[1].data = data.predicted;
+            trajectoryChart.data.datasets[2].data = Array(7).fill(data.allowance);
+            trajectoryChart.options.scales.y.suggestedMax = data.allowance * 1.15;
             trajectoryChart.update();
         });
     });
