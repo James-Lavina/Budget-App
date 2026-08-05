@@ -1,4 +1,4 @@
-<div class="min-h-screen bg-slate-50/50 py-8 px-4 sm:px-6 lg:px-8">
+<div class="min-h-screen py-8 px-4 sm:px-6 lg:px-8">
     <div class="max-w-4xl mx-auto space-y-6">
 
         <!-- Main Ledger Card Container -->
@@ -8,15 +8,15 @@
             <div class="px-6 py-5 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                 <div>
                     <!-- Tiny Professional Breadcrumb Track -->
-                    <nav class="flex items-center gap-1.5 text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+                    {{-- <nav class="flex items-center gap-1.5 text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">
                         <a href="{{ route('student.dashboard') }}" class="hover:text-indigo-600 transition-colors">Dashboard</a>
                         <svg class="w-2.5 h-2.5 text-slate-300 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 5l7 7-7 7"></path>
                         </svg>
                         <span class="text-slate-500">Ledger Records</span>
-                    </nav>
+                    </nav> --}}
 
-                    <h1 class="text-xl font-black text-slate-900 tracking-tight sm:text-2xl">Transaction Records</h1>
+                    <h1 class="text-xl font-black text-slate-900 tracking-tight sm:text-2xl">Expenses Records</h1>
                     <p class="text-xs text-slate-500 mt-0.5">Complete historical breakdown of your tracked budget items.</p>
                 </div>
                 <div class="self-start sm:self-center">

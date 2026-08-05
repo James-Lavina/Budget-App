@@ -114,7 +114,7 @@
                 <div class="min-w-0">
                     <h3 class="text-xs sm:text-sm font-extrabold text-slate-900 flex items-center gap-1 truncate">
                         @if($isCriticalState)
-                            Spending Anomaly Detected ✨
+                            Over Spending Detected ✨
                         @else
                             You're on track ✨
                         @endif
