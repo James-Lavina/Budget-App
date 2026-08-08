@@ -20,6 +20,11 @@ class Expense extends Model
         'tracking_type',
     ];
 
+    protected $casts = [
+        'transaction_date' => 'date',
+        'amount' => 'float',
+    ];
+
     // Inverse: This transaction belongs to one student
     public function user()
     {

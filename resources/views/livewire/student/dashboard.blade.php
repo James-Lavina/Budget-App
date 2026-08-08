@@ -1,36 +1,6 @@
 <div class="min-h-screen py-3 sm:py-6 md:py-8 px-2.5 sm:px-6 lg:px-8 text-slate-800 antialiased relative pb-28 sm:pb-24 w-full max-w-full overflow-x-hidden">
     <div class="max-w-7xl mx-auto space-y-3 sm:space-y-6 w-full min-w-0">
-    
-        <!-- DYNAMIC CALCULATIONS & METRICS PREPARATION -->
-        @php
-            $startDate = \Carbon\Carbon::parse($currentBudget->cycle_start_date)->startOfDay();
-            $endDate = $startDate->copy()->addDays(6)->endOfDay();
-            $daysElapsed = max(1, $startDate->diffInDays(\Carbon\Carbon::now()->startOfDay()) + 1);
-            $totalSpent = \App\Models\Expense::where('user_id', auth()->id())
-                ->whereBetween('transaction_date', [$startDate, $endDate])
-                ->sum('amount');
-            $dailyVelocity = $totalSpent / $daysElapsed;
-          
-            // Future days excluding today
-            $futureDaysRemaining = max(0, $daysRemaining - 1);
-            $projectedRemaining = max(0, $currentBudget->remaining_allowance - ($dailyVelocity * $futureDaysRemaining));
-          
-            $projectedDaysLeft = $dailyVelocity > 0 ? ($currentBudget->remaining_allowance / $dailyVelocity) : $daysRemaining;
-            // Adjusted safe daily rate for remaining future days
-            $remainingDailyRate = $futureDaysRemaining > 0
-                ? ($currentBudget->remaining_allowance / $futureDaysRemaining)
-                : $currentBudget->remaining_allowance;
-            // Distinguish distinct financial states
-            $isDepleted = $currentBudget->remaining_allowance <= 0;
-            $isPaceCritical = !$isDepleted && ($projectedDaysLeft < $daysRemaining);
-            $isDailyQuotaHit = !$isDepleted && !$isPaceCritical && ($safeToSpend <= 0);
-           
-            $isCriticalState = $isDepleted || $isPaceCritical || $isDailyQuotaHit;
-           
-            $totalAllowance = max(1, $currentBudget->total_allowance);
-            $remainingPercentage = round(($currentBudget->remaining_allowance / $totalAllowance) * 100);
-        @endphp
- 
+        
         <!-- HEADER SECTION: GREETING & STATUS -->
         <div class="flex flex-col md:flex-row md:items-center justify-between gap-2 sm:gap-4 w-full min-w-0">
             <div class="min-w-0">
@@ -39,7 +9,12 @@
                 </h1>
             </div>
             <div class="flex items-center gap-2 self-start md:self-auto shrink-0">
-                @if($isDailyQuotaHit)
+                @if($isSavingsLocked)
+                    <span class="inline-flex items-center gap-1.5 text-[11px] sm:text-xs bg-indigo-50 border border-indigo-200 text-indigo-700 px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-full font-bold">
+                        <span class="h-2 w-2 rounded-full bg-indigo-500"></span>
+                        Saved today
+                    </span>
+                @elseif($isDailyQuotaHit)
                     <span class="inline-flex items-center gap-1.5 text-[11px] sm:text-xs bg-amber-50 border border-amber-200 text-amber-700 px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-full font-bold">
                         <span class="h-2 w-2 rounded-full bg-amber-500"></span>
                         Daily limit reached
@@ -78,6 +53,7 @@
                     </svg>
                 </div>
             </div>
+ 
             <!-- 2. Remaining Budget -->
             <div class="bg-white rounded-2xl sm:rounded-3xl p-3.5 sm:p-5 border border-slate-100 shadow-sm flex items-center justify-between relative overflow-hidden min-w-0">
                 <div class="space-y-0.5 min-w-0">
@@ -95,6 +71,7 @@
                     </svg>
                 </div>
             </div>
+ 
             <!-- 3. Daily Safe-to-Spend -->
             <div class="bg-white rounded-2xl sm:rounded-3xl p-3.5 sm:p-5 border border-slate-100 shadow-sm flex items-center justify-between sm:col-span-2 lg:col-span-1 relative overflow-hidden min-w-0">
                 <div class="space-y-0.5 min-w-0">
@@ -106,7 +83,7 @@
                         For next {{ $daysRemaining }} {{ Str::plural('day', $daysRemaining) }}
                     </span>
                 </div>
-                <div class="h-9 w-9 sm:h-12 sm:w-12 rounded-xl sm:rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0 ml-2">
+                <div class="h-9 w-9 sm:h-12 sm:w-12 rounded-xl sm:rounded-2xl {{ $isSavingsLocked ? 'bg-indigo-50 text-indigo-600' : 'bg-emerald-50 text-emerald-600' }} flex items-center justify-center shrink-0 ml-2">
                     <svg class="w-4 h-4 sm:w-6 sm:h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
                     </svg>
@@ -115,11 +92,15 @@
         </div>
  
         <!-- SPENDING FORECAST BANNER -->
-        <div class="rounded-2xl sm:rounded-3xl p-3.5 sm:p-5 border shadow-sm transition-all flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 sm:gap-4 w-full min-w-0 {{ $isDepleted || $isPaceCritical ? 'bg-rose-50/70 border-rose-200/80' : ($isDailyQuotaHit ? 'bg-amber-50/70 border-amber-200/80' : 'bg-emerald-50/60 border-emerald-100') }}">
+        <div class="rounded-2xl sm:rounded-3xl p-3.5 sm:p-5 border shadow-sm transition-all flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 sm:gap-4 w-full min-w-0 {{ $isDepleted || $isPaceCritical ? 'bg-rose-50/70 border-rose-200/80' : ($isSavingsLocked ? 'bg-indigo-50/70 border-indigo-200/80' : ($isDailyQuotaHit ? 'bg-amber-50/70 border-amber-200/80' : 'bg-emerald-50/60 border-emerald-100')) }}">
             <div class="flex items-center gap-3 min-w-0">
-                <div class="h-9 w-9 sm:h-11 sm:w-11 rounded-xl sm:rounded-2xl flex items-center justify-center shrink-0 {{ $isDepleted || $isPaceCritical ? 'bg-rose-500 text-white' : ($isDailyQuotaHit ? 'bg-amber-500 text-white' : 'bg-emerald-500 text-white') }}">
+                <div class="h-9 w-9 sm:h-11 sm:w-11 rounded-xl sm:rounded-2xl flex items-center justify-center shrink-0 {{ $isDepleted || $isPaceCritical ? 'bg-rose-500 text-white' : ($isSavingsLocked ? 'bg-indigo-600 text-white' : ($isDailyQuotaHit ? 'bg-amber-500 text-white' : 'bg-emerald-500 text-white')) }}">
                     <svg class="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 18L9 11.25l4.306 4.307a11.95 11.95 0 015.814-5.519l2.74-1.22m0 0l-5.94-2.28m5.94 2.28l-2.28 5.941" />
+                        @if($isSavingsLocked)
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        @else
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 18L9 11.25l4.306 4.307a11.95 11.95 0 015.814-5.519l2.74-1.22m0 0l-5.94-2.28m5.94 2.28l-2.28 5.941" />
+                        @endif
                     </svg>
                 </div>
                 <div class="min-w-0">
@@ -128,6 +109,8 @@
                             Weekly Budget Depleted
                         @elseif($isPaceCritical)
                             Spending Too Fast
+                        @elseif($isSavingsLocked)
+                            Money Moved to Savings
                         @elseif($isDailyQuotaHit)
                             Daily Limit Reached
                         @else
@@ -139,6 +122,8 @@
                             You have ₱0.00 left for the remaining {{ $daysRemaining }} {{ Str::plural('day', $daysRemaining) }}.
                         @elseif($isPaceCritical)
                             At <span class="font-bold">₱{{ number_format($dailyVelocity, 2) }}/day</span>, your budget will run out in about <span class="font-bold">{{ max(1, round($projectedDaysLeft)) }} {{ Str::plural('day', max(1, round($projectedDaysLeft))) }}</span>—before your next reset.
+                        @elseif($isSavingsLocked)
+                            Nice job! You put <span class="font-bold">₱{{ number_format($todaySavingsTotal, 2) }}</span> into savings today. Your extra cash for today is <span class="font-bold">₱{{ number_format($safeToSpend, 2) }}</span>.
                         @elseif($isDailyQuotaHit)
                             Limit reached for today. You still have <span class="font-bold">₱{{ number_format($currentBudget->remaining_allowance, 2) }}</span> total left (<span class="font-bold">₱{{ number_format($remainingDailyRate, 2) }}/day</span> for the next {{ $futureDaysRemaining }} {{ Str::plural('day', $futureDaysRemaining) }}).
                         @else
@@ -147,7 +132,7 @@
                     </p>
                 </div>
             </div>
-            <a href="{{ route('student.forecast') }}" class="text-xs font-bold {{ $isDepleted || $isPaceCritical ? 'text-rose-700 hover:text-rose-800' : ($isDailyQuotaHit ? 'text-amber-800 hover:text-amber-900' : 'text-emerald-700 hover:text-emerald-800') }} flex items-center gap-1 whitespace-nowrap self-end sm:self-auto transition-colors shrink-0">
+            <a href="{{ route('student.forecast') }}" class="text-xs font-bold {{ $isDepleted || $isPaceCritical ? 'text-rose-700 hover:text-rose-800' : ($isSavingsLocked ? 'text-indigo-700 hover:text-indigo-800' : ($isDailyQuotaHit ? 'text-amber-800 hover:text-amber-900' : 'text-emerald-700 hover:text-emerald-800')) }} flex items-center gap-1 whitespace-nowrap self-end sm:self-auto transition-colors shrink-0">
                 <span>View forecast</span>
                 <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
@@ -157,7 +142,6 @@
  
         <!-- MAIN WORKSPACE: SPENDING CHART + CATEGORY WIDGET -->
         <div class="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-6 items-stretch w-full min-w-0">
-        
             <!-- WEEKLY SPENDING BAR CHART (7 COLS) -->
             <div class="lg:col-span-7 bg-white rounded-2xl sm:rounded-3xl p-3.5 sm:p-6 border border-slate-100 shadow-sm flex flex-col justify-between w-full min-w-0 overflow-hidden">
                 <div class="flex items-center justify-between gap-2 pb-3 border-b border-slate-100">
@@ -166,43 +150,7 @@
                         Safe: <span class="font-bold text-slate-600">₱{{ number_format($safeToSpend, 2) }}/d</span>
                     </span>
                 </div>
-                @php
-                    $daysOfWeek = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-                    $currentDayName = \Carbon\Carbon::now()->format('D');
-                    $colorPalette = [
-                        '#ff7052', '#5b46f6', '#4fd1c5', '#ffc043',
-                        '#f43f5e', '#3b82f6', '#10b981', '#8b5cf6'
-                    ];
-                    $categoryTotals = \App\Models\Expense::where('expenses.user_id', auth()->id())
-                        ->whereBetween('transaction_date', [$startDate, $endDate])
-                        ->join('expense_categories', 'expenses.expense_category_id', '=', 'expense_categories.id')
-                        ->select('expense_categories.name', \DB::raw('SUM(expenses.amount) as total_amount'))
-                        ->groupBy('expense_categories.name')
-                        ->get();
-                    $categoryColorMap = [];
-                    foreach ($categoryTotals as $index => $cat) {
-                        $categoryColorMap[$cat->name] = $colorPalette[$index % count($colorPalette)];
-                    }
-                    $cycleExpenses = \App\Models\Expense::with('category')
-                        ->where('user_id', auth()->id())
-                        ->whereBetween('transaction_date', [$startDate, $endDate])
-                        ->get();
-                    $dailyTotals = array_fill_keys($daysOfWeek, 0);
-                    $dailyCategoryBreakdown = array_fill_keys($daysOfWeek, []);
-                    foreach ($cycleExpenses as $exp) {
-                        $dayKey = \Carbon\Carbon::parse($exp->transaction_date)->format('D');
-                        if (array_key_exists($dayKey, $dailyTotals)) {
-                            $dailyTotals[$dayKey] += (float) $exp->amount;
-                            $catName = $exp->category->name ?? $exp->category ?? 'Uncategorized';
-                            if (!isset($dailyCategoryBreakdown[$dayKey][$catName])) {
-                                $dailyCategoryBreakdown[$dayKey][$catName] = 0;
-                            }
-                            $dailyCategoryBreakdown[$dayKey][$catName] += (float) $exp->amount;
-                        }
-                    }
-                    $maxDaily = max(array_merge([$safeToSpend * 1.5, 100], array_values($dailyTotals)));
-                    $step = $maxDaily / 4;
-                @endphp
+ 
                 <!-- CATEGORY LEGEND -->
                 @if(!empty($categoryColorMap))
                     <div class="flex flex-wrap items-center gap-x-3 gap-y-1.5 pt-3 min-w-0">
@@ -214,6 +162,7 @@
                         @endforeach
                     </div>
                 @endif
+ 
                 <div class="pt-4 sm:pt-6 pb-1 w-full min-w-0">
                     <div class="flex gap-1.5 sm:gap-3 items-stretch h-40 sm:h-56 w-full min-w-0">
                         <!-- Y-AXIS NUMERICAL LABELS -->
@@ -224,7 +173,7 @@
                             <span>{{ number_format($step * 1, 0) }}</span>
                             <span>0</span>
                         </div>
-             
+ 
                         <!-- CHART GRID AREA & BARS -->
                         <div class="flex-1 flex flex-col justify-between relative min-w-0">
                             <div class="absolute inset-0 flex flex-col justify-between pointer-events-none pb-6">
@@ -234,24 +183,24 @@
                                 <div class="border-b border-slate-100 w-full"></div>
                                 <div class="border-b border-slate-200 w-full"></div>
                             </div>
+ 
                             <div class="flex-1 flex items-end justify-between gap-1 relative z-10 px-0.5 sm:px-2 pb-1 min-w-0">
-                                @foreach($daysOfWeek as $day)
+                                @foreach($daysOfWeek as $dateKey => $dayName)
                                     @php
-                                        $amount = $dailyTotals[$day] ?? 0;
+                                        $amount = $dailyTotals[$dateKey] ?? 0;
                                         $heightPct = $maxDaily > 0 ? min(100, max(0, round(($amount / $maxDaily) * 100))) : 0;
-                                        $isToday = $day === $currentDayName;
                                     @endphp
-                         
                                     <div class="relative flex-1 flex flex-col items-center h-full justify-end group hover:z-30 cursor-pointer min-w-0">
                                         <!-- OVERALL DAY TOTAL TOOLTIP -->
                                         <div class="absolute -top-7 opacity-0 group-hover:opacity-100 transition-all duration-200 pointer-events-none z-20 bg-slate-800 text-white text-[9px] sm:text-[10px] font-extrabold px-2 py-0.5 rounded shadow-md font-mono whitespace-nowrap transform -translate-y-1 group-hover:translate-y-0">
                                             Total: ₱{{ number_format($amount, 2) }}
                                         </div>
+ 
                                         <!-- STACKED BAR SLOTS -->
                                         <div class="w-full flex items-end justify-center h-full">
                                             @if($amount > 0)
                                                 @php
-                                                    $dayCategories = $dailyCategoryBreakdown[$day] ?? [];
+                                                    $dayCategories = $dailyCategoryBreakdown[$dateKey] ?? [];
                                                     asort($dayCategories);
                                                 @endphp
                                                 <div style="height: {{ max(8, $heightPct) }}%;" class="w-2.5 sm:w-7 flex flex-col-reverse transition-all duration-300">
@@ -275,13 +224,13 @@
                                     </div>
                                 @endforeach
                             </div>
-                 
+ 
                             <!-- X-AXIS DAY LABELS -->
                             <div class="flex justify-between items-center px-0.5 sm:px-2 pt-2 h-5 min-w-0">
-                                @foreach($daysOfWeek as $day)
-                                    @php $isToday = $day === $currentDayName; @endphp
+                                @foreach($daysOfWeek as $dateKey => $dayName)
+                                    @php $isToday = $dateKey === \Carbon\Carbon::today()->format('Y-m-d'); @endphp
                                     <span class="flex-1 text-center text-[9px] sm:text-[11px] font-semibold truncate {{ $isToday ? 'text-slate-900 font-black' : 'text-slate-400' }}">
-                                        {{ substr($day, 0, 1) }}<span class="hidden sm:inline">{{ substr($day, 1) }}</span>
+                                        {{ substr($dayName, 0, 1) }}<span class="hidden sm:inline">{{ substr($dayName, 1) }}</span>
                                     </span>
                                 @endforeach
                             </div>
@@ -307,18 +256,21 @@
                     </svg>
                 </a>
             </div>
+ 
             @if (session()->has('success'))
                 <div class="mt-3 p-2.5 bg-emerald-50 border border-emerald-100 text-emerald-800 rounded-xl text-xs font-semibold flex items-center gap-2">
                     <span class="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse shrink-0"></span>
                     <span class="truncate">{{ session('success') }}</span>
                 </div>
             @endif
+ 
             @if (session()->has('error'))
                 <div class="mt-3 p-2.5 bg-rose-50 border border-rose-100 text-rose-800 rounded-xl text-xs font-semibold flex items-center gap-2">
                     <span class="h-1.5 w-1.5 rounded-full bg-rose-500 animate-pulse shrink-0"></span>
                     <span class="truncate">{{ session('error') }}</span>
                 </div>
             @endif
+ 
             @if($recentExpenses->isEmpty())
                 <div class="py-10 text-center text-slate-400 max-w-sm mx-auto space-y-2">
                     <div class="h-10 w-10 bg-slate-50 rounded-full flex items-center justify-center mx-auto text-slate-400 border border-slate-100">
@@ -334,7 +286,7 @@
                         @php
                             $catName = strtolower($expense->category->name ?? $expense->category ?? '');
                             $itemName = strtolower($expense->item_name);
-                        
+ 
                             if (str_contains($catName, 'food') || str_contains($catName, 'snack') || str_contains($itemName, 'lunch') || str_contains($itemName, 'tea') || str_contains($itemName, 'coffee')) {
                                 $iconType = 'food';
                                 $bgColor = 'bg-amber-50 text-amber-600';
@@ -354,6 +306,7 @@
                                 $iconType = 'default';
                                 $bgColor = 'bg-slate-100 text-slate-600';
                             }
+ 
                             $date = \Carbon\Carbon::parse($expense->transaction_date);
                             if ($date->isToday()) {
                                 $formattedDate = 'Today, ' . $date->format('g:i A');

@@ -21,7 +21,7 @@ class GoalsManager extends Component
     public $target_amount;
     public $already_saved = 0.00;
     public $target_date;
-    
+   
     // Action Modals & State
     public $fundingGoalId;
     public $fund_amount;
@@ -55,11 +55,9 @@ class GoalsManager extends Component
     public function storeGoal()
     {
         $this->validate();
-
         $initialSaved = $this->already_saved ? floatval($this->already_saved) : 0.00;
         $targetAmount = floatval($this->target_amount);
 
-        // Cap initial saved amount at target amount
         if ($initialSaved > $targetAmount) {
             $initialSaved = $targetAmount;
         }
@@ -108,7 +106,7 @@ class GoalsManager extends Component
                 'numeric',
                 'min:0.01',
                 'max:' . $currentBudget->remaining_allowance,
-                'max:' . $remainingNeeded,                   
+                'max:' . $remainingNeeded,                  
             ]
         ], [
             'fund_amount.max' => 'Transfer halted! The amount exceeds either your remaining budget (₱' . number_format($currentBudget->remaining_allowance, 2) . ') or what is left to finish this goal (₱' . number_format($remainingNeeded, 2) . ').'
@@ -128,7 +126,7 @@ class GoalsManager extends Component
         DB::transaction(function () use ($goal, $currentBudget, &$goalWasAchieved) {
             $newSavedBalance = $goal->current_saved + $this->fund_amount;
             $status = $goal->status;
-            
+           
             if ($newSavedBalance >= $goal->target_amount) {
                 $status = 'achieved';
                 $newSavedBalance = $goal->target_amount;
@@ -194,8 +192,8 @@ class GoalsManager extends Component
                     'notifiable_id' => auth()->id(),
                     'data' => [
                         'anomaly_type' => 'low_allowance_threshold',
-                        'severity_tier' => 'medium',
-                        'description' => "Budget Critical! ⚠️ Your remaining allowance has dropped to {$percentageLeft}% (₱" . number_format($currentBudget->remaining_allowance, 2) . " left). Consider lowering your daily velocity to survive the cycle.",
+                        'severity_tier' => 'info',
+                        'description' => "Great job saving! 🎯 Heads up: you have ₱" . number_format($currentBudget->remaining_allowance, 2) . " left for food and daily expenses this week.",
                     ],
                     'read_at' => null,
                 ]);
@@ -225,6 +223,7 @@ class GoalsManager extends Component
             ->firstOrFail();
 
         $goal->update(['status' => 'abandoned']);
+
         $this->confirmingAbandonId = null;
 
         session()->flash('success', 'Goal marked as archived.');
@@ -237,6 +236,7 @@ class GoalsManager extends Component
             ->firstOrFail();
 
         $goal->update(['status' => 'active']);
+
         session()->flash('success', 'Savings goal successfully restored to your active dashboard!');
     }
 
@@ -259,6 +259,7 @@ class GoalsManager extends Component
         });
 
         $this->confirmingDeleteId = null;
+
         session()->flash('success', 'Savings milestone and its associated transaction logs were completely cleared.');
     }
 

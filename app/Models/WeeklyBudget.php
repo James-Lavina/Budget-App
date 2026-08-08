@@ -17,6 +17,12 @@ class WeeklyBudget extends Model
         'cycle_start_date',
     ];
 
+    protected $casts = [
+        'cycle_start_date' => 'date',
+        'total_allowance' => 'float',
+        'remaining_allowance' => 'float',
+    ];
+
     // Inverse: This budget baseline belongs strictly to one student
     public function user()
     {
