@@ -1,4 +1,4 @@
-<div class="min-h-screen bg-slate-50/60 py-10 px-4 sm:px-6 lg:px-8 font-sans">
+<div class="min-h-screen py-10 px-4 sm:px-6 lg:px-8 font-sans">
     <div class="max-w-2xl mx-auto space-y-6">
 
         <!-- Header -->

@@ -15,22 +15,35 @@ class SpendingForecastService
     public function generateForecast($user)
     {
         $activeBudget = WeeklyBudget::where('user_id', $user->id)->latest()->first();
+
         if (!$activeBudget) {
             return ['status' => 'error', 'message' => 'No active tracking budget period established yet.'];
         }
 
-        // Force cycle to always align Monday to Sunday
-        $startDate = Carbon::parse($activeBudget->cycle_start_date)->startOfWeek(Carbon::MONDAY);
+        // 1. Harmonize Start Date strictly with cycle_start_date
+        $startDate = Carbon::parse($activeBudget->cycle_start_date)->startOfDay();
+        $endDate = $startDate->copy()->addDays(6)->endOfDay();
         $today = Carbon::today();
 
-        // Calculate days elapsed (1 to 7)
-        $daysElapsed = min(7, max(1, (int)$startDate->diffInDays($today) + 1));
-        $totalAllowance = (float) ($activeBudget->total_allowance ?? 1000.00);
+        // 2. Compute Days Elapsed & Remaining within the 7-day tracking cycle
+        $daysElapsed = max(1, min(7, (int)$startDate->diffInDays($today) + 1));
+        $daysRemaining = max(1, 7 - $daysElapsed + 1);
 
-        // Fetch expenses grouped by day
+        $totalAllowance = (float) ($activeBudget->total_allowance ?? 1000.00);
+        $remainingAllowance = (float) ($activeBudget->remaining_allowance ?? 0.00);
+
+        // 3. Compute Daily Safe-to-Spend quota to mirror Dashboard calculations
+        $spentToday = (float) Expense::where('user_id', $user->id)
+            ->whereDate('transaction_date', $today)
+            ->sum('amount');
+
+        $startingBudgetForRemainingDays = $remainingAllowance + $spentToday;
+        $todayStartingQuota = $startingBudgetForRemainingDays / $daysRemaining;
+        $safeToSpendToday = max(0.00, $todayStartingQuota - $spentToday);
+
+        // 4. Group Cycle Expenses Day-by-Day
         $expensesByDay = Expense::where('user_id', $user->id)
-            ->whereDate('transaction_date', '>=', $startDate)
-            ->whereDate('transaction_date', '<=', $startDate->copy()->addDays(6))
+            ->whereBetween('transaction_date', [$startDate, $endDate])
             ->get()
             ->groupBy(function ($expense) {
                 return Carbon::parse($expense->transaction_date)->format('Y-m-d');
@@ -41,12 +54,11 @@ class SpendingForecastService
         $predictedValues = [];
         $runningSpent = 0;
 
-        // 1. Calculate Actual Cumulative Spending (Mon -> Sun)
+        // 5. Calculate Actual Cumulative Spending (Days 1 to 7)
         for ($i = 0; $i < 7; $i++) {
             $currentDate = $startDate->copy()->addDays($i);
             $dateKey = $currentDate->format('Y-m-d');
-            $labels[] = $currentDate->format('D'); // Mon, Tue, Wed, Thu, Fri, Sat, Sun
-
+            $labels[] = $currentDate->format('D'); // Mon, Tue, Wed, etc.
             $dayIndex = $i + 1;
 
             if ($dayIndex <= $daysElapsed) {
@@ -61,11 +73,10 @@ class SpendingForecastService
         $totalSpent = $runningSpent;
         $dailyVelocity = $daysElapsed > 0 ? ($totalSpent / $daysElapsed) : 0;
 
-        // 2. Project Spending from Today through Sunday
+        // 6. Project Spending for Remaining Cycle Days
         for ($i = 0; $i < 7; $i++) {
             $dayIndex = $i + 1;
-            
-            // If it's Sunday (Day 7), we don't need a prediction line since the week is complete
+
             if ($daysElapsed === 7) {
                 $predictedValues[] = null;
                 continue;
@@ -74,7 +85,7 @@ class SpendingForecastService
             if ($dayIndex < $daysElapsed) {
                 $predictedValues[] = null;
             } elseif ($dayIndex === $daysElapsed) {
-                // Bridge point connecting actual to predicted
+                // Bridge point connecting actual to predicted trajectory
                 $predictedValues[] = $actualValues[$daysElapsed - 1] ?? 0;
             } else {
                 $daysAhead = $dayIndex - $daysElapsed;
@@ -85,8 +96,13 @@ class SpendingForecastService
         $predictedEndOfWeekSpent = end($predictedValues) ?: $totalSpent;
         $predictedRemainingBudget = max(0, $totalAllowance - $predictedEndOfWeekSpent);
 
-        $isCriticalState = $predictedEndOfWeekSpent > $totalAllowance;
-        $isFasterPacing = !$isCriticalState && ($dailyVelocity > ($totalAllowance / 7));
+        // 7. Synchronized Risk & Pacing Triggers
+        
+        // Critical State: Balance is depleted OR total projected weekly spend strictly exceeds total allowance
+        $isCriticalState = ($remainingAllowance <= 0) || ($predictedEndOfWeekSpent > $totalAllowance);
+
+        // Faster Pacing: Spent today exceeds today's safe starting quota, but total weekly projection remains within allowance
+        $isFasterPacing = !$isCriticalState && ($spentToday > $todayStartingQuota);
 
         if ($isCriticalState) {
             $alreadyLoggedToday = RiskLog::where('user_id', $user->id)
@@ -98,10 +114,11 @@ class SpendingForecastService
                 $riskLog = RiskLog::create([
                     'user_id'       => $user->id,
                     'anomaly_type'  => 'early_week_depletion',
-                    'severity_tier' => 'high',                
-                    'description'   => "Deficit Risk: Daily spend rate of ₱" . number_format($dailyVelocity, 2) . "/day will exceed allowance by Sunday.",
+                    'severity_tier' => 'high',            
+                    'description'   => "Deficit Risk: Daily velocity of ₱" . number_format($dailyVelocity, 2) . "/day will strain balance.",
                     'resolved'      => false,
                 ]);
+
                 $user->notify(new BudgetRiskNotification($riskLog));
             }
         }
@@ -115,61 +132,105 @@ class SpendingForecastService
             'total_allowance'     => number_format($totalAllowance, 2),
             'predicted_remaining' => number_format($predictedRemainingBudget, 0),
             'predicted_end_spent' => number_format($predictedEndOfWeekSpent, 2),
-            'is_critical'          => $isCriticalState,
-            'is_faster'            => $isFasterPacing,
+            'is_critical'         => $isCriticalState,
+            'is_faster'           => $isFasterPacing,
             'days_left_in_week'   => 7 - $daysElapsed,
             'active_risks_count'  => $riskLogsCountThisWeek,
         ];
 
         try {
-            $response = Http::timeout(6)
+            $apiKey = env('GROQ_API_KEY');
+            if (empty($apiKey)) {
+                throw new \Exception('GROQ API key missing.');
+            }
+
+            $response = Http::timeout(5)
                 ->withHeaders([
-                    'Authorization' => 'Bearer ' . env('GROQ_API_KEY'),
+                    'Authorization' => 'Bearer ' . $apiKey,
                     'Content-Type'  => 'application/json'
                 ])->post('https://api.groq.com/openai/v1/chat/completions', [
-                    'model' => env('GROQ_MODEL'),
+                    'model' => env('GROQ_MODEL', 'llama-3.3-70b-versatile'),
                     'messages' => [
                         [
                             'role' => 'system',
-                            'content' => 'You are a supportive, money-savvy student peer. Provide 3 short, actionable bullet advice statements for a student based on their weekly spending trend. Keep each point under 15 words. Do not use markdown bolding.'
+                            'content' => 'You are a supportive, money-savvy student peer. Provide exactly 3 short, actionable advice statements based on the student\'s spending trend. Separate each statement ONLY with a pipe character (|). Do not use hyphens, dashes, bullet points, or markdown bolding. Keep each point under 15 words.'
                         ],
                         [
                             'role' => 'user',
-                            'content' => "Allowance limit: PHP {$totalAllowance}. Spent so far: PHP {$totalSpent}. Speed: PHP {$dailyVelocity}/day. Projected end-of-week remaining: PHP {$predictedRemainingBudget}."
+                            'content' => "Allowance limit: PHP {$totalAllowance}. Spent so far: PHP {$totalSpent}. Speed: PHP {$dailyVelocity}/day. Projected end-of-week remaining: PHP {$predictedRemainingBudget}. Safe quota today: PHP {$safeToSpendToday}."
                         ]
                     ]
                 ]);
 
-            $aiText = $response->successful() ? $response->json()['choices'][0]['message']['content'] : null;
+            if ($response->successful()) {
+                $rawContent = $response->json()['choices'][0]['message']['content'] ?? '';
 
-            return [
-                'status' => 'success',
-                'metrics' => $localForecastMetrics,
-                'ai_coach_text' => $aiText ?? "Keeping your daily expenses controlled ensures you finish smoothly within budget.|Weekend activities usually cost more—plan ahead to save ~₱200.|You have " . (7 - $daysElapsed) . " days left with ₱" . number_format($activeBudget->remaining_allowance, 0) . " remaining.",
-                'source' => $response->successful() ? 'Groq AI Predictive Engine' : 'Local Backup Framework',
-                'chart' => [
-                    'labels'    => $labels,
-                    'actual'    => $actualValues,
-                    'predicted' => $predictedValues,
-                    'allowance' => $totalAllowance
-                ]
-            ];
+                if (!str_contains($rawContent, '|')) {
+                    $rawContent = preg_replace('/[\r\n]+/', '|', $rawContent);
+                    $rawContent = preg_replace('/(?<=\.|\!|\?)\s*-\s*/', '|', $rawContent);
+                }
+
+                $cleanedTips = array_filter(array_map(function ($item) {
+                    return trim(preg_replace('/^[\s\-\*•\d\.\)]+/', '', $item));
+                }, explode('|', $rawContent)));
+
+                $aiText = implode('|', $cleanedTips);
+
+                if (!empty($aiText)) {
+                    return [
+                        'status' => 'success',
+                        'is_online' => true,
+                        'metrics' => $localForecastMetrics,
+                        'ai_coach_text' => $aiText,
+                        'source' => 'Groq AI Predictive Engine',
+                        'chart' => [
+                            'labels'    => $labels,
+                            'actual'    => $actualValues,
+                            'predicted' => $predictedValues,
+                            'allowance' => $totalAllowance
+                        ]
+                    ];
+                }
+            }
+
+            return $this->buildOfflineResponse($localForecastMetrics, $activeBudget, $daysElapsed, $labels, $actualValues, $predictedValues, $totalAllowance, $safeToSpendToday);
+
         } catch (\Exception $e) {
-            Log::error("Spending Forecast Service Exception: " . $e->getMessage());
-            $fallbackAdvice = "Pacing your daily expenses keeps you comfortably within budget.|Weekend spending tends to rise—keep an eye on casual purchases.|You are on track to end Sunday with ₱" . $localForecastMetrics['predicted_remaining'] . " remaining.";
-            
-            return [
-                'status' => 'success',
-                'metrics' => $localForecastMetrics,
-                'ai_coach_text' => $fallbackAdvice,
-                'source' => 'Local Statistical Module (System Offline)',
-                'chart' => [
-                    'labels'    => $labels,
-                    'actual'    => $actualValues,
-                    'predicted' => $predictedValues,
-                    'allowance' => $totalAllowance
-                ]
-            ];
+            Log::warning("Spending Forecast AI API offline: " . $e->getMessage());
+            return $this->buildOfflineResponse($localForecastMetrics, $activeBudget, $daysElapsed, $labels, $actualValues, $predictedValues, $totalAllowance, $safeToSpendToday);
         }
+    }
+
+    private function buildOfflineResponse($metrics, $activeBudget, $daysElapsed, $labels, $actualValues, $predictedValues, $totalAllowance, $safeDaily = 0)
+    {
+        $remainingDays = 7 - $daysElapsed;
+        
+        if ($metrics['is_critical']) {
+            $fallbackAdvice = "Deficit risk detected! Limit non-essential spending over the next {$remainingDays} day(s).|" .
+                             "Cap daily spending to ₱" . number_format($safeDaily, 0) . " to restore safe weekly pacing.|" .
+                             "Review recent high expenses and defer planned non-essential purchases.";
+        } elseif ($metrics['is_faster']) {
+            $fallbackAdvice = "Your current spending rate (₱{$metrics['daily_velocity']}/day) is slightly ahead of pace.|" .
+                             "Slowing down now protects your projected ₱{$metrics['predicted_remaining']} Sunday savings.|" .
+                             "Weekend spending usually rises—budget discretionary expenses carefully.";
+        } else {
+            $fallbackAdvice = "Great job! Your spending velocity is comfortably within safe limits.|" .
+                             "You are on track to finish Sunday with ₱{$metrics['predicted_remaining']} remaining.|" .
+                             "Maintain your current spending habits through the rest of the week.";
+        }
+
+        return [
+            'status' => 'success',
+            'is_online' => false,
+            'metrics' => $metrics,
+            'ai_coach_text' => $fallbackAdvice,
+            'source' => 'Local Rule Module (Offline)',
+            'chart' => [
+                'labels'    => $labels,
+                'actual'    => $actualValues,
+                'predicted' => $predictedValues,
+                'allowance' => $totalAllowance
+            ]
+        ];
     }
 }

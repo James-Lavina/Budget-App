@@ -51,7 +51,7 @@
                             <span class="font-semibold text-slate-600 truncate">{{ $category['name'] }}</span>
                         </div>
                         <span class="font-black text-slate-900 font-mono shrink-0 pl-2">
-                            ₱{{ number_format($category['total'], 0) }}
+                            ₱{{ number_format($category['total'], 2) }}
                         </span>
                     </div>
                 @endforeach

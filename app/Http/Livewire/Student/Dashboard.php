@@ -16,9 +16,12 @@ class Dashboard extends Component
     public $currentBudget;
     public $daysRemaining = 7;
 
-    protected $listeners = ['refreshBudgetMetrics' => 'mount'];
+    protected $listeners = [
+        'refreshBudgetMetrics' => 'mount',
+        'expenseUpdated' => 'mount',
+    ];
 
-    public function mount() 
+    public function mount()
     {
         $this->currentBudget = WeeklyBudget::where('user_id', auth()->id())
             ->latest()
@@ -32,12 +35,10 @@ class Dashboard extends Component
         $this->computeBehavioralMetrics();
     }
 
-    private function checkAndResetWeeklyCycle() 
+    private function checkAndResetWeeklyCycle()
     {
         $today = Carbon::today();
         $startDate = Carbon::parse($this->currentBudget->cycle_start_date)->startOfDay();
-        
-        // Strict 7-day cycle end date (Start Day + 6 days)
         $endDate = $startDate->copy()->addDays(6)->endOfDay();
 
         if ($today->greaterThan($endDate)) {
@@ -45,23 +46,19 @@ class Dashboard extends Component
                 $unspentSavings = max(0.00, $this->currentBudget->remaining_allowance);
                 $oldTotalAllowance = $this->currentBudget->total_allowance;
                 $amountSpent = max(0.00, $oldTotalAllowance - $unspentSavings);
-               
+
                 $user = auth()->user();
                 $nextCycleBaseline = (float) ($user->default_allowance ?? 1000.00);
                 $nextCycleResetDay = $user->default_reset_day ?? 'Monday';
-                
-                // Reward Rollover Calculation
                 $newWeeklyTotal = $nextCycleBaseline + $unspentSavings;
 
-                // Advance track attributes into next cycle row smoothly
                 $this->currentBudget->update([
                     'total_allowance'     => $nextCycleBaseline,
                     'remaining_allowance' => $newWeeklyTotal,
                     'reset_day'           => $nextCycleResetDay,
                     'cycle_start_date'    => Carbon::today(),
                 ]);
-               
-                // Notifications Processing
+
                 if ($unspentSavings > 0) {
                     $description = "Weekly Review 📊: Outstanding financial discipline! Last week you spent ₱" . number_format($amountSpent, 2) . " and successfully saved ₱" . number_format($unspentSavings, 2) . ". Your fresh cycle starts with a boosted balance of ₱" . number_format($newWeeklyTotal, 2) . "!";
                     $severity = 'success';
@@ -82,32 +79,34 @@ class Dashboard extends Component
                     ],
                     'read_at' => null,
                 ]);
-               
+
                 if ($unspentSavings > 0) {
                     session()->flash('success', 'Outstanding financial discipline! You saved ₱' . number_format($unspentSavings, 2) . ' last week, which has been rolled over into your balance.');
                 } else {
                     session()->flash('success', 'Welcome to a fresh tracking week! Your allowance baseline has been safely restored.');
                 }
             });
+
+            $this->currentBudget->refresh();
         }
     }
 
-    public function computeBehavioralMetrics() 
+    public function computeBehavioralMetrics()
     {
+        if ($this->currentBudget) {
+            $this->currentBudget->refresh();
+        }
+
         $today = Carbon::today();
         $startDate = Carbon::parse($this->currentBudget->cycle_start_date)->startOfDay();
-        
-        // Strict 7-day cycle end date (Start Day + 6 days)
         $endDate = $startDate->copy()->addDays(6)->endOfDay();
 
-        // Safety fallback guard
         if ($today->greaterThan($endDate)) {
             $this->daysRemaining = 0;
             $this->safeToSpend = 0.00;
             return;
         }
 
-        // Accurately compute relative remaining days inclusive of today
         $this->daysRemaining = (int) $today->diffInDays($endDate->copy()->startOfDay()) + 1;
 
         if ($this->daysRemaining > 0) {
@@ -123,22 +122,22 @@ class Dashboard extends Component
         }
     }
 
-    public function deleteExpense($expenseId) 
+    public function deleteExpense($expenseId)
     {
         $expense = Expense::where('id', $expenseId)
             ->where('user_id', auth()->id())
             ->first();
-   
+
         if (!$expense) {
             session()->flash('error', 'Expense record not found');
             return;
         }
-   
+
         if ($this->currentBudget) {
             DB::transaction(function () use ($expense) {
                 $this->currentBudget->remaining_allowance += $expense->amount;
                 $this->currentBudget->save();
-   
+
                 if ($expense->savings_goal_id) {
                     $goal = \App\Models\SavingsGoal::find($expense->savings_goal_id);
                     if ($goal) {
@@ -152,20 +151,19 @@ class Dashboard extends Component
                         $goal->save();
                     }
                 }
-   
+
                 $expense->delete();
+
                 \App\Models\RiskLog::where('user_id', auth()->id())
                     ->whereDate('created_at', Carbon::today())
                     ->delete();
 
                 app(\App\Services\RiskDetectionService::class)->evaluateSpendingRisk(auth()->user());
             });
-   
+
             $this->computeBehavioralMetrics();
-           
             $this->emit('refreshSavings');
             $this->emit('expenseUpdated');
-   
             session()->flash('success', 'Transaction removed. Balance safely adjusted and savings progress updated!');
         } else {
             session()->flash('error', 'Unable to adjust framework. Active budget not found');
