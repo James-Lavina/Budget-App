@@ -50,7 +50,6 @@ class Dashboard extends Component
                 $user = auth()->user();
                 $nextCycleBaseline = (float) ($user->default_allowance ?? 1000.00);
                 $nextCycleResetDay = $user->default_reset_day ?? 'Monday';
-
                 $newWeeklyTotal = $nextCycleBaseline + $unspentSavings;
 
                 $this->currentBudget->update([
@@ -118,7 +117,6 @@ class Dashboard extends Component
 
             $startingBudgetForRemainingDays = $this->currentBudget->remaining_allowance + $spentToday;
             $todayStartingQuota = $startingBudgetForRemainingDays / $this->daysRemaining;
-
             $this->safeToSpend = max(0.00, $todayStartingQuota - $spentToday);
         } else {
             $this->safeToSpend = 0.00;
@@ -186,6 +184,7 @@ class Dashboard extends Component
             ->whereDate('transaction_date', $today)
             ->whereNotNull('savings_goal_id')
             ->sum('amount');
+
         $hasSavingsToday = $todaySavingsTotal > 0;
 
         $totalSpent = Expense::where('user_id', auth()->id())
@@ -197,6 +196,7 @@ class Dashboard extends Component
         $futureDaysRemaining = max(0, $this->daysRemaining - 1);
         $projectedRemaining = max(0, $this->currentBudget->remaining_allowance - ($dailyVelocity * $futureDaysRemaining));
         $projectedDaysLeft = $dailyVelocity > 0 ? ($this->currentBudget->remaining_allowance / $dailyVelocity) : $this->daysRemaining;
+
         $remainingDailyRate = $futureDaysRemaining > 0
             ? ($this->currentBudget->remaining_allowance / $futureDaysRemaining)
             : $this->currentBudget->remaining_allowance;
@@ -207,6 +207,7 @@ class Dashboard extends Component
         $isSavingsLocked = $isQuotaHitRaw && $hasSavingsToday;
         $isDailyQuotaHit = $isQuotaHitRaw && !$hasSavingsToday;
         $isCriticalState = $isDepleted || $isPaceCritical;
+
         $totalAllowance = max(1, $this->currentBudget->total_allowance);
         $remainingPercentage = round(($this->currentBudget->remaining_allowance / $totalAllowance) * 100);
 
@@ -223,20 +224,42 @@ class Dashboard extends Component
         }
 
         $colorPalette = [
-            '#ff7052', '#5b46f6', '#4fd1c5', '#ffc043',
-            '#f43f5e', '#3b82f6', '#10b981', '#8b5cf6'
+            '#ff7052', // Coral / Orange
+            '#5b46f6', // Purple / Indigo
+            '#4fd1c5', // Teal / Cyan
+            '#ffc043', // Yellow
+            '#f43f5e', // Pink / Red
+            '#3b82f6', // Blue
+            '#10b981', // Emerald
+            '#8b5cf6'  // Violet
         ];
 
+        // Fetch distinct categories alphabetically to construct a globally uniform color map
+        $alphabeticalCategories = Expense::where('expenses.user_id', auth()->id())
+            ->whereBetween('transaction_date', [$startDate, $endDate])
+            ->join('expense_categories', 'expenses.expense_category_id', '=', 'expense_categories.id')
+            ->distinct()
+            ->orderBy('expense_categories.name', 'asc')
+            ->pluck('expense_categories.name')
+            ->toArray();
+
+        $categoryColorMap = [];
+        foreach ($alphabeticalCategories as $index => $catName) {
+            $categoryColorMap[$catName] = $colorPalette[$index % count($colorPalette)];
+        }
+
+        // Calculate totals sorted descending so largest spending category is dataset 0 (at bottom of bar stack)
         $categoryTotals = Expense::where('expenses.user_id', auth()->id())
             ->whereBetween('transaction_date', [$startDate, $endDate])
             ->join('expense_categories', 'expenses.expense_category_id', '=', 'expense_categories.id')
             ->select('expense_categories.name', DB::raw('SUM(expenses.amount) as total_amount'))
             ->groupBy('expense_categories.name')
+            ->orderByDesc('total_amount')
             ->get();
 
-        $categoryColorMap = [];
-        foreach ($categoryTotals as $index => $cat) {
-            $categoryColorMap[$cat->name] = $colorPalette[$index % count($colorPalette)];
+        $categoryTotalsMap = [];
+        foreach ($categoryTotals as $cat) {
+            $categoryTotalsMap[$cat->name] = (float) $cat->total_amount;
         }
 
         $cycleExpenses = Expense::with('category')
@@ -262,6 +285,11 @@ class Dashboard extends Component
             ->take(5)
             ->get();
 
+        $chartCategories = array_keys($categoryTotalsMap);
+        $chartColors = [];
+        foreach ($chartCategories as $cat) {
+            $chartColors[] = $categoryColorMap[$cat] ?? $colorPalette[0];
+        }
 
         return view('livewire.student.dashboard', [
             'recentExpenses'         => $recentExpenses,
@@ -279,6 +307,9 @@ class Dashboard extends Component
             'remainingPercentage'    => $remainingPercentage,
             'daysOfWeek'             => $daysOfWeek,
             'categoryColorMap'       => $categoryColorMap,
+            'categoryTotalsMap'      => $categoryTotalsMap,
+            'chartCategories'        => $chartCategories,
+            'chartColors'            => $chartColors,
             'dailyTotals'            => $dailyTotals,
             'dailyCategoryBreakdown' => $dailyCategoryBreakdown,
             'maxDaily'               => $maxDaily,

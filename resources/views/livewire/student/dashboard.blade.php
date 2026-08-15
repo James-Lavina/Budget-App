@@ -1,6 +1,6 @@
 <div class="min-h-screen py-3 sm:py-6 md:py-8 px-2.5 sm:px-6 lg:px-8 text-slate-800 antialiased relative pb-28 sm:pb-24 w-full max-w-full overflow-x-hidden">
     <div class="max-w-7xl mx-auto space-y-3 sm:space-y-6 w-full min-w-0">
-        
+       
         <!-- HEADER SECTION: GREETING & STATUS -->
         <div class="flex flex-col md:flex-row md:items-center justify-between gap-2 sm:gap-4 w-full min-w-0">
             <div class="min-w-0">
@@ -144,6 +144,7 @@
         <div class="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-6 items-stretch w-full min-w-0">
             <!-- WEEKLY SPENDING BAR CHART (7 COLS) -->
             <div class="lg:col-span-7 bg-white rounded-2xl sm:rounded-3xl p-3.5 sm:p-6 border border-slate-100 shadow-sm flex flex-col justify-between w-full min-w-0 overflow-hidden">
+                <!-- HEADING -->
                 <div class="flex items-center justify-between gap-2 pb-3 border-b border-slate-100">
                     <h3 class="text-xs sm:text-sm font-extrabold text-slate-900 truncate">Weekly Spending</h3>
                     <span class="text-[10px] sm:text-xs text-slate-400 font-medium shrink-0">
@@ -151,93 +152,56 @@
                     </span>
                 </div>
  
-                <!-- CATEGORY LEGEND -->
-                @if(!empty($categoryColorMap))
-                    <div class="flex flex-wrap items-center gap-x-3 gap-y-1.5 pt-3 min-w-0">
-                        @foreach($categoryColorMap as $catName => $color)
-                            <div class="inline-flex items-center gap-1.5 text-[10px] sm:text-xs font-bold text-slate-600">
-                                <span class="w-2.5 h-2.5 rounded-full shrink-0 shadow-xs" style="background-color: {{ $color }};"></span>
-                                <span class="truncate">{{ $catName }}</span>
+                <!-- WEEKLY SPENDING CATEGORY LEGEND (DESKTOP ONLY: HIDDEN ON MOBILE) -->
+                <div class="mt-3 hidden sm:grid grid-cols-2 gap-2 max-h-[110px] overflow-y-auto custom-dashboard-scrollbar pr-1">
+                    @foreach($chartCategories as $index => $catName)
+                        @php
+                            $catColor = $chartColors[$index] ?? '#5b46f6';
+                            $catTotal = $categoryTotalsMap[$catName] ?? 0;
+                        @endphp
+                        <div class="flex items-center justify-between text-xs">
+                            <div class="flex items-center gap-2 min-w-0">
+                                <span class="w-2.5 h-2.5 rounded-full shrink-0" style="background-color: {{ $catColor }};"></span>
+                                <span class="font-semibold text-slate-600 truncate">{{ $catName }}</span>
                             </div>
-                        @endforeach
-                    </div>
-                @endif
- 
-                <div class="pt-4 sm:pt-6 pb-1 w-full min-w-0">
-                    <div class="flex gap-1.5 sm:gap-3 items-stretch h-40 sm:h-56 w-full min-w-0">
-                        <!-- Y-AXIS NUMERICAL LABELS -->
-                        <div class="flex flex-col justify-between text-[8px] sm:text-[10px] font-mono font-semibold text-slate-400 select-none pb-6 text-right w-6 sm:w-10 shrink-0">
-                            <span>{{ number_format($maxDaily, 0) }}</span>
-                            <span>{{ number_format($step * 3, 0) }}</span>
-                            <span>{{ number_format($step * 2, 0) }}</span>
-                            <span>{{ number_format($step * 1, 0) }}</span>
-                            <span>0</span>
+                            <span class="font-black text-slate-900 font-mono shrink-0 pl-2">
+                                ₱{{ number_format($catTotal, 2) }}
+                            </span>
                         </div>
+                    @endforeach
+                </div>
+           
+                @php
+                    $chartLabels = array_values($daysOfWeek);
  
-                        <!-- CHART GRID AREA & BARS -->
-                        <div class="flex-1 flex flex-col justify-between relative min-w-0">
-                            <div class="absolute inset-0 flex flex-col justify-between pointer-events-none pb-6">
-                                <div class="border-b border-slate-100 w-full"></div>
-                                <div class="border-b border-slate-100 w-full"></div>
-                                <div class="border-b border-slate-100 w-full"></div>
-                                <div class="border-b border-slate-100 w-full"></div>
-                                <div class="border-b border-slate-200 w-full"></div>
-                            </div>
+                    $chartMatrix = [];
+                    foreach ($chartCategories as $cat) {
+                        $row = [];
+                        foreach (array_keys($daysOfWeek) as $dateKey) {
+                            $row[] = round($dailyCategoryBreakdown[$dateKey][$cat] ?? 0, 2);
+                        }
+                        $chartMatrix[$cat] = $row;
+                    }
  
-                            <div class="flex-1 flex items-end justify-between gap-1 relative z-10 px-0.5 sm:px-2 pb-1 min-w-0">
-                                @foreach($daysOfWeek as $dateKey => $dayName)
-                                @php
-                                    $amount = $dailyTotals[$dateKey] ?? 0;
-                                    $heightPct = $maxDaily > 0 ? min(100, max(0, round(($amount / $maxDaily) * 100))) : 0;
-                                @endphp
-                                <div class="relative flex-1 flex flex-col items-center h-full justify-end group hover:z-30 cursor-pointer min-w-0">
-                                    <!-- OVERALL DAY TOTAL TOOLTIP (FLIPPED ON EDGES) -->
-                                    <div class="absolute -top-7 {{ $loop->last ? 'right-0' : ($loop->first ? 'left-0' : 'left-1/2 -translate-x-1/2') }} opacity-0 group-hover:opacity-100 transition-all duration-200 pointer-events-none z-20 bg-slate-800 text-white text-[9px] sm:text-[10px] font-extrabold px-2 py-0.5 rounded shadow-md font-mono whitespace-nowrap transform -translate-y-1 group-hover:translate-y-0">
-                                        Total: ₱{{ number_format($amount, 2) }}
-                                    </div>
-                                    
-                                    <!-- STACKED BAR SLOTS -->
-                                    <div class="w-full flex items-end justify-center h-full">
-                                        @if($amount > 0)
-                                            @php
-                                                $dayCategories = $dailyCategoryBreakdown[$dateKey] ?? [];
-                                                asort($dayCategories);
-                                            @endphp
-                                            <div style="height: {{ max(8, $heightPct) }}%;" class="w-2.5 sm:w-7 flex flex-col-reverse transition-all duration-300">
-                                                @foreach($dayCategories as $catName => $catAmount)
-                                                    @php
-                                                        $segmentPct = ($amount > 0) ? ($catAmount / $amount) * 100 : 0;
-                                                        $segmentColor = $categoryColorMap[$catName] ?? '#5b46f6';
-                                                    @endphp
-                                                    <div style="height: {{ $segmentPct }}%; background-color: {{ $segmentColor }};" class="group/segment relative w-full first:rounded-b-sm sm:first:rounded-b-full last:rounded-t-sm sm:last:rounded-t-full transition-all duration-150 hover:brightness-125 hover:z-50">
-                                                        <!-- CATEGORY SEGMENT TOOLTIP (FLIPPED ON EDGES) -->
-                                                        <div class="absolute -top-14 {{ $loop->parent->last ? 'right-0' : ($loop->parent->first ? 'left-0' : 'left-1/2 -translate-x-1/2') }} opacity-0 group-hover/segment:opacity-100 transition-all duration-150 pointer-events-none z-50 bg-slate-900 text-white text-[9px] sm:text-[10px] font-bold px-2.5 py-1 rounded-md shadow-2xl whitespace-nowrap flex items-center gap-1.5 border border-slate-700/80 transform -translate-y-1 group-hover/segment:translate-y-0">
-                                                            <span class="w-2 h-2 rounded-full shrink-0" style="background-color: {{ $segmentColor }};"></span>
-                                                            <span>{{ $catName }}: ₱{{ number_format($catAmount, 2) }}</span>
-                                                        </div>
-                                                    </div>
-                                                @endforeach
-                                            </div>
-                                        @else
-                                            <div class="w-2.5 sm:w-7 h-1 rounded-full bg-slate-100 opacity-60"></div>
-                                        @endif
-                                    </div>
-                                </div>
-                            @endforeach
-                            </div>
- 
-                            <!-- X-AXIS DAY LABELS -->
-                            <div class="flex justify-between items-center px-0.5 sm:px-2 pt-2 h-5 min-w-0">
-                                @foreach($daysOfWeek as $dateKey => $dayName)
-                                    @php $isToday = $dateKey === \Carbon\Carbon::today()->format('Y-m-d'); @endphp
-                                    <span class="flex-1 text-center text-[9px] sm:text-[11px] font-semibold truncate {{ $isToday ? 'text-slate-900 font-black' : 'text-slate-400' }}">
-                                        {{ substr($dayName, 0, 1) }}<span class="hidden sm:inline">{{ substr($dayName, 1) }}</span>
-                                    </span>
-                                @endforeach
-                            </div>
-                        </div>
+                    $weeklyChartPayload = [
+                        'labels'     => $chartLabels,
+                        'categories' => $chartCategories,
+                        'colors'     => $chartColors,
+                        'matrix'     => $chartMatrix,
+                    ];
+                @endphp
+           
+                <script type="application/json" id="weeklySpendingData">{!! json_encode($weeklyChartPayload) !!}</script>
+           
+                <div class="pt-4 sm:pt-6 pb-1 w-full min-w-0" wire:ignore>
+                    <div class="relative h-40 sm:h-52 w-full">
+                        <canvas id="weeklySpendingChart"></canvas>
                     </div>
                 </div>
+           
+                <p class="text-[10px] text-slate-400 font-medium text-center pt-1 sm:hidden">
+                    Tap a bar for category breakdown
+                </p>
             </div>
  
             <!-- EXPENSE CATEGORIES WIDGET (5 COLS) -->
@@ -257,21 +221,18 @@
                     </svg>
                 </a>
             </div>
- 
             @if (session()->has('success'))
                 <div class="mt-3 p-2.5 bg-emerald-50 border border-emerald-100 text-emerald-800 rounded-xl text-xs font-semibold flex items-center gap-2">
                     <span class="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse shrink-0"></span>
                     <span class="truncate">{{ session('success') }}</span>
                 </div>
             @endif
- 
             @if (session()->has('error'))
                 <div class="mt-3 p-2.5 bg-rose-50 border border-rose-100 text-rose-800 rounded-xl text-xs font-semibold flex items-center gap-2">
                     <span class="h-1.5 w-1.5 rounded-full bg-rose-500 animate-pulse shrink-0"></span>
                     <span class="truncate">{{ session('error') }}</span>
                 </div>
             @endif
- 
             @if($recentExpenses->isEmpty())
                 <div class="py-10 text-center text-slate-400 max-w-sm mx-auto space-y-2">
                     <div class="h-10 w-10 bg-slate-50 rounded-full flex items-center justify-center mx-auto text-slate-400 border border-slate-100">
@@ -287,7 +248,6 @@
                         @php
                             $catName = strtolower($expense->category->name ?? $expense->category ?? '');
                             $itemName = strtolower($expense->item_name);
- 
                             if (str_contains($catName, 'food') || str_contains($catName, 'snack') || str_contains($itemName, 'lunch') || str_contains($itemName, 'tea') || str_contains($itemName, 'coffee')) {
                                 $iconType = 'food';
                                 $bgColor = 'bg-amber-50 text-amber-600';
@@ -307,7 +267,6 @@
                                 $iconType = 'default';
                                 $bgColor = 'bg-slate-100 text-slate-600';
                             }
- 
                             $date = \Carbon\Carbon::parse($expense->transaction_date);
                             if ($date->isToday()) {
                                 $formattedDate = 'Today, ' . $date->format('g:i A');
@@ -381,3 +340,87 @@
         </a>
     </div>
  </div>
+ 
+ <script>
+    (function () {
+        let weeklySpendingChart = null;
+ 
+        function readPayload() {
+            const el = document.getElementById('weeklySpendingData');
+            return el ? JSON.parse(el.textContent) : null;
+        }
+ 
+        function buildDatasets(payload) {
+            return payload.categories.map((cat, i) => ({
+                label: cat,
+                backgroundColor: payload.colors[i],
+                hoverBackgroundColor: payload.colors[i],
+                data: payload.matrix[cat],
+                borderRadius: 4,
+                borderSkipped: false,
+                maxBarThickness: 28,
+            }));
+        }
+ 
+        function initWeeklySpendingChart() {
+            const canvas = document.getElementById('weeklySpendingChart');
+            const payload = readPayload();
+            if (!canvas || !payload) return;
+ 
+            if (weeklySpendingChart) {
+                weeklySpendingChart.destroy();
+            }
+ 
+            weeklySpendingChart = new Chart(canvas.getContext('2d'), {
+                type: 'bar',
+                data: {
+                    labels: payload.labels,
+                    datasets: buildDatasets(payload),
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            mode: 'index',
+                            intersect: false,
+                            filter: (item) => item.raw > 0,
+                            padding: 10,
+                            bodyFont: { size: 11, weight: 'bold' },
+                            footerFont: { size: 11, weight: 'bold' },
+                            footerMarginTop: 6,
+                            callbacks: {
+                                label: (ctx) =>
+                                    ` ${ctx.dataset.label}: ₱${ctx.raw.toLocaleString(undefined, { minimumFractionDigits: 2 })}`,
+                                footer: (items) => {
+                                    const total = items.reduce((sum, item) => sum + item.raw, 0);
+                                    return `Total: ₱${total.toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
+                                },
+                            },
+                        },
+                    },
+                    scales: {
+                        x: {
+                            stacked: true,
+                            grid: { display: false },
+                            ticks: { font: { size: 10 }, color: '#94a3b8' },
+                        },
+                        y: {
+                            stacked: true,
+                            grid: { color: '#f1f5f9' },
+                            ticks: {
+                                font: { size: 9 },
+                                color: '#94a3b8',
+                                callback: (val) => '₱' + val,
+                            },
+                        },
+                    },
+                },
+            });
+        }
+ 
+        document.addEventListener('livewire:load', initWeeklySpendingChart);
+        document.addEventListener('livewire:update', initWeeklySpendingChart);
+    })();
+ </script>
