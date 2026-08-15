@@ -7,6 +7,7 @@ use App\Models\WeeklyBudget;
 use Carbon\Carbon;
 use Livewire\Component;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 
 class WhatIfSimulator extends Component
 {
@@ -20,11 +21,11 @@ class WhatIfSimulator extends Component
     public $newSafeToSpend = 0;
     public $daysRemaining = 1;
     public $newRemaining = 0;
-   
+    
     // Evaluation States
     public $isDeficit = false;
-    public $isOfflineMode = false; // Turned into an automated internal tracking flag
-    public $aiInsight = 'Enter an item name and cost to simulate its impact on your allowance cycle.';
+    public $isOfflineMode = false;
+    public $aiInsight = 'Enter an item name and cost to see how it affects your weekly budget.'; // Updated initial copy
 
     protected $queryString = [
         'purchaseAmount' => ['except' => ''],
@@ -35,7 +36,7 @@ class WhatIfSimulator extends Component
     {
         if ($this->purchaseAmount && is_numeric($this->purchaseAmount)) {
             $this->purchaseAmount = (float)$this->purchaseAmount;
-           
+            
             if ($this->scenarioType === 'major_purchase' && empty($this->itemName)) {
                 $this->itemName = 'Quick Tested Item';
             }
@@ -57,27 +58,35 @@ class WhatIfSimulator extends Component
             ->first();
 
         if (!$currentBudget) {
-            $this->aiInsight = "Please set up an active weekly budget before using the predictive simulator.";
+            $this->aiInsight = "Please set up an active weekly budget before testing purchase impacts."; // Updated friendly error
             return;
         }
 
         $today = Carbon::today();
         $cycleStartDate = Carbon::parse($currentBudget->cycle_start_date)->startOfDay();
-        $cycleEndDate = $cycleStartDate->copy()->next($currentBudget->reset_day)->subDay()->endOfDay();
-
-        if ($today->greaterThan($cycleEndDate)) {
-            $this->daysRemaining = 0;
-            $this->currentSafeToSpend = 0.00;
-            $this->newSafeToSpend = 0.00;
-            return;
-        }
-
-        $this->daysRemaining = $today->diffInDays($cycleEndDate->copy()->startOfDay()) + 1;
+        $cycleEndDate = $cycleStartDate->copy()->addDays(6)->endOfDay();
 
         $realConsumed = Expense::where('user_id', auth()->id())
             ->whereBetween('transaction_date', [$cycleStartDate, $cycleEndDate])
             ->sum('amount');
 
+        if ($today->greaterThan($cycleEndDate)) {
+            $this->daysRemaining = 0;
+            $this->currentSafeToSpend = 0.00;
+            $this->newSafeToSpend = 0.00;
+            $this->newRemaining = 0.00;
+
+            if ($shouldDispatchChart) {
+                $this->dispatchBrowserEvent('renderWeeklyImpactChart', [
+                    'spent' => (float)$realConsumed,
+                    'simulated' => 0.00,
+                    'remaining' => 0.00
+                ]);
+            }
+            return;
+        }
+
+        $this->daysRemaining = (int)$today->diffInDays($cycleEndDate->copy()->startOfDay()) + 1;
         $todaySpent = Expense::where('user_id', auth()->id())
             ->whereDate('transaction_date', Carbon::today())
             ->sum('amount');
@@ -89,7 +98,7 @@ class WhatIfSimulator extends Component
         } else {
             $this->currentSafeToSpend = 0.00;
         }
-       
+
         $this->newSafeToSpend = $this->currentSafeToSpend;
         $this->newRemaining = $currentBudget->remaining_allowance;
         $this->isDeficit = false;
@@ -115,8 +124,8 @@ class WhatIfSimulator extends Component
 
         $today = Carbon::today();
         $cycleStartDate = Carbon::parse($currentBudget->cycle_start_date)->startOfDay();
-        $cycleEndDate = $cycleStartDate->copy()->next($currentBudget->reset_day)->subDay()->endOfDay();
-       
+        $cycleEndDate = $cycleStartDate->copy()->addDays(6)->endOfDay();
+
         $realConsumed = Expense::where('user_id', auth()->id())
             ->whereBetween('transaction_date', [$cycleStartDate, $cycleEndDate])
             ->sum('amount');
@@ -126,6 +135,12 @@ class WhatIfSimulator extends Component
         if ($simulatedCost <= 0) {
             $this->resetSimulation();
             return;
+        }
+
+        if ($today->greaterThan($cycleEndDate)) {
+            $this->daysRemaining = 0;
+        } else {
+            $this->daysRemaining = (int)$today->diffInDays($cycleEndDate->copy()->startOfDay()) + 1;
         }
 
         $this->newRemaining = $currentBudget->remaining_allowance - $simulatedCost;
@@ -159,71 +174,66 @@ class WhatIfSimulator extends Component
     private function generateSimulationInsight($simulatedCost)
     {
         $item = trim($this->itemName) !== '' ? $this->itemName : 'this item';
-    
-        $this->isOfflineMode = false; 
-    
+        $this->isOfflineMode = false;
+
         try {
             $apiKey = env('GROQ_API_KEY') ?? config('services.groq.key');
-    
-            if (!empty($apiKey)) { 
-                $prompt = "Analyze this student spending simulation scenario:\n" . 
-                "- Intended Purchase Item: {$item}\n" . 
-                "- Outlay Cost: ₱" . number_format($simulatedCost, 2) . "\n" . 
-                "- Days Left in Budget Cycle: {$this->daysRemaining} days\n" . 
-                "- New Remaining Pool Balance: ₱" . number_format($this->newRemaining, 2) . "\n" . 
-                "- New Daily Safe-To-Spend Allowance Limit: ₱" . number_format($this->newSafeToSpend, 2) . "/day\n" . 
-                "- Is this in a deficit status?: " . ($this->isDeficit ? 'YES' : 'NO') . "\n\n" . 
-                "Provide a short, specific behavioral budget analysis tailored for a university student. " . 
-                "Address the impact of buying this item on their weekly allowance flow. " . 
-                "Keep your response strictly under 2 sentences. Be direct, coaching, and insightful. Use '₱' for currency indicators.";
-    
-                $response = Http::withToken($apiKey) 
+
+            if (!empty($apiKey)) {
+                $prompt = "Analyze this student spending simulation scenario:\n" .
+                "- Item: {$item}\n" .
+                "- Cost: ₱" . number_format($simulatedCost, 2) . "\n" .
+                "- Days Left in Week: {$this->daysRemaining} days\n" .
+                "- New Remaining Total Cash: ₱" . number_format($this->newRemaining, 2) . "\n" .
+                "- New Daily Spending Limit: ₱" . number_format($this->newSafeToSpend, 2) . "/day\n" .
+                "- Over Budget Deficit?: " . ($this->isDeficit ? 'YES' : 'NO') . "\n\n" .
+                "Provide concise budget advice for a university student. " .
+                "Explain clearly if buying this item fits their allowance. " .
+                "Keep your response under 2 sentences. Be encouraging, clear, and direct. Use '₱' for currency.";
+
+                $response = Http::withToken($apiKey)
                     ->timeout(7)
-                    ->post('https://api.groq.com/openai/v1/chat/completions', [ 
-                        'model' => env('GROQ_MODEL'), 
-                        'messages' => [ 
-                            [ 
-                                'role' => 'system', 
-                                'content' => 'You are an advanced Behavioral Economics AI core integrated into a student budgeting environment.'
-                            ], 
-                            ['role' => 'user', 'content' => $prompt] 
-                        ], 
-                        'temperature' => 0.5, 
-                        'max_tokens' => 600 
-                    ]); 
-    
-                if ($response->successful()) { 
-                    $responseData = $response->json(); 
-    
-                    \Illuminate\Support\Facades\Log::info('Groq Raw Success Payload:', (array)$responseData);
-    
+                    ->post('https://api.groq.com/openai/v1/chat/completions', [
+                        'model' => env('GROQ_MODEL'),
+                        'messages' => [
+                            [
+                                'role' => 'system',
+                                'content' => 'You are an encouraging and practical student budgeting assistant.' // Simplified persona
+                            ],
+                            ['role' => 'user', 'content' => $prompt]
+                        ],
+                        'temperature' => 0.5,
+                        'max_tokens' => 600
+                    ]);
+
+                if ($response->successful()) {
+                    $responseData = $response->json();
                     $rawText = $responseData['choices'][0]['message']['content'] ?? '';
                     
                     if (empty(trim($rawText)) && isset($responseData['choices'][0]['message']['reasoning'])) {
                         $rawText = $responseData['choices'][0]['message']['reasoning'];
                     }
-    
-                    if (!empty(trim($rawText))) { 
-                        $this->aiInsight = trim($rawText); 
-                        return; 
-                    } 
-                } else { 
-                    \Illuminate\Support\Facades\Log::error('Groq API Error Status: ' . $response->status() . ' - Body: ' . $response->body()); 
-                } 
-            } 
-        } catch (\Exception $e) { 
-            \Illuminate\Support\Facades\Log::error('What-If Simulator Exception: ' . $e->getMessage()); 
-        } 
-    
-        $this->isOfflineMode = true; 
-    
-        if ($this->isDeficit) { 
-            $this->aiInsight = "Danger zone! Purchasing {$item} causes an immediate weekly deficit. You will run out of funds entirely before the cycle resets."; 
-        } elseif ($this->newSafeToSpend == 0) { 
-            $this->aiInsight = "Grabbing {$item} will completely exhaust your daily allowance for today. While your upcoming days are safe, your current spending target drops to ₱0.00."; 
-        } else { 
-            $newDaily = number_format($this->newSafeToSpend, 2); 
-            $this->aiInsight = "You can totally handle getting {$item} without breaking your flow. You will still have a comfortable ₱{$newDaily} left to spend every day until the week ends."; 
+
+                    if (!empty(trim($rawText))) {
+                        $this->aiInsight = trim($rawText);
+                        return;
+                    }
+                }
+            }
+        } catch (\Exception $e) {
+            Log::error('What-If Simulator Exception: ' . $e->getMessage());
+        }
+
+        $this->isOfflineMode = true;
+
+        // Updated offline fallback copy
+        if ($this->isDeficit) {
+            $this->aiInsight = "Warning! Purchasing {$item} puts you over budget by ₱" . number_format(abs($this->newRemaining), 2) . ". You will run out of cash before the week ends.";
+        } elseif ($this->newSafeToSpend == 0) {
+            $this->aiInsight = "Buying {$item} uses up your entire spending limit for today. Your target for today drops to ₱0.00, but the rest of your week is still covered.";
+        } else {
+            $newDaily = number_format($this->newSafeToSpend, 2);
+            $this->aiInsight = "You can comfortably afford {$item}! You will still have ₱{$newDaily} per day left for the rest of the week.";
         }
     }
 
@@ -233,7 +243,7 @@ class WhatIfSimulator extends Component
         $this->purchaseAmount = '';
         $this->scenarioType = '';
         $this->isOfflineMode = false;
-        $this->aiInsight = 'Enter an item name and cost to simulate its impact on your allowance cycle.';
+        $this->aiInsight = 'Enter an item name and cost to see how it affects your weekly budget.';
         
         $this->calculateBaselines(true);
     }
