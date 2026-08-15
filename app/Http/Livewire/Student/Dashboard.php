@@ -253,7 +253,8 @@ class Dashboard extends Component
             }
         }
 
-        $maxDaily = max(array_merge([$this->safeToSpend * 1.5, 100], array_values($dailyTotals)));
+        $highestSpent = max(array_values($dailyTotals));
+        $maxDaily = max(100, $highestSpent * 1.35);
         $step = $maxDaily / 4;
 
         $recentExpenses = Expense::where('user_id', auth()->id())
@@ -261,12 +262,6 @@ class Dashboard extends Component
             ->take(5)
             ->get();
 
-        // dump([
-        //     'cycle_start_date' => $this->currentBudget->cycle_start_date ?? null,
-        //     'parsed_start'     => $startDate->toDateTimeString(),
-        //     'parsed_end'       => $endDate->toDateTimeString(),
-        //     'expenses_found'   => $cycleExpenses->pluck('transaction_date', 'amount')->toArray(),
-        // ]);
 
         return view('livewire.student.dashboard', [
             'recentExpenses'         => $recentExpenses,

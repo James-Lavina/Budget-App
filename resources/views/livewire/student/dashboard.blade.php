@@ -186,43 +186,44 @@
  
                             <div class="flex-1 flex items-end justify-between gap-1 relative z-10 px-0.5 sm:px-2 pb-1 min-w-0">
                                 @foreach($daysOfWeek as $dateKey => $dayName)
-                                    @php
-                                        $amount = $dailyTotals[$dateKey] ?? 0;
-                                        $heightPct = $maxDaily > 0 ? min(100, max(0, round(($amount / $maxDaily) * 100))) : 0;
-                                    @endphp
-                                    <div class="relative flex-1 flex flex-col items-center h-full justify-end group hover:z-30 cursor-pointer min-w-0">
-                                        <!-- OVERALL DAY TOTAL TOOLTIP -->
-                                        <div class="absolute -top-7 opacity-0 group-hover:opacity-100 transition-all duration-200 pointer-events-none z-20 bg-slate-800 text-white text-[9px] sm:text-[10px] font-extrabold px-2 py-0.5 rounded shadow-md font-mono whitespace-nowrap transform -translate-y-1 group-hover:translate-y-0">
-                                            Total: ₱{{ number_format($amount, 2) }}
-                                        </div>
- 
-                                        <!-- STACKED BAR SLOTS -->
-                                        <div class="w-full flex items-end justify-center h-full">
-                                            @if($amount > 0)
-                                                @php
-                                                    $dayCategories = $dailyCategoryBreakdown[$dateKey] ?? [];
-                                                    asort($dayCategories);
-                                                @endphp
-                                                <div style="height: {{ max(8, $heightPct) }}%;" class="w-2.5 sm:w-7 flex flex-col-reverse transition-all duration-300">
-                                                    @foreach($dayCategories as $catName => $catAmount)
-                                                        @php
-                                                            $segmentPct = ($amount > 0) ? ($catAmount / $amount) * 100 : 0;
-                                                            $segmentColor = $categoryColorMap[$catName] ?? '#5b46f6';
-                                                        @endphp
-                                                        <div style="height: {{ $segmentPct }}%; background-color: {{ $segmentColor }};" class="group/segment relative w-full first:rounded-b-sm sm:first:rounded-b-full last:rounded-t-sm sm:last:rounded-t-full transition-all duration-150 hover:brightness-125 hover:z-50">
-                                                            <div class="absolute -top-14 left-1/2 -translate-x-1/2 opacity-0 group-hover/segment:opacity-100 transition-all duration-150 pointer-events-none z-50 bg-slate-900 text-white text-[9px] sm:text-[10px] font-bold px-2.5 py-1 rounded-md shadow-2xl whitespace-nowrap flex items-center gap-1.5 border border-slate-700/80 transform -translate-y-1 group-hover/segment:translate-y-0">
-                                                                <span class="w-2 h-2 rounded-full shrink-0" style="background-color: {{ $segmentColor }};"></span>
-                                                                <span>{{ $catName }}: ₱{{ number_format($catAmount, 2) }}</span>
-                                                            </div>
-                                                        </div>
-                                                    @endforeach
-                                                </div>
-                                            @else
-                                                <div class="w-2.5 sm:w-7 h-1 rounded-full bg-slate-100 opacity-60"></div>
-                                            @endif
-                                        </div>
+                                @php
+                                    $amount = $dailyTotals[$dateKey] ?? 0;
+                                    $heightPct = $maxDaily > 0 ? min(100, max(0, round(($amount / $maxDaily) * 100))) : 0;
+                                @endphp
+                                <div class="relative flex-1 flex flex-col items-center h-full justify-end group hover:z-30 cursor-pointer min-w-0">
+                                    <!-- OVERALL DAY TOTAL TOOLTIP (FLIPPED ON EDGES) -->
+                                    <div class="absolute -top-7 {{ $loop->last ? 'right-0' : ($loop->first ? 'left-0' : 'left-1/2 -translate-x-1/2') }} opacity-0 group-hover:opacity-100 transition-all duration-200 pointer-events-none z-20 bg-slate-800 text-white text-[9px] sm:text-[10px] font-extrabold px-2 py-0.5 rounded shadow-md font-mono whitespace-nowrap transform -translate-y-1 group-hover:translate-y-0">
+                                        Total: ₱{{ number_format($amount, 2) }}
                                     </div>
-                                @endforeach
+                                    
+                                    <!-- STACKED BAR SLOTS -->
+                                    <div class="w-full flex items-end justify-center h-full">
+                                        @if($amount > 0)
+                                            @php
+                                                $dayCategories = $dailyCategoryBreakdown[$dateKey] ?? [];
+                                                asort($dayCategories);
+                                            @endphp
+                                            <div style="height: {{ max(8, $heightPct) }}%;" class="w-2.5 sm:w-7 flex flex-col-reverse transition-all duration-300">
+                                                @foreach($dayCategories as $catName => $catAmount)
+                                                    @php
+                                                        $segmentPct = ($amount > 0) ? ($catAmount / $amount) * 100 : 0;
+                                                        $segmentColor = $categoryColorMap[$catName] ?? '#5b46f6';
+                                                    @endphp
+                                                    <div style="height: {{ $segmentPct }}%; background-color: {{ $segmentColor }};" class="group/segment relative w-full first:rounded-b-sm sm:first:rounded-b-full last:rounded-t-sm sm:last:rounded-t-full transition-all duration-150 hover:brightness-125 hover:z-50">
+                                                        <!-- CATEGORY SEGMENT TOOLTIP (FLIPPED ON EDGES) -->
+                                                        <div class="absolute -top-14 {{ $loop->parent->last ? 'right-0' : ($loop->parent->first ? 'left-0' : 'left-1/2 -translate-x-1/2') }} opacity-0 group-hover/segment:opacity-100 transition-all duration-150 pointer-events-none z-50 bg-slate-900 text-white text-[9px] sm:text-[10px] font-bold px-2.5 py-1 rounded-md shadow-2xl whitespace-nowrap flex items-center gap-1.5 border border-slate-700/80 transform -translate-y-1 group-hover/segment:translate-y-0">
+                                                            <span class="w-2 h-2 rounded-full shrink-0" style="background-color: {{ $segmentColor }};"></span>
+                                                            <span>{{ $catName }}: ₱{{ number_format($catAmount, 2) }}</span>
+                                                        </div>
+                                                    </div>
+                                                @endforeach
+                                            </div>
+                                        @else
+                                            <div class="w-2.5 sm:w-7 h-1 rounded-full bg-slate-100 opacity-60"></div>
+                                        @endif
+                                    </div>
+                                </div>
+                            @endforeach
                             </div>
  
                             <!-- X-AXIS DAY LABELS -->
