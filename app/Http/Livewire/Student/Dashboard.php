@@ -5,8 +5,8 @@ namespace App\Http\Livewire\Student;
 use App\Models\Expense;
 use App\Models\WeeklyBudget;
 use Carbon\Carbon;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Notifications\DatabaseNotification;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Livewire\Component;
 
@@ -37,20 +37,27 @@ class Dashboard extends Component
 
     private function checkAndResetWeeklyCycle()
     {
+        if (!$this->currentBudget) {
+            return;
+        }
+
         $today = Carbon::today();
         $startDate = Carbon::parse($this->currentBudget->cycle_start_date)->startOfDay();
-        $endDate = $startDate->copy()->addDays(6)->endOfDay();
+        $targetResetDay = $this->currentBudget->reset_day ?? auth()->user()->default_reset_day ?? 'Monday';
 
-        if ($today->greaterThan($endDate)) {
-            DB::transaction(function () {
-                $unspentSavings = max(0.00, $this->currentBudget->remaining_allowance);
-                $oldTotalAllowance = $this->currentBudget->total_allowance;
-                $amountSpent = max(0.00, $oldTotalAllowance - $unspentSavings);
+        $isScheduledResetDay = strtolower($today->format('l')) === strtolower($targetResetDay);
+        $isPastCycleWindow   = $today->gte($startDate->copy()->addDays(7));
 
-                $user = auth()->user();
+        if (($isScheduledResetDay && !$today->isSameDay($startDate)) || $isPastCycleWindow) {
+            DB::transaction(function () use ($targetResetDay) {
+                $unspentSavings    = max(0.00, (float) $this->currentBudget->remaining_allowance);
+                $oldTotalAllowance = (float) $this->currentBudget->total_allowance;
+                $amountSpent       = max(0.00, $oldTotalAllowance - $this->currentBudget->remaining_allowance);
+
+                $user              = auth()->user();
                 $nextCycleBaseline = (float) ($user->default_allowance ?? 1000.00);
-                $nextCycleResetDay = $user->default_reset_day ?? 'Monday';
-                $newWeeklyTotal = $nextCycleBaseline + $unspentSavings;
+                $nextCycleResetDay = $user->default_reset_day ?? $targetResetDay;
+                $newWeeklyTotal    = $nextCycleBaseline + $unspentSavings;
 
                 $this->currentBudget->update([
                     'total_allowance'     => $nextCycleBaseline,
@@ -59,16 +66,13 @@ class Dashboard extends Component
                     'cycle_start_date'    => Carbon::today(),
                 ]);
 
-                if ($unspentSavings > 0) {
-                    $description = "Weekly Review 📊: Outstanding financial discipline! Last week you spent ₱" . number_format($amountSpent, 2) . " and successfully saved ₱" . number_format($unspentSavings, 2) . ". Your fresh cycle starts with a boosted balance of ₱" . number_format($newWeeklyTotal, 2) . "!";
-                    $severity = 'success';
-                } else {
-                    $description = "Weekly Review 📊: Cycle complete! You used your full ₱" . number_format($oldTotalAllowance, 2) . " allowance last week. A fresh tracking week has started—let's focus on steady daily pacing!";
-                    $severity = 'info';
-                }
+                $severity = $amountSpent > $oldTotalAllowance ? 'high' : 'low';
+                $description = 'Weekly cycle review: Total spent ₱' . number_format($amountSpent, 2) .
+                            ' of ₱' . number_format($oldTotalAllowance, 2) .
+                            '. Rolled over ₱' . number_format($unspentSavings, 2) . '.';
 
                 DatabaseNotification::create([
-                    'id'              => Str::uuid(),
+                    'id'              => (string) Str::uuid(),
                     'type'            => 'App\Notifications\WeeklyBudgetReview',
                     'notifiable_type' => 'App\Models\User',
                     'notifiable_id'   => auth()->id(),
@@ -80,11 +84,7 @@ class Dashboard extends Component
                     'read_at'         => null,
                 ]);
 
-                if ($unspentSavings > 0) {
-                    session()->flash('success', 'Outstanding financial discipline! You saved ₱' . number_format($unspentSavings, 2) . ' last week, which has been rolled over into your balance.');
-                } else {
-                    session()->flash('success', 'Welcome to a fresh tracking week! Your allowance baseline has been safely restored.');
-                }
+                session()->flash('message', 'Weekly budget reset successfully! ₱' . number_format($unspentSavings, 2) . ' rolled over to your new cycle.');
             });
 
             $this->currentBudget->refresh();
@@ -99,15 +99,21 @@ class Dashboard extends Component
 
         $today = Carbon::today();
         $startDate = Carbon::parse($this->currentBudget->cycle_start_date)->startOfDay();
-        $endDate = $startDate->copy()->addDays(6)->endOfDay();
+        $targetResetDay = $this->currentBudget->reset_day ?? auth()->user()->default_reset_day ?? 'Monday';
 
-        if ($today->greaterThan($endDate)) {
+        if (strtolower($startDate->format('l')) === strtolower($targetResetDay)) {
+            $nextResetDate = $startDate->copy()->addWeek();
+        } else {
+            $nextResetDate = $startDate->copy()->next($targetResetDay);
+        }
+
+        if ($today->gte($nextResetDate)) {
             $this->daysRemaining = 0;
             $this->safeToSpend = 0.00;
             return;
         }
 
-        $this->daysRemaining = (int) $today->diffInDays($endDate->copy()->startOfDay()) + 1;
+        $this->daysRemaining = max(1, (int) $today->diffInDays($nextResetDate));
 
         if ($this->daysRemaining > 0) {
             $spentToday = Expense::where('user_id', auth()->id())
@@ -117,6 +123,7 @@ class Dashboard extends Component
 
             $startingBudgetForRemainingDays = $this->currentBudget->remaining_allowance + $spentToday;
             $todayStartingQuota = $startingBudgetForRemainingDays / $this->daysRemaining;
+
             $this->safeToSpend = max(0.00, $todayStartingQuota - $spentToday);
         } else {
             $this->safeToSpend = 0.00;
@@ -130,7 +137,7 @@ class Dashboard extends Component
             ->first();
 
         if (!$expense) {
-            session()->flash('error', 'Expense record not found');
+            session()->flash('error', 'Expense record not found.');
             return;
         }
 
@@ -166,18 +173,25 @@ class Dashboard extends Component
             $this->emit('refreshSavings');
             $this->emit('expenseUpdated');
 
-            session()->flash('success', 'Transaction removed. Balance safely adjusted and savings progress updated!');
+            session()->flash('success', 'Expense deleted! Balance updated.');
         } else {
-            session()->flash('error', 'Unable to adjust framework. Active budget not found');
+            session()->flash('error', 'Active budget not found. Unable to update balance.');
         }
     }
 
     public function render()
     {
         $startDate = Carbon::parse($this->currentBudget->cycle_start_date)->startOfDay();
-        $endDate = $startDate->copy()->addDays(6)->endOfDay();
-        $today = Carbon::today();
+        $targetResetDay = $this->currentBudget->reset_day ?? auth()->user()->default_reset_day ?? 'Monday';
 
+        if (strtolower($startDate->format('l')) === strtolower($targetResetDay)) {
+            $nextResetDate = $startDate->copy()->addWeek();
+        } else {
+            $nextResetDate = $startDate->copy()->next($targetResetDay);
+        }
+
+        $endDate = $nextResetDate->copy()->subSecond();
+        $today = Carbon::today();
         $daysElapsed = max(1, $startDate->diffInDays($today) + 1);
 
         $todaySavingsTotal = Expense::where('user_id', auth()->id())
@@ -211,30 +225,30 @@ class Dashboard extends Component
         $totalAllowance = max(1, $this->currentBudget->total_allowance);
         $remainingPercentage = round(($this->currentBudget->remaining_allowance / $totalAllowance) * 100);
 
-        // Chart calculations
         $daysOfWeek = [];
         $dailyTotals = [];
         $dailyCategoryBreakdown = [];
+        $cycleDurationDays = max(1, (int) $startDate->diffInDays($nextResetDate));
 
-        for ($i = 0; $i < 7; $i++) {
-            $dateKey = $startDate->copy()->addDays($i)->format('Y-m-d');
-            $daysOfWeek[$dateKey] = $startDate->copy()->addDays($i)->format('D');
+        for ($i = 0; $i < $cycleDurationDays; $i++) {
+            $currentLoopDate = $startDate->copy()->addDays($i);
+            $dateKey = $currentLoopDate->format('Y-m-d');
+            $daysOfWeek[$dateKey] = $currentLoopDate->format('D');
             $dailyTotals[$dateKey] = 0;
             $dailyCategoryBreakdown[$dateKey] = [];
         }
 
         $colorPalette = [
-            '#ff7052', // Coral / Orange
-            '#5b46f6', // Purple / Indigo
-            '#4fd1c5', // Teal / Cyan
-            '#ffc043', // Yellow
-            '#f43f5e', // Pink / Red
-            '#3b82f6', // Blue
-            '#10b981', // Emerald
-            '#8b5cf6'  // Violet
+            '#ff7052',
+            '#5b46f6',
+            '#4fd1c5',
+            '#ffc043',
+            '#f43f5e',
+            '#3b82f6',
+            '#10b981',
+            '#8b5cf6'
         ];
 
-        // Fetch distinct categories alphabetically to construct a globally uniform color map
         $alphabeticalCategories = Expense::where('expenses.user_id', auth()->id())
             ->whereBetween('transaction_date', [$startDate, $endDate])
             ->join('expense_categories', 'expenses.expense_category_id', '=', 'expense_categories.id')
@@ -248,7 +262,6 @@ class Dashboard extends Component
             $categoryColorMap[$catName] = $colorPalette[$index % count($colorPalette)];
         }
 
-        // Calculate totals sorted descending so largest spending category is dataset 0 (at bottom of bar stack)
         $categoryTotals = Expense::where('expenses.user_id', auth()->id())
             ->whereBetween('transaction_date', [$startDate, $endDate])
             ->join('expense_categories', 'expenses.expense_category_id', '=', 'expense_categories.id')
@@ -280,7 +293,8 @@ class Dashboard extends Component
         $maxDaily = max(100, $highestSpent * 1.35);
         $step = $maxDaily / 4;
 
-        $recentExpenses = Expense::where('user_id', auth()->id())
+        $recentExpenses = Expense::with('category')
+            ->where('user_id', auth()->id())
             ->latest('id')
             ->take(5)
             ->get();

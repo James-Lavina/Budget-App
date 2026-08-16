@@ -24,8 +24,8 @@ class LogExpense extends Component
         'expense_category_id' => 'required|exists:expense_categories,id',
         'item_name' => 'required|string|max:255',
         'amount' => 'required|numeric|min:0.01|max:999999',
-        // 'transaction_date' => 'required|date|before_or_equal:today',
-        'transaction_date' => 'required|date',
+        'transaction_date' => 'required|date|before_or_equal:today',
+        // 'transaction_date' => 'required|date',
         'merchant_name' => 'nullable|string|max:255',
     ];
 

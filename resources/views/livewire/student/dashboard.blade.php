@@ -1,6 +1,6 @@
 <div class="min-h-screen py-3 sm:py-6 md:py-8 px-2.5 sm:px-6 lg:px-8 text-slate-800 antialiased relative pb-28 sm:pb-24 w-full max-w-full overflow-x-hidden">
     <div class="max-w-7xl mx-auto space-y-3 sm:space-y-6 w-full min-w-0">
-       
+      
         <!-- HEADER SECTION: GREETING & STATUS -->
         <div class="flex flex-col md:flex-row md:items-center justify-between gap-2 sm:gap-4 w-full min-w-0">
             <div class="min-w-0">
@@ -17,7 +17,7 @@
                 @elseif($isDailyQuotaHit)
                     <span class="inline-flex items-center gap-1.5 text-[11px] sm:text-xs bg-amber-50 border border-amber-200 text-amber-700 px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-full font-bold">
                         <span class="h-2 w-2 rounded-full bg-amber-500"></span>
-                        Daily limit reached
+                        Today's budget used
                     </span>
                 @elseif(!$isCriticalState)
                     <span class="inline-flex items-center gap-1.5 text-[11px] sm:text-xs bg-emerald-50 border border-emerald-200/80 text-emerald-700 px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-full font-bold">
@@ -27,24 +27,26 @@
                 @else
                     <span class="inline-flex items-center gap-1.5 text-[11px] sm:text-xs bg-rose-50 border border-rose-200/80 text-rose-700 px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-full font-bold">
                         <span class="h-2 w-2 rounded-full bg-rose-500 animate-pulse"></span>
-                        Spending Too Fast
+                        Spending Quickly
                     </span>
                 @endif
             </div>
         </div>
- 
+
         <!-- TOP METRICS (RESPONSIVE 3-CARD GRID) -->
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-5 w-full min-w-0">
             <!-- 1. Weekly Allowance -->
             <div class="bg-white rounded-2xl sm:rounded-3xl p-3.5 sm:p-5 border border-slate-100 shadow-sm flex items-center justify-between relative overflow-hidden min-w-0">
-                <div class="space-y-0.5 min-w-0">
+                <div class="space-y-1 min-w-0">
                     <span class="text-[11px] sm:text-xs font-semibold text-slate-500 block truncate">Weekly Allowance</span>
                     <div class="text-lg sm:text-2xl font-black text-slate-900 font-mono truncate">
                         ₱{{ number_format($currentBudget->total_allowance, 2) }}
                     </div>
-                    <span class="text-[10px] sm:text-[11px] font-medium text-slate-400 block truncate">
-                        Resets {{ $currentBudget->reset_day }} · <a href="{{ route('student.settings') }}" class="text-slate-500 hover:text-indigo-600 font-semibold underline decoration-slate-300 transition-colors">Edit</a>
-                    </span>
+                    <div class="flex items-center gap-1.5 text-[10px] sm:text-[11px] font-medium text-slate-400 truncate">
+                        <span>Resets {{ $currentBudget->reset_day }}</span>
+                        <span>·</span>
+                        <a href="{{ route('student.settings') }}" class="inline-flex items-center px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 hover:bg-indigo-50 hover:text-indigo-600 font-semibold transition-colors">Edit</a>
+                    </div>
                 </div>
                 <div class="h-9 w-9 sm:h-12 sm:w-12 rounded-xl sm:rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0 ml-2">
                     <svg class="w-4 h-4 sm:w-6 sm:h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
@@ -53,17 +55,19 @@
                     </svg>
                 </div>
             </div>
- 
+
             <!-- 2. Remaining Budget -->
             <div class="bg-white rounded-2xl sm:rounded-3xl p-3.5 sm:p-5 border border-slate-100 shadow-sm flex items-center justify-between relative overflow-hidden min-w-0">
-                <div class="space-y-0.5 min-w-0">
+                <div class="space-y-1 min-w-0">
                     <span class="text-[11px] sm:text-xs font-semibold text-slate-500 block truncate">Remaining Budget</span>
                     <div class="text-lg sm:text-2xl font-black text-slate-900 font-mono truncate">
                         ₱{{ number_format($currentBudget->remaining_allowance, 2) }}
                     </div>
-                    <span class="text-[10px] sm:text-[11px] font-medium text-slate-400 block truncate">
-                        {{ $remainingPercentage }}% left · <a href="{{ route('student.budget.add') }}" class="text-slate-500 hover:text-indigo-600 font-semibold underline decoration-slate-300 transition-colors">Add</a>
-                    </span>
+                    <div class="flex items-center gap-1.5 text-[10px] sm:text-[11px] font-medium text-slate-400 truncate">
+                        <span>{{ $remainingPercentage }}% left</span>
+                        <span>·</span>
+                        <a href="{{ route('student.budget.add') }}" class="inline-flex items-center px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 hover:bg-indigo-50 hover:text-indigo-600 font-semibold transition-colors">Add</a>
+                    </div>
                 </div>
                 <div class="h-9 w-9 sm:h-12 sm:w-12 rounded-xl sm:rounded-2xl bg-orange-50 text-orange-500 flex items-center justify-center shrink-0 ml-2">
                     <svg class="w-4 h-4 sm:w-6 sm:h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
@@ -71,16 +75,16 @@
                     </svg>
                 </div>
             </div>
- 
+
             <!-- 3. Daily Safe-to-Spend -->
             <div class="bg-white rounded-2xl sm:rounded-3xl p-3.5 sm:p-5 border border-slate-100 shadow-sm flex items-center justify-between sm:col-span-2 lg:col-span-1 relative overflow-hidden min-w-0">
-                <div class="space-y-0.5 min-w-0">
+                <div class="space-y-1 min-w-0">
                     <span class="text-[11px] sm:text-xs font-semibold text-slate-500 block truncate">Daily Safe-to-Spend</span>
                     <div class="text-lg sm:text-2xl font-black text-slate-900 font-mono truncate">
                         ₱{{ number_format($safeToSpend, 2) }}
                     </div>
                     <span class="text-[10px] sm:text-[11px] font-medium text-slate-400 block truncate">
-                        For next {{ $daysRemaining }} {{ Str::plural('day', $daysRemaining) }}
+                        Per day for the next {{ $daysRemaining }} {{ Str::plural('day', $daysRemaining) }}
                     </span>
                 </div>
                 <div class="h-9 w-9 sm:h-12 sm:w-12 rounded-xl sm:rounded-2xl {{ $isSavingsLocked ? 'bg-indigo-50 text-indigo-600' : 'bg-emerald-50 text-emerald-600' }} flex items-center justify-center shrink-0 ml-2">
@@ -90,9 +94,9 @@
                 </div>
             </div>
         </div>
- 
+
         <!-- SPENDING FORECAST BANNER -->
-        <div class="rounded-2xl sm:rounded-3xl p-3.5 sm:p-5 border shadow-sm transition-all flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 sm:gap-4 w-full min-w-0 {{ $isDepleted || $isPaceCritical ? 'bg-rose-50/70 border-rose-200/80' : ($isSavingsLocked ? 'bg-indigo-50/70 border-indigo-200/80' : ($isDailyQuotaHit ? 'bg-amber-50/70 border-amber-200/80' : 'bg-emerald-50/60 border-emerald-100')) }}">
+        <div class="bg-white rounded-2xl sm:rounded-3xl p-3.5 sm:p-5 border border-l-4 shadow-sm transition-all flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 sm:gap-4 w-full min-w-0 {{ $isDepleted || $isPaceCritical ? 'border-l-rose-500 border-slate-100' : ($isSavingsLocked ? 'border-l-indigo-500 border-slate-100' : ($isDailyQuotaHit ? 'border-l-amber-500 border-slate-100' : 'border-l-emerald-500 border-slate-100')) }}">
             <div class="flex items-center gap-3 min-w-0">
                 <div class="h-9 w-9 sm:h-11 sm:w-11 rounded-xl sm:rounded-2xl flex items-center justify-center shrink-0 {{ $isDepleted || $isPaceCritical ? 'bg-rose-500 text-white' : ($isSavingsLocked ? 'bg-indigo-600 text-white' : ($isDailyQuotaHit ? 'bg-amber-500 text-white' : 'bg-emerald-500 text-white')) }}">
                     <svg class="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
@@ -106,40 +110,40 @@
                 <div class="min-w-0">
                     <h3 class="text-xs sm:text-sm font-extrabold text-slate-900 flex items-center gap-1 truncate">
                         @if($isDepleted)
-                            Weekly Budget Depleted
+                            Budget Exhausted
                         @elseif($isPaceCritical)
-                            Spending Too Fast
+                            Spending Warning
                         @elseif($isSavingsLocked)
-                            Money Moved to Savings
+                            Money Saved Today
                         @elseif($isDailyQuotaHit)
-                            Daily Limit Reached
+                            Today's Budget Met
                         @else
                             On Track This Week
                         @endif
                     </h3>
                     <p class="text-[11px] sm:text-xs text-slate-600 font-medium mt-0.5 leading-tight">
                         @if($isDepleted)
-                            You have ₱0.00 left for the remaining {{ $daysRemaining }} {{ Str::plural('day', $daysRemaining) }}.
+                            You have ₱0.00 left for the next {{ $daysRemaining }} {{ Str::plural('day', $daysRemaining) }}.
                         @elseif($isPaceCritical)
-                            At <span class="font-bold">₱{{ number_format($dailyVelocity, 2) }}/day</span>, your budget will run out in about <span class="font-bold">{{ max(1, round($projectedDaysLeft)) }} {{ Str::plural('day', max(1, round($projectedDaysLeft))) }}</span>—before your next reset.
+                            At <span class="font-bold">₱{{ number_format($dailyVelocity, 2) }}/day</span>, your money will only last <span class="font-bold">{{ max(1, round($projectedDaysLeft)) }} {{ Str::plural('day', max(1, round($projectedDaysLeft))) }}</span>.
                         @elseif($isSavingsLocked)
-                            Nice job! You put <span class="font-bold">₱{{ number_format($todaySavingsTotal, 2) }}</span> into savings today. Your extra cash for today is <span class="font-bold">₱{{ number_format($safeToSpend, 2) }}</span>.
+                            Great job! You saved <span class="font-bold">₱{{ number_format($todaySavingsTotal, 2) }}</span> today. Remaining for today: <span class="font-bold">₱{{ number_format($safeToSpend, 2) }}</span>.
                         @elseif($isDailyQuotaHit)
-                            Limit reached for today. You still have <span class="font-bold">₱{{ number_format($currentBudget->remaining_allowance, 2) }}</span> total left (<span class="font-bold">₱{{ number_format($remainingDailyRate, 2) }}/day</span> for the next {{ $futureDaysRemaining }} {{ Str::plural('day', $futureDaysRemaining) }}).
+                            Daily budget met. Total remaining: <span class="font-bold">₱{{ number_format($currentBudget->remaining_allowance, 2) }}</span> (<span class="font-bold">₱{{ number_format($remainingDailyRate, 2) }}/day</span> for the next {{ $futureDaysRemaining }} {{ Str::plural('day', $futureDaysRemaining) }}).
                         @else
-                            On track to finish the week with ~<span class="font-bold">₱{{ number_format($projectedRemaining, 0) }}</span> to spare before reset.
+                            On track to finish the week with ~<span class="font-bold">₱{{ number_format($projectedRemaining, 0) }}</span> remaining.
                         @endif
                     </p>
                 </div>
             </div>
-            <a href="{{ route('student.forecast') }}" class="text-xs font-bold {{ $isDepleted || $isPaceCritical ? 'text-rose-700 hover:text-rose-800' : ($isSavingsLocked ? 'text-indigo-700 hover:text-indigo-800' : ($isDailyQuotaHit ? 'text-amber-800 hover:text-amber-900' : 'text-emerald-700 hover:text-emerald-800')) }} flex items-center gap-1 whitespace-nowrap self-end sm:self-auto transition-colors shrink-0">
+            <a href="{{ route('student.forecast') }}" class="text-xs font-bold text-slate-700 hover:text-indigo-600 flex items-center gap-1 whitespace-nowrap self-end sm:self-auto transition-colors shrink-0">
                 <span>View forecast</span>
                 <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
                 </svg>
             </a>
         </div>
- 
+
         <!-- MAIN WORKSPACE: SPENDING CHART + CATEGORY WIDGET -->
         <div class="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-6 items-stretch w-full min-w-0">
             <!-- WEEKLY SPENDING BAR CHART (7 COLS) -->
@@ -148,18 +152,18 @@
                 <div class="flex items-center justify-between gap-2 pb-3 border-b border-slate-100">
                     <h3 class="text-xs sm:text-sm font-extrabold text-slate-900 truncate">Weekly Spending</h3>
                     <span class="text-[10px] sm:text-xs text-slate-400 font-medium shrink-0">
-                        Safe: <span class="font-bold text-slate-600">₱{{ number_format($safeToSpend, 2) }}/d</span>
+                        Safe: <span class="font-bold text-slate-600">₱{{ number_format($safeToSpend, 2) }} / day</span>
                     </span>
                 </div>
- 
-                <!-- WEEKLY SPENDING CATEGORY LEGEND (DESKTOP ONLY: HIDDEN ON MOBILE) -->
-                <div class="mt-3 hidden sm:grid grid-cols-2 gap-2 max-h-[110px] overflow-y-auto custom-dashboard-scrollbar pr-1">
+
+                <!-- WEEKLY SPENDING CATEGORY LEGEND (HORIZONTALLY SCROLLABLE ON MOBILE) -->
+                <div class="mt-3 flex overflow-x-auto gap-2 pb-1 sm:pb-0 sm:grid sm:grid-cols-2 max-h-[110px] sm:overflow-y-auto no-scrollbar">
                     @foreach($chartCategories as $index => $catName)
                         @php
                             $catColor = $chartColors[$index] ?? '#5b46f6';
                             $catTotal = $categoryTotalsMap[$catName] ?? 0;
                         @endphp
-                        <div class="flex items-center justify-between text-xs">
+                        <div class="flex items-center justify-between text-xs bg-slate-50 sm:bg-transparent px-2.5 py-1 sm:p-0 rounded-lg shrink-0">
                             <div class="flex items-center gap-2 min-w-0">
                                 <span class="w-2.5 h-2.5 rounded-full shrink-0" style="background-color: {{ $catColor }};"></span>
                                 <span class="font-semibold text-slate-600 truncate">{{ $catName }}</span>
@@ -170,10 +174,9 @@
                         </div>
                     @endforeach
                 </div>
-           
+          
                 @php
                     $chartLabels = array_values($daysOfWeek);
- 
                     $chartMatrix = [];
                     foreach ($chartCategories as $cat) {
                         $row = [];
@@ -182,7 +185,6 @@
                         }
                         $chartMatrix[$cat] = $row;
                     }
- 
                     $weeklyChartPayload = [
                         'labels'     => $chartLabels,
                         'categories' => $chartCategories,
@@ -190,49 +192,52 @@
                         'matrix'     => $chartMatrix,
                     ];
                 @endphp
-           
+          
                 <script type="application/json" id="weeklySpendingData">{!! json_encode($weeklyChartPayload) !!}</script>
-           
+          
                 <div class="pt-4 sm:pt-6 pb-1 w-full min-w-0" wire:ignore>
                     <div class="relative h-40 sm:h-52 w-full">
                         <canvas id="weeklySpendingChart"></canvas>
                     </div>
                 </div>
-           
+          
                 <p class="text-[10px] text-slate-400 font-medium text-center pt-1 sm:hidden">
                     Tap a bar for category breakdown
                 </p>
             </div>
- 
+
             <!-- EXPENSE CATEGORIES WIDGET (5 COLS) -->
             <div class="lg:col-span-5 flex flex-col w-full min-w-0 overflow-hidden">
                 <livewire:student.expense-category-widget />
             </div>
         </div>
- 
+
         <!-- RECENT EXPENSES SECTION -->
         <div class="bg-white rounded-2xl sm:rounded-3xl p-4 sm:p-6 border border-slate-100 shadow-sm w-full min-w-0 overflow-hidden">
             <div class="pb-4 border-b border-slate-100 flex items-center justify-between gap-3">
                 <h3 class="text-base sm:text-lg font-bold text-slate-900 truncate">Recent Expenses</h3>
                 <a href="{{ route('student.expenses.index') }}" class="text-xs sm:text-sm font-semibold text-indigo-600 hover:text-indigo-700 transition-colors flex items-center gap-1 shrink-0">
-                    <span>Show expenses</span>
+                    <span>View all</span>
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
                     </svg>
                 </a>
             </div>
+
             @if (session()->has('success'))
                 <div class="mt-3 p-2.5 bg-emerald-50 border border-emerald-100 text-emerald-800 rounded-xl text-xs font-semibold flex items-center gap-2">
                     <span class="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse shrink-0"></span>
                     <span class="truncate">{{ session('success') }}</span>
                 </div>
             @endif
+
             @if (session()->has('error'))
                 <div class="mt-3 p-2.5 bg-rose-50 border border-rose-100 text-rose-800 rounded-xl text-xs font-semibold flex items-center gap-2">
                     <span class="h-1.5 w-1.5 rounded-full bg-rose-500 animate-pulse shrink-0"></span>
                     <span class="truncate">{{ session('error') }}</span>
                 </div>
             @endif
+
             @if($recentExpenses->isEmpty())
                 <div class="py-10 text-center text-slate-400 max-w-sm mx-auto space-y-2">
                     <div class="h-10 w-10 bg-slate-50 rounded-full flex items-center justify-center mx-auto text-slate-400 border border-slate-100">
@@ -267,6 +272,7 @@
                                 $iconType = 'default';
                                 $bgColor = 'bg-slate-100 text-slate-600';
                             }
+
                             $date = \Carbon\Carbon::parse($expense->transaction_date);
                             if ($date->isToday()) {
                                 $formattedDate = 'Today, ' . $date->format('g:i A');
@@ -329,7 +335,7 @@
                 </div>
             @endif
         </div>
- 
+
         <!-- FLOATING "+ ADD EXPENSE" BUTTON -->
         <a href="{{ route('student.expenses.create') }}"
            class="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-50 inline-flex items-center gap-1.5 bg-[#ff6542] hover:bg-[#e85331] text-white font-extrabold px-3.5 sm:px-5 py-2.5 sm:py-3.5 rounded-2xl shadow-lg shadow-orange-500/30 transition-all transform hover:scale-105 active:scale-95 text-xs sm:text-sm">
@@ -339,17 +345,17 @@
             <span>Add Expense</span>
         </a>
     </div>
- </div>
- 
- <script>
+</div>
+
+<script>
     (function () {
         let weeklySpendingChart = null;
- 
+
         function readPayload() {
             const el = document.getElementById('weeklySpendingData');
             return el ? JSON.parse(el.textContent) : null;
         }
- 
+
         function buildDatasets(payload) {
             return payload.categories.map((cat, i) => ({
                 label: cat,
@@ -361,16 +367,16 @@
                 maxBarThickness: 28,
             }));
         }
- 
+
         function initWeeklySpendingChart() {
             const canvas = document.getElementById('weeklySpendingChart');
             const payload = readPayload();
             if (!canvas || !payload) return;
- 
+
             if (weeklySpendingChart) {
                 weeklySpendingChart.destroy();
             }
- 
+
             weeklySpendingChart = new Chart(canvas.getContext('2d'), {
                 type: 'bar',
                 data: {
@@ -419,8 +425,8 @@
                 },
             });
         }
- 
+
         document.addEventListener('livewire:load', initWeeklySpendingChart);
         document.addEventListener('livewire:update', initWeeklySpendingChart);
     })();
- </script>
+</script>
