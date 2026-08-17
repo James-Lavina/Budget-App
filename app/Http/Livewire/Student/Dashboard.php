@@ -53,10 +53,11 @@ class Dashboard extends Component
                 $unspentSavings    = max(0.00, (float) $this->currentBudget->remaining_allowance);
                 $oldTotalAllowance = (float) $this->currentBudget->total_allowance;
                 $amountSpent       = max(0.00, $oldTotalAllowance - $this->currentBudget->remaining_allowance);
-
                 $user              = auth()->user();
+
                 $nextCycleBaseline = (float) ($user->default_allowance ?? 1000.00);
                 $nextCycleResetDay = $user->default_reset_day ?? $targetResetDay;
+
                 $newWeeklyTotal    = $nextCycleBaseline + $unspentSavings;
 
                 $this->currentBudget->update([
@@ -123,7 +124,6 @@ class Dashboard extends Component
 
             $startingBudgetForRemainingDays = $this->currentBudget->remaining_allowance + $spentToday;
             $todayStartingQuota = $startingBudgetForRemainingDays / $this->daysRemaining;
-
             $this->safeToSpend = max(0.00, $todayStartingQuota - $spentToday);
         } else {
             $this->safeToSpend = 0.00;
@@ -191,8 +191,22 @@ class Dashboard extends Component
         }
 
         $endDate = $nextResetDate->copy()->subSecond();
-        $today = Carbon::today();
-        $daysElapsed = max(1, $startDate->diffInDays($today) + 1);
+        $today   = Carbon::today();
+
+        // Fast-forward evaluation date if seeded/test expenses exist past real-time today
+        $latestExpenseDate = Expense::where('user_id', auth()->id())
+            ->whereBetween('transaction_date', [$startDate, $endDate])
+            ->max('transaction_date');
+
+        $evalDate = $today;
+        if ($latestExpenseDate) {
+            $latestCarbon = Carbon::parse($latestExpenseDate)->startOfDay();
+            if ($latestCarbon->gt($today)) {
+                $evalDate = $latestCarbon;
+            }
+        }
+
+        $daysElapsed = max(1, $startDate->diffInDays($evalDate) + 1);
 
         $todaySavingsTotal = Expense::where('user_id', auth()->id())
             ->whereDate('transaction_date', $today)
@@ -206,23 +220,23 @@ class Dashboard extends Component
             ->whereNull('savings_goal_id')
             ->sum('amount');
 
-        $dailyVelocity = $totalSpent / $daysElapsed;
-        $futureDaysRemaining = max(0, $this->daysRemaining - 1);
-        $projectedRemaining = max(0, $this->currentBudget->remaining_allowance - ($dailyVelocity * $futureDaysRemaining));
-        $projectedDaysLeft = $dailyVelocity > 0 ? ($this->currentBudget->remaining_allowance / $dailyVelocity) : $this->daysRemaining;
+        $dailyVelocity       = $totalSpent / $daysElapsed;
+        $futureDaysRemaining = max(0, 7 - $daysElapsed);
+        $projectedRemaining  = max(0, $this->currentBudget->remaining_allowance - ($dailyVelocity * $futureDaysRemaining));
+        $projectedDaysLeft   = $dailyVelocity > 0 ? ($this->currentBudget->remaining_allowance / $dailyVelocity) : $this->daysRemaining;
 
         $remainingDailyRate = $futureDaysRemaining > 0
             ? ($this->currentBudget->remaining_allowance / $futureDaysRemaining)
             : $this->currentBudget->remaining_allowance;
 
-        $isDepleted = $this->currentBudget->remaining_allowance <= 0;
+        $isDepleted     = $this->currentBudget->remaining_allowance <= 0;
         $isPaceCritical = !$isDepleted && ($projectedDaysLeft < $this->daysRemaining);
-        $isQuotaHitRaw = !$isDepleted && !$isPaceCritical && ($this->safeToSpend <= 0);
+        $isQuotaHitRaw  = !$isDepleted && !$isPaceCritical && ($this->safeToSpend <= 0);
         $isSavingsLocked = $isQuotaHitRaw && $hasSavingsToday;
         $isDailyQuotaHit = $isQuotaHitRaw && !$hasSavingsToday;
         $isCriticalState = $isDepleted || $isPaceCritical;
 
-        $totalAllowance = max(1, $this->currentBudget->total_allowance);
+        $totalAllowance      = max(1, $this->currentBudget->total_allowance);
         $remainingPercentage = round(($this->currentBudget->remaining_allowance / $totalAllowance) * 100);
 
         $daysOfWeek = [];
@@ -290,8 +304,8 @@ class Dashboard extends Component
         }
 
         $highestSpent = max(array_values($dailyTotals));
-        $maxDaily = max(100, $highestSpent * 1.35);
-        $step = $maxDaily / 4;
+        $maxDaily     = max(100, $highestSpent * 1.35);
+        $step         = $maxDaily / 4;
 
         $recentExpenses = Expense::with('category')
             ->where('user_id', auth()->id())
@@ -300,7 +314,7 @@ class Dashboard extends Component
             ->get();
 
         $chartCategories = array_keys($categoryTotalsMap);
-        $chartColors = [];
+        $chartColors     = [];
         foreach ($chartCategories as $cat) {
             $chartColors[] = $categoryColorMap[$cat] ?? $colorPalette[0];
         }

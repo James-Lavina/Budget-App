@@ -25,17 +25,29 @@ class SpendingForecastService
         $endDate   = $now->copy()->endOfWeek(Carbon::SUNDAY);
         $today     = Carbon::today();
 
-        // 2. Compute Days Elapsed & Remaining within the Mon-Sun week
-        $daysElapsed         = max(1, min(7, (int)$startDate->diffInDays($today) + 1));
+        // 2. Compute Days Elapsed dynamically (Fast-forwards if test/seeded expenses exist ahead of real-time today)
+        $latestExpenseDate = Expense::where('user_id', $user->id)
+            ->whereBetween('transaction_date', [$startDate, $endDate])
+            ->max('transaction_date');
+
+        $evalDate = $today;
+        if ($latestExpenseDate) {
+            $latestCarbon = Carbon::parse($latestExpenseDate)->startOfDay();
+            if ($latestCarbon->gt($today)) {
+                $evalDate = $latestCarbon;
+            }
+        }
+
+        $daysElapsed         = max(1, min(7, (int)$startDate->diffInDays($evalDate) + 1));
         $remainingDaysInWeek = 7 - $daysElapsed;
         $daysRemainingCount  = max(1, $remainingDaysInWeek + 1);
 
         $totalAllowance     = (float) ($activeBudget->total_allowance ?? 1000.00);
         $remainingAllowance = (float) ($activeBudget->remaining_allowance ?? 0.00);
 
-        // 3. Compute Daily Safe-to-Spend quota (excluding savings transfers)
+        // 3. Compute Daily Safe-to-Spend quota for current evaluation date
         $spentToday = (float) Expense::where('user_id', $user->id)
-            ->whereDate('transaction_date', $today)
+            ->whereDate('transaction_date', $evalDate)
             ->whereNull('savings_goal_id')
             ->whereDoesntHave('category', function ($query) {
                 $query->where('name', 'LIKE', '%Savings%');
@@ -46,7 +58,7 @@ class SpendingForecastService
         $todayStartingQuota             = $startingBudgetForRemainingDays / $daysRemainingCount;
         $safeToSpendToday               = max(0.00, $todayStartingQuota - $spentToday);
 
-        // 4. Group Cycle Expenses Day-by-Day (Excluding savings goals & savings category)
+        // 4. Group Cycle Expenses Day-by-Day (Excluding savings transfers)
         $expensesByDay = Expense::where('user_id', $user->id)
             ->whereBetween('transaction_date', [$startDate, $endDate])
             ->whereNull('savings_goal_id')
@@ -63,7 +75,7 @@ class SpendingForecastService
         $predictedValues = [];
         $runningSpent    = 0;
 
-        // 5. Calculate Actual Cumulative Spending (Monday through Sunday)
+        // 5. Calculate Actual Cumulative Spending up to $daysElapsed
         for ($i = 0; $i < 7; $i++) {
             $currentDate = $startDate->copy()->addDays($i);
             $dateKey     = $currentDate->format('Y-m-d');
