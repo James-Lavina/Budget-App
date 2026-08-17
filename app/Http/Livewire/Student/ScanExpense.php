@@ -41,17 +41,20 @@ class ScanExpense extends Component
     }
 
     public function processReceipt() {
-        $this->validate();
-        $this->isProcessing = true;
+        $this->validate();$this->isProcessing = true;
 
         try {
-            $dbCategories = ExpenseCategory::pluck('name')->toArray();
+            // Filter out 'Savings' category for AI category extraction
+            $dbCategories = ExpenseCategory::whereRaw('LOWER(name) != ?', ['savings'])
+                ->pluck('name')
+                ->toArray();
+
             if(empty($dbCategories)) {
                 throw new \Exception('Please seed your expense_categories table first.');
             }
             $categoryListString = implode(', ', array_map(fn($cat) => "'$cat'", $dbCategories));
 
-            $storedPath = $this->receiptImage->store('receipts', 'public');
+            $storedPath =$this->receiptImage->store('receipts', 'public');
 
             $receipt = Receipt::create([
                 'user_id' => auth()->id(),
@@ -59,7 +62,7 @@ class ScanExpense extends Component
                 'status' => 'pending',
             ]);
 
-            $this->receiptId = $receipt->id;
+            $this->receiptId =$receipt->id;
 
             $ocrResponse = Http::asMultipart()
                 ->post('https://api.ocr.space/parse/image', [
@@ -68,12 +71,11 @@ class ScanExpense extends Component
                     'file' => Storage::disk('public')->readStream($storedPath),
                 ]);
 
-            $ocrData = $ocrResponse->json();
-            $rawText = $ocrData['ParsedResults'][0]['ParsedText'] ?? '';
-            $receipt->update(['raw_ocr_text' => $rawText]);
+            $ocrData =$ocrResponse->json();
+            $rawText =$ocrData['ParsedResults'][0]['ParsedText'] ?? '';
+            $receipt->update(['raw_ocr_text' =>$rawText]);
 
-            if(empty(trim($rawText))) {
-                $receipt->update(['status' => 'failed']);
+            if(empty(trim($rawText))) {$receipt->update(['status' => 'failed']);
                 throw new \Exception('No text detected on the receipt image');
             }
 
@@ -216,18 +218,11 @@ class ScanExpense extends Component
 
                 if (!$alreadyNotified) {
                     $percentageLeft = round(($currentBudget->remaining_allowance / $currentBudget->total_allowance) * 100);
-                    DatabaseNotification::create([
-                        'id' => Str::uuid(),
-                        'type' => 'App\Notifications\LowAllowanceWarning',
-                        'notifiable_type' => 'App\Models\User',
-                        'notifiable_id' => auth()->id(),
-                        'data' => [
-                            'anomaly_type' => 'low_allowance_threshold',
-                            'severity_tier' => 'medium', 
-                            'description' => "Budget Critical! ⚠️ Your remaining allowance has dropped to {$percentageLeft}% (₱" . number_format($currentBudget->remaining_allowance, 2) . " left). Consider lowering your daily velocity to survive the cycle.",
-                        ],
-                        'read_at' => null,
-                    ]);
+
+                    auth()->user()->notify(new \App\Notifications\LowAllowanceWarning(
+                        $percentageLeft, 
+                        $currentBudget->remaining_allowance
+                    ));
                 }
             }
 
@@ -242,7 +237,9 @@ class ScanExpense extends Component
     public function render()
     {
         return view('livewire.student.scan-expense', [
-            'availableCategories' => ExpenseCategory::all(),
+            'availableCategories' => ExpenseCategory::whereRaw('LOWER(name) != ?', ['savings'])
+                ->orderBy('name', 'asc')
+                ->get(),
         ])->layout('layouts.student');
     }
 }

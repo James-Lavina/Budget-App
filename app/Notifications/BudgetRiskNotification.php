@@ -35,15 +35,15 @@ class BudgetRiskNotification extends Notification
      */
     public function toMail($notifiable)
     {
-        $severity = strtoupper($this->riskLog->severity_tier);
-        
+        $severity = ucfirst(strtolower($this->riskLog->severity_tier));
+
         return (new MailMessage)
-            ->subject("[Alert: {$severity} Risk] Budget Tracking Notification")
+            ->subject("[Pace Check: {$severity} Priority] Weekly Budget Update")
             ->greeting("Hello {$notifiable->name},")
-            ->line("Our behavior-guided engine has detected a potential variance in your weekly budget tracking framework.")
+            ->line("Heads up! We noticed your spending pace is running a bit faster than planned for this cycle.")
             ->line("**Alert Details:** {$this->riskLog->description}")
             ->action('View Dashboard Analytics', route('student.dashboard'))
-            ->line('Consistently reviewing your recommended daily safe-to-spend limits will help prevent early-week allowance depletion.');
+            ->line('Keeping an eye on your daily spending cap helps make sure your allowance lasts comfortably until the end of the week.');
     }
 
     /**

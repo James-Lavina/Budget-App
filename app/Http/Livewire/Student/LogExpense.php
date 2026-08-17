@@ -6,10 +6,10 @@ use App\Models\Expense;
 use App\Models\ExpenseCategory;
 use App\Models\WeeklyBudget;
 use App\Models\RiskLog;
+use App\Notifications\LowAllowanceWarning;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Notifications\DatabaseNotification; 
-use Illuminate\Support\Str; 
 use Livewire\Component;
 
 class LogExpense extends Component
@@ -25,7 +25,6 @@ class LogExpense extends Component
         'item_name' => 'required|string|max:255',
         'amount' => 'required|numeric|min:0.01|max:999999',
         'transaction_date' => 'required|date|before_or_equal:today',
-        // 'transaction_date' => 'required|date',
         'merchant_name' => 'nullable|string|max:255',
     ];
 
@@ -100,18 +99,11 @@ class LogExpense extends Component
             if (!$alreadyNotified) {
                 $percentageLeft = round(($currentBudget->remaining_allowance / $currentBudget->total_allowance) * 100);
                 
-                DatabaseNotification::create([
-                    'id' => Str::uuid(),
-                    'type' => 'App\Notifications\LowAllowanceWarning',
-                    'notifiable_type' => 'App\Models\User',
-                    'notifiable_id' => auth()->id(),
-                    'data' => [
-                        'anomaly_type' => 'low_allowance_threshold',
-                        'severity_tier' => 'medium', 
-                        'description' => "Budget Critical! ⚠️ Your remaining allowance has dropped to {$percentageLeft}% (₱" . number_format($currentBudget->remaining_allowance, 2) . " left). Consider lowering your daily velocity to survive the cycle.",
-                    ],
-                    'read_at' => null,
-                ]);
+                $user = auth()->user();
+                $user->notify(new LowAllowanceWarning(
+                    $percentageLeft, 
+                    $currentBudget->remaining_allowance
+                ));
             }
         }
 
@@ -122,7 +114,9 @@ class LogExpense extends Component
     public function render()
     {
         return view('livewire.student.log-expense', [
-            'categories' => ExpenseCategory::orderBy('name', 'asc')->get()
+            'categories' => ExpenseCategory::whereRaw('LOWER(name) != ?', ['savings'])
+                ->orderBy('name', 'asc')
+                ->get()
         ])->layout('layouts.student');
     }
 }

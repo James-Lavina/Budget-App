@@ -15,6 +15,7 @@ class SpendingForecastService
     public function generateForecast($user)
     {
         $activeBudget = WeeklyBudget::where('user_id', $user->id)->latest()->first();
+
         if (!$activeBudget) {
             return ['status' => 'error', 'message' => 'No active tracking budget period established yet.'];
         }
@@ -42,7 +43,7 @@ class SpendingForecastService
         $remainingDaysInWeek = 7 - $daysElapsed;
         $daysRemainingCount  = max(1, $remainingDaysInWeek + 1);
 
-        $totalAllowance     = (float) ($activeBudget->total_allowance ?? 1000.00);
+        $baseAllowance      = (float) ($activeBudget->total_allowance ?? 1000.00);
         $remainingAllowance = (float) ($activeBudget->remaining_allowance ?? 0.00);
 
         // 3. Compute Daily Safe-to-Spend quota for current evaluation date
@@ -94,6 +95,9 @@ class SpendingForecastService
         $totalSpent    = $runningSpent;
         $dailyVelocity = $daysElapsed > 0 ? ($totalSpent / $daysElapsed) : 0;
 
+        // Prevents triggering over-budget alerts when spending rollover funds.
+        $effectiveTotalAllowance = max($baseAllowance, $remainingAllowance + $totalSpent);
+
         // 6. Project Spending Trajectory for Chart
         for ($i = 0; $i < 7; $i++) {
             $dayIndex = $i + 1;
@@ -121,14 +125,14 @@ class SpendingForecastService
         $projectedDeficit         = $rawPredictedRemaining < 0 ? abs($rawPredictedRemaining) : 0;
         $predictedEndOfWeekSpent  = $totalSpent + $futureProjectedSpent;
 
-        // 8. Synchronized Risk & Pacing Triggers
-        $isCriticalState = ($remainingAllowance <= 0) || ($predictedEndOfWeekSpent > $totalAllowance);
+        // 8. Synchronized Risk & Pacing Triggers (Checked against $effectiveTotalAllowance)
+        $isCriticalState = ($remainingAllowance <= 0) || ($predictedEndOfWeekSpent > $effectiveTotalAllowance);
         $isFasterPacing  = !$isCriticalState && ($spentToday > $todayStartingQuota);
 
         if ($isCriticalState) {
             $alreadyLoggedToday = RiskLog::where('user_id', $user->id)
                 ->where('created_at', '>=', Carbon::today())
-                ->where('description', 'LIKE', '%Deficit Risk%')
+                ->where('description', 'LIKE', '%Pace Warning%')
                 ->exists();
 
             if (!$alreadyLoggedToday) {
@@ -136,7 +140,7 @@ class SpendingForecastService
                     'user_id'       => $user->id,
                     'anomaly_type'  => 'early_week_depletion',
                     'severity_tier' => 'high',
-                    'description'   => "Over Budget Risk: Average daily pace of ₱" . number_format($dailyVelocity, 2) . "/day will strain balance.",
+                    'description'   => "Pace Warning: At ₱" . number_format($dailyVelocity, 2) . "/day, your projected spending is on track to strain your balance before Sunday.",
                     'resolved'      => false,
                 ]);
 
@@ -150,7 +154,7 @@ class SpendingForecastService
 
         $localForecastMetrics = [
             'daily_velocity'      => number_format($dailyVelocity, 2),
-            'total_allowance'     => number_format($totalAllowance, 2),
+            'total_allowance'     => number_format($effectiveTotalAllowance, 2),
             'remaining_allowance' => number_format($remainingAllowance, 2),
             'predicted_remaining' => number_format($predictedRemainingBudget, 0),
             'projected_deficit'   => number_format($projectedDeficit, 0),
@@ -180,17 +184,19 @@ class SpendingForecastService
                         ],
                         [
                             'role' => 'user',
-                            'content' => "Allowance limit: PHP {$totalAllowance}. Current money left: PHP {$remainingAllowance}. Spent so far: PHP {$totalSpent}. Daily pace: PHP {$dailyVelocity}/day. Estimated cash left by Sunday: PHP {$predictedRemainingBudget}. Safe spending limit for today: PHP {$safeToSpendToday}."
+                            'content' => "Allowance limit: PHP {$effectiveTotalAllowance}. Current money left: PHP {$remainingAllowance}. Spent so far: PHP {$totalSpent}. Daily pace: PHP {$dailyVelocity}/day. Estimated cash left by Sunday: PHP {$predictedRemainingBudget}. Safe spending limit for today: PHP {$safeToSpendToday}."
                         ]
                     ]
                 ]);
 
             if ($response->successful()) {
                 $rawContent = $response->json()['choices'][0]['message']['content'] ?? '';
+
                 if (!str_contains($rawContent, '|')) {
                     $rawContent = preg_replace('/[\r\n]+/', '|', $rawContent);
                     $rawContent = preg_replace('/(?<=\.|\!|\?)\s*-\s*/', '|', $rawContent);
                 }
+
                 $cleanedTips = array_filter(array_map(function ($item) {
                     return trim(preg_replace('/^[\s\-\*•\d\.\)]+/', '', $item));
                 }, explode('|', $rawContent)));
@@ -208,32 +214,31 @@ class SpendingForecastService
                             'labels'    => $labels,
                             'actual'    => $actualValues,
                             'predicted' => $predictedValues,
-                            'allowance' => $totalAllowance
+                            'allowance' => $effectiveTotalAllowance
                         ]
                     ];
                 }
             }
 
-            return $this->buildOfflineResponse($localForecastMetrics, $activeBudget, $daysElapsed, $labels, $actualValues, $predictedValues, $totalAllowance, $safeToSpendToday);
-
+            return $this->buildOfflineResponse($localForecastMetrics, $activeBudget, $daysElapsed, $labels, $actualValues, $predictedValues, $effectiveTotalAllowance, $safeToSpendToday);
         } catch (\Exception $e) {
             Log::warning("Spending Forecast AI API offline: " . $e->getMessage());
-            return $this->buildOfflineResponse($localForecastMetrics, $activeBudget, $daysElapsed, $labels, $actualValues, $predictedValues, $totalAllowance, $safeToSpendToday);
+            return $this->buildOfflineResponse($localForecastMetrics, $activeBudget, $daysElapsed, $labels, $actualValues, $predictedValues, $effectiveTotalAllowance, $safeToSpendToday);
         }
     }
 
     private function buildOfflineResponse($metrics, $activeBudget, $daysElapsed, $labels, $actualValues, $predictedValues, $totalAllowance, $safeDaily = 0)
     {
         $remainingDays = 7 - $daysElapsed;
-        
+       
         if ($metrics['is_critical']) {
-            $fallbackAdvice = "Over budget risk! Limit non-essential spending over the next {$remainingDays} day(s).|" .
-                             "Cap daily spending to ₱" . number_format($safeDaily, 0) . " to restore safe weekly pacing.|" .
-                             "Defer planned non-essential purchases until next week.";
+            $fallbackAdvice = "Pace Warning! Consider trimming non-essential spending over the next {$remainingDays} day(s).|" .
+                             "Aim for a daily cap of ₱" . number_format($safeDaily, 0) . " to restore safe weekly pacing.|" .
+                             "Defer non-essential purchases until next week's reset.";
         } elseif ($metrics['is_faster']) {
             $fallbackAdvice = "Your current spending rate (₱{$metrics['daily_velocity']}/day) is slightly ahead of pace.|" .
                              "Slowing down now protects your projected ₱{$metrics['predicted_remaining']} weekend balance.|" .
-                             "Weekend spending usually rises—budget extra discretionary expenses carefully.";
+                             "Weekend expenses usually rise—keep a small buffer ready.";
         } else {
             $fallbackAdvice = "Great job! Your spending pace is comfortably within safe limits.|" .
                              "You are on track to finish Sunday with about ₱{$metrics['predicted_remaining']} left.|" .

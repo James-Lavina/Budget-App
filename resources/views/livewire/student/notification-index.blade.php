@@ -56,7 +56,7 @@
                     <!-- Content -->
                     <div class="space-y-1">
                         <p class="text-sm font-medium text-slate-800 leading-relaxed">
-                            {{ $data['description'] ?? 'System notification received.' }}
+                            {{ $data['description'] ?? ($data['message'] ?? ($data['title'] ?? 'System notification received.')) }}
                         </p>
                         <span class="text-xs font-semibold text-slate-400 block">
                             {{ $notification->created_at->diffForHumans() }}

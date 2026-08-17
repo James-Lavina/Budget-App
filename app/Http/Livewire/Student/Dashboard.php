@@ -6,6 +6,7 @@ use App\Models\Expense;
 use App\Models\WeeklyBudget;
 use Carbon\Carbon;
 use Illuminate\Notifications\DatabaseNotification;
+use App\Notifications\WeeklyBudgetReview;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Livewire\Component;
@@ -54,40 +55,27 @@ class Dashboard extends Component
                 $oldTotalAllowance = (float) $this->currentBudget->total_allowance;
                 $amountSpent       = max(0.00, $oldTotalAllowance - $this->currentBudget->remaining_allowance);
                 $user              = auth()->user();
-
+        
                 $nextCycleBaseline = (float) ($user->default_allowance ?? 1000.00);
                 $nextCycleResetDay = $user->default_reset_day ?? $targetResetDay;
-
+        
                 $newWeeklyTotal    = $nextCycleBaseline + $unspentSavings;
-
+        
                 $this->currentBudget->update([
                     'total_allowance'     => $nextCycleBaseline,
                     'remaining_allowance' => $newWeeklyTotal,
                     'reset_day'           => $nextCycleResetDay,
                     'cycle_start_date'    => Carbon::today(),
                 ]);
-
+        
                 $severity = $amountSpent > $oldTotalAllowance ? 'high' : 'low';
-                $description = 'Weekly cycle review: Total spent ₱' . number_format($amountSpent, 2) .
-                            ' of ₱' . number_format($oldTotalAllowance, 2) .
-                            '. Rolled over ₱' . number_format($unspentSavings, 2) . '.';
-
-                DatabaseNotification::create([
-                    'id'              => (string) Str::uuid(),
-                    'type'            => 'App\Notifications\WeeklyBudgetReview',
-                    'notifiable_type' => 'App\Models\User',
-                    'notifiable_id'   => auth()->id(),
-                    'data'            => [
-                        'anomaly_type'  => 'weekly_review',
-                        'severity_tier' => $severity,
-                        'description'   => $description,
-                    ],
-                    'read_at'         => null,
-                ]);
-
+        
+                // Trigger the dedicated notification class
+                $user->notify(new WeeklyBudgetReview($amountSpent, $unspentSavings, $severity));
+        
                 session()->flash('message', 'Weekly budget reset successfully! ₱' . number_format($unspentSavings, 2) . ' rolled over to your new cycle.');
             });
-
+        
             $this->currentBudget->refresh();
         }
     }

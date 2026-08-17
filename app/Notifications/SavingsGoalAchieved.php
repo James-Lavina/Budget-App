@@ -27,23 +27,28 @@ class SavingsGoalAchieved extends Notification
     // Package the HTML/Log email structure
     public function toMail($notifiable)
     {
+        $goalName = $this->goal->name ?? $this->goal->target_name ?? 'Savings Goal';
+        $targetAmount = $this->goal->target_amount ?? 0;
+
         return (new MailMessage)
-            ->subject('🎯 Goal Smashed: ' . $this->goal->name)
+            ->subject('🎯 Goal Smashed: ' . $goalName)
             ->greeting('Awesome job, ' . $notifiable->name . '!')
-            ->line('Your financial discipline just pushed your savings goal "' . $this->goal->name . '" to 100% completion!')
-            ->line('Total Target Saved: ₱' . number_format($this->goal->target_amount, 2))
+            ->line('Your financial discipline just pushed your savings goal "' . $goalName . '" to 100% completion!')
+            ->line('Total Target Saved: ₱' . number_format($targetAmount, 2))
             ->action('View Savings Vault', url('/dashboard/savings'))
             ->line('Keep up this incredible financial habit!');
     }
 
     // Structure the JSON payload that goes into your notifications table
     public function toArray($notifiable)
-{
-    return [
-        'anomaly_type' => 'goal_achieved',
-        'severity_tier' => 'success',
-        // Make sure this uses target_name and target_amount:
-        'description' => 'Target Smashed! 🎯 You successfully saved ₱' . number_format($this->goal->target_amount, 2) . ' for your "' . $this->goal->target_name . '" goal.',
-    ];
-}
+    {
+        $goalName = $this->goal->target_name ?? $this->goal->name ?? 'Savings Goal';
+        $targetAmount = $this->goal->target_amount ?? 0;
+
+        return [
+            'anomaly_type'  => 'goal_achieved',
+            'severity_tier' => 'success',
+            'description'   => 'Target Smashed! 🎯 You successfully saved ₱' . number_format($targetAmount, 2) . ' for your "' . $goalName . '" goal.',
+        ];
+    }
 }

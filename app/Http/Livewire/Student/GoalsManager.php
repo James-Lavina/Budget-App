@@ -15,272 +15,324 @@ use Livewire\Component;
 
 class GoalsManager extends Component
 {
-    // Form & Modal State
-    public $showCreateModal = false;
-    public $target_name;
-    public $target_amount;
-    public $already_saved = 0.00;
-    public $target_date;
-   
-    // Action Modals & State
-    public $fundingGoalId;
-    public $fund_amount;
-    public $activeTab = 'active';
+   // Form & Modal State
+   public $showCreateModal = false;
+   public $target_name;
+   public $target_amount;
+   public $already_saved = 0.00;
+   public $target_date;
+ 
+   // Action Modals & State
+   public $fundingGoalId;
+   public $fund_amount;
+   public $activeTab = 'active';
 
-    // Confirmation Flags
-    public $confirmingAbandonId = null;
-    public $confirmingDeleteId = null;
+   // Confirmation Flags
+   public $confirmingAbandonId = null;
+   public $confirmingDeleteId = null;
 
-    protected $rules = [
-        'target_name' => 'required|string|max:255',
-        'target_amount' => 'required|numeric|min:1|max:999999',
-        'already_saved' => 'nullable|numeric|min:0',
-        'target_date' => 'nullable|date|after_or_equal:today',
-    ];
+   protected $rules = [
+       'target_name' => 'required|string|max:255',
+       'target_amount' => 'required|numeric|min:1|max:999999',
+       'already_saved' => 'nullable|numeric|min:0',
+       'target_date' => 'nullable|date|after_or_equal:today',
+   ];
 
-    protected $listeners = ['refreshSavings' => '$refresh'];
+   protected $listeners = ['refreshSavings' => '$refresh'];
 
-    public function openCreateModal()
-    {
-        $this->resetForm();
-        $this->showCreateModal = true;
-    }
+   public function openCreateModal()
+   {
+       $this->resetForm();
+       $this->showCreateModal = true;
+   }
 
-    public function closeCreateModal()
-    {
-        $this->showCreateModal = false;
-        $this->resetForm();
-    }
+   public function closeCreateModal()
+   {
+       $this->showCreateModal = false;
+       $this->resetForm();
+   }
 
-    public function storeGoal()
-    {
-        $this->validate();
-        $initialSaved = $this->already_saved ? floatval($this->already_saved) : 0.00;
-        $targetAmount = floatval($this->target_amount);
+   public function storeGoal()
+   {
+       $this->validate();
+       $initialSaved = $this->already_saved ? floatval($this->already_saved) : 0.00;
+       $targetAmount = floatval($this->target_amount);
+       if ($initialSaved > $targetAmount) {
+           $initialSaved = $targetAmount;
+       }
+       $status = ($initialSaved >= $targetAmount && $targetAmount > 0) ? 'achieved' : 'active';
 
-        if ($initialSaved > $targetAmount) {
-            $initialSaved = $targetAmount;
-        }
+       $goal = SavingsGoal::create([
+           'user_id' => auth()->id(),
+           'target_name' => $this->target_name,
+           'target_amount' => $targetAmount,
+           'current_saved' => $initialSaved,
+           'target_date' => $this->target_date ?: null,
+           'status' => $status,
+       ]);
 
-        $status = ($initialSaved >= $targetAmount && $targetAmount > 0) ? 'achieved' : 'active';
+       // Evaluate initial progress milestone
+       $this->checkAndNotifySavingsMilestone($goal);
 
-        SavingsGoal::create([
-            'user_id' => auth()->id(),
-            'target_name' => $this->target_name,
-            'target_amount' => $targetAmount,
-            'current_saved' => $initialSaved,
-            'target_date' => $this->target_date ?: null,
-            'status' => $status,
-        ]);
+       $this->closeCreateModal();
+       session()->flash('success', 'Savings milestone established successfully!');
+   }
 
-        $this->closeCreateModal();
-        session()->flash('success', 'Savings milestone established successfully!');
-    }
+   public function openFundingModal($id)
+   {
+       $this->fundingGoalId = $id;
+       $this->fund_amount = null;
+   }
 
-    public function openFundingModal($id)
-    {
-        $this->fundingGoalId = $id;
-        $this->fund_amount = null;
-    }
+   public function addFunds()
+   {
+       $goal = SavingsGoal::where('id', $this->fundingGoalId)
+           ->where('user_id', auth()->id())
+           ->firstOrFail();
 
-    public function addFunds()
-    {
-        $goal = SavingsGoal::where('id', $this->fundingGoalId)
-            ->where('user_id', auth()->id())
-            ->firstOrFail();
+       $currentBudget = WeeklyBudget::where('user_id', auth()->id())
+           ->latest()
+           ->first();
 
-        $currentBudget = WeeklyBudget::where('user_id', auth()->id())
-            ->latest()
-            ->first();
+       if (!$currentBudget) {
+           session()->flash('error', 'No active budget cycle found to draw funds from.');
+           return;
+       }
 
-        if (!$currentBudget) {
-            session()->flash('error', 'No active budget cycle found to draw funds from.');
-            return;
-        }
+       $remainingNeeded = $goal->target_amount - $goal->current_saved;
 
-        $remainingNeeded = $goal->target_amount - $goal->current_saved;
+       $this->validate([
+           'fund_amount' => [
+               'required',
+               'numeric',
+               'min:0.01',
+               'max:' . $currentBudget->remaining_allowance,
+               'max:' . $remainingNeeded,                 
+           ]
+       ], [
+           'fund_amount.max' => 'Transfer halted! The amount exceeds either your remaining budget (₱' . number_format($currentBudget->remaining_allowance, 2) . ') or what is left to finish this goal (₱' . number_format($remainingNeeded, 2) . ').'
+       ]);
 
-        $this->validate([
-            'fund_amount' => [
-                'required',
-                'numeric',
-                'min:0.01',
-                'max:' . $currentBudget->remaining_allowance,
-                'max:' . $remainingNeeded,                  
-            ]
-        ], [
-            'fund_amount.max' => 'Transfer halted! The amount exceeds either your remaining budget (₱' . number_format($currentBudget->remaining_allowance, 2) . ') or what is left to finish this goal (₱' . number_format($remainingNeeded, 2) . ').'
-        ]);
+       RiskLog::where('user_id', auth()->id())
+           ->whereDate('created_at', Carbon::today())
+           ->delete();
 
-        RiskLog::where('user_id', auth()->id())
-            ->whereDate('created_at', Carbon::today())
-            ->delete();
+       DatabaseNotification::where('notifiable_id', auth()->id())
+           ->where('notifiable_type', 'App\Models\User')
+           ->where('data', 'LIKE', '%"anomaly_type":"low_allowance_threshold"%')
+           ->delete();
 
-        DatabaseNotification::where('notifiable_id', auth()->id())
-            ->where('notifiable_type', 'App\Models\User')
-            ->where('data', 'LIKE', '%"anomaly_type":"low_allowance_threshold"%')
-            ->delete();
+       $goalWasAchieved = false;
 
-        $goalWasAchieved = false;
+       DB::transaction(function () use ($goal, $currentBudget, &$goalWasAchieved) {
+           $newSavedBalance = $goal->current_saved + $this->fund_amount;
+           $status = $goal->status;
+         
+           if ($newSavedBalance >= $goal->target_amount) {
+               $status = 'achieved';
+               $newSavedBalance = $goal->target_amount;
+               $goalWasAchieved = true;
+           }
 
-        DB::transaction(function () use ($goal, $currentBudget, &$goalWasAchieved) {
-            $newSavedBalance = $goal->current_saved + $this->fund_amount;
-            $status = $goal->status;
-           
-            if ($newSavedBalance >= $goal->target_amount) {
-                $status = 'achieved';
-                $newSavedBalance = $goal->target_amount;
-                $goalWasAchieved = true;
-            }
+           $goal->update([
+               'current_saved' => $newSavedBalance,
+               'status' => $status
+           ]);
 
-            $goal->update([
-                'current_saved' => $newSavedBalance,
-                'status' => $status
-            ]);
+           $currentBudget->decrement('remaining_allowance', $this->fund_amount);
 
-            $currentBudget->decrement('remaining_allowance', $this->fund_amount);
+           $savingsCategory = ExpenseCategory::firstOrCreate(
+               ['name' => 'Savings'],
+               ['description' => 'Capital intentionally set aside for milestone savings targets.']
+           );
 
-            $savingsCategory = ExpenseCategory::firstOrCreate(
-                ['name' => 'Savings'],
-                ['description' => 'Capital intentionally set aside for milestone savings targets.']
-            );
+           Expense::create([
+               'user_id' => auth()->id(),
+               'expense_category_id' => $savingsCategory->id,
+               'savings_goal_id' => $goal->id,
+               'item_name' => "{$goal->target_name}",
+               'merchant_name' => 'Savings Goal',
+               'amount' => $this->fund_amount,
+               'transaction_date' => now(),
+               'tracking_type' => 'manual',
+           ]);
+       });
 
-            Expense::create([
-                'user_id' => auth()->id(),
-                'expense_category_id' => $savingsCategory->id,
-                'savings_goal_id' => $goal->id,
-                'item_name' => "{$goal->target_name}",
-                'merchant_name' => 'Savings Goal',
-                'amount' => $this->fund_amount,
-                'transaction_date' => now(),
-                'tracking_type' => 'manual',
-            ]);
-        });
+       $goal->refresh();
 
-        if ($goalWasAchieved) {
-            DatabaseNotification::create([
-                'id' => Str::uuid(),
-                'type' => 'App\Notifications\SavingsGoalAchieved',
-                'notifiable_type' => 'App\Models\User',
-                'notifiable_id' => auth()->id(),
-                'data' => [
-                    'anomaly_type' => 'goal_achieved',
-                    'severity_tier' => 'success',
-                    'description' => 'Target Smashed! 🎯 You successfully saved ₱' . number_format($goal->target_amount, 2) . ' for your "' . $goal->target_name . '" goal.',
-                ],
-                'read_at' => null,
-            ]);
-        }
+       if ($goalWasAchieved) {
+           DatabaseNotification::create([
+               'id' => Str::uuid(),
+               'type' => 'App\Notifications\SavingsGoalAchieved',
+               'notifiable_type' => 'App\Models\User',
+               'notifiable_id' => auth()->id(),
+               'data' => [
+                   'anomaly_type' => 'goal_achieved',
+                   'severity_tier' => 'success',
+                   'description' => 'Target Smashed! 🎯 You successfully saved ₱' . number_format($goal->target_amount, 2) . ' for your "' . $goal->target_name . '" goal.',
+               ],
+               'read_at' => null,
+           ]);
+       } else {
+           // Check for intermediate milestones (25%, 50%, 75%)
+           $this->checkAndNotifySavingsMilestone($goal);
+       }
 
-        app(\App\Services\RiskDetectionService::class)->evaluateSpendingRisk(auth()->user());
+       app(\App\Services\RiskDetectionService::class)->evaluateSpendingRisk(auth()->user());
 
-        $thresholdAmount = $currentBudget->total_allowance * 0.20;
+       $thresholdAmount = $currentBudget->total_allowance * 0.20;
+       if ($currentBudget->remaining_allowance <= $thresholdAmount) {
+           $alreadyNotified = DatabaseNotification::where('notifiable_id', auth()->id())
+               ->where('notifiable_type', 'App\Models\User')
+               ->where('data', 'LIKE', '%"anomaly_type":"low_allowance_threshold"%')
+               ->where('created_at', '>=', $currentBudget->created_at)
+               ->exists();
 
-        if ($currentBudget->remaining_allowance <= $thresholdAmount) {
-            $alreadyNotified = DatabaseNotification::where('notifiable_id', auth()->id())
-                ->where('notifiable_type', 'App\Models\User')
-                ->where('data', 'LIKE', '%"anomaly_type":"low_allowance_threshold"%')
-                ->where('created_at', '>=', $currentBudget->created_at)
-                ->exists();
+           if (!$alreadyNotified) {
+               $percentageLeft = round(($currentBudget->remaining_allowance / $currentBudget->total_allowance) * 100);
 
-            if (!$alreadyNotified) {
-                $percentageLeft = round(($currentBudget->remaining_allowance / $currentBudget->total_allowance) * 100);
-                DatabaseNotification::create([
-                    'id' => Str::uuid(),
-                    'type' => 'App\Notifications\LowAllowanceWarning',
-                    'notifiable_type' => 'App\Models\User',
-                    'notifiable_id' => auth()->id(),
-                    'data' => [
-                        'anomaly_type' => 'low_allowance_threshold',
-                        'severity_tier' => 'info',
-                        'description' => "Great job saving! 🎯 Heads up: you have ₱" . number_format($currentBudget->remaining_allowance, 2) . " left for food and daily expenses this week.",
-                    ],
-                    'read_at' => null,
-                ]);
-            }
-        }
+               DatabaseNotification::create([
+                   'id' => Str::uuid(),
+                   'type' => 'App\Notifications\LowAllowanceWarning',
+                   'notifiable_type' => 'App\Models\User',
+                   'notifiable_id' => auth()->id(),
+                   'data' => [
+                       'anomaly_type' => 'low_allowance_threshold',
+                       'severity_tier' => 'info',
+                       'description' => "Great job saving! 🎯 Heads up: you have ₱" . number_format($currentBudget->remaining_allowance, 2) . " left for food and daily expenses this week.",
+                   ],
+                   'read_at' => null,
+               ]);
+           }
+       }
 
-        $this->fundingGoalId = null;
+       $this->fundingGoalId = null;
 
-        if ($goalWasAchieved) {
-            session()->flash('success', 'Incredible! Target reached. Milestone shifted to your completed vault!');
-        } else {
-            session()->flash('success', 'Funds successfully transferred from your budget balance to your savings goal!');
-        }
-    }
+       if ($goalWasAchieved) {
+           session()->flash('success', 'Incredible! Target reached. Milestone shifted to your completed vault!');
+       } else {
+           session()->flash('success', 'Funds successfully transferred from your budget balance to your savings goal!');
+       }
+   }
 
-    public function abandonGoal($id)
-    {
-        $this->confirmingAbandonId = $id;
-    }
+   /**
+    * Evaluates progress percentage against key milestone thresholds (25%, 50%, 75%).
+    */
+   private function checkAndNotifySavingsMilestone($goal)
+   {
+       if ($goal->target_amount <= 0) {
+           return;
+       }
 
-    public function executeAbandon()
-    {
-        if (!$this->confirmingAbandonId) return;
+       $progressPercentage = round(($goal->current_saved / $goal->target_amount) * 100);
+       
+       $milestones = [25, 50, 75];
+       $reachedMilestone = null;
 
-        $goal = SavingsGoal::where('id', $this->confirmingAbandonId)
-            ->where('user_id', auth()->id())
-            ->firstOrFail();
+       foreach ($milestones as $milestone) {
+           if ($progressPercentage >= $milestone) {
+               $reachedMilestone = $milestone;
+           }
+       }
 
-        $goal->update(['status' => 'abandoned']);
+       if (!$reachedMilestone) {
+           return;
+       }
 
-        $this->confirmingAbandonId = null;
+       // Prevent re-notifying for the exact same milestone on this goal
+       $alreadyNotified = DatabaseNotification::where('notifiable_id', auth()->id())
+           ->where('notifiable_type', 'App\Models\User')
+           ->where('data', 'LIKE', '%"anomaly_type":"savings_milestone"%')
+           ->where('data', 'LIKE', '%"milestone":' . $reachedMilestone . '%')
+           ->where('data', 'LIKE', '%"goal_id":' . $goal->id . '%')
+           ->exists();
 
-        session()->flash('success', 'Goal marked as archived.');
-    }
+       if (!$alreadyNotified) {
+           DatabaseNotification::create([
+               'id' => Str::uuid(),
+               'type' => 'App\Notifications\SavingsMilestoneReached',
+               'notifiable_type' => 'App\Models\User',
+               'notifiable_id' => auth()->id(),
+               'data' => [
+                   'anomaly_type' => 'savings_milestone',
+                   'milestone' => $reachedMilestone,
+                   'goal_id' => $goal->id,
+                   'severity_tier' => 'success',
+                   'description' => "Milestone Unlocked! 📈 You've saved {$reachedMilestone}% of your target for '{$goal->target_name}'.",
+               ],
+               'read_at' => null,
+           ]);
+       }
+   }
 
-    public function unarchiveGoal($id)
-    {
-        $goal = SavingsGoal::where('id', $id)
-            ->where('user_id', auth()->id())
-            ->firstOrFail();
+   public function abandonGoal($id)
+   {
+       $this->confirmingAbandonId = $id;
+   }
 
-        $goal->update(['status' => 'active']);
+   public function executeAbandon()
+   {
+       if (!$this->confirmingAbandonId) return;
 
-        session()->flash('success', 'Savings goal successfully restored to your active dashboard!');
-    }
+       $goal = SavingsGoal::where('id', $this->confirmingAbandonId)
+           ->where('user_id', auth()->id())
+           ->firstOrFail();
 
-    public function deleteGoal($id)
-    {
-        $this->confirmingDeleteId = $id;
-    }
+       $goal->update(['status' => 'abandoned']);
+       $this->confirmingAbandonId = null;
+       session()->flash('success', 'Goal marked as archived.');
+   }
 
-    public function executeDelete()
-    {
-        if (!$this->confirmingDeleteId) return;
+   public function unarchiveGoal($id)
+   {
+       $goal = SavingsGoal::where('id', $id)
+           ->where('user_id', auth()->id())
+           ->firstOrFail();
 
-        $goal = SavingsGoal::where('id', $this->confirmingDeleteId)
-            ->where('user_id', auth()->id())
-            ->firstOrFail();
+       $goal->update(['status' => 'active']);
+       session()->flash('success', 'Savings goal successfully restored to your active dashboard!');
+   }
 
-        DB::transaction(function () use ($goal) {
-            Expense::where('savings_goal_id', $goal->id)->delete();
-            $goal->delete();
-        });
+   public function deleteGoal($id)
+   {
+       $this->confirmingDeleteId = $id;
+   }
 
-        $this->confirmingDeleteId = null;
+   public function executeDelete()
+   {
+       if (!$this->confirmingDeleteId) return;
 
-        session()->flash('success', 'Savings milestone and its associated transaction logs were completely cleared.');
-    }
+       $goal = SavingsGoal::where('id', $this->confirmingDeleteId)
+           ->where('user_id', auth()->id())
+           ->firstOrFail();
 
-    private function resetForm()
-    {
-        $this->target_name = '';
-        $this->target_amount = '';
-        $this->already_saved = '';
-        $this->target_date = '';
-        $this->resetErrorBag();
-    }
+       DB::transaction(function () use ($goal) {
+           Expense::where('savings_goal_id', $goal->id)->delete();
+           $goal->delete();
+       });
 
-    public function render()
-    {
-        $goals = SavingsGoal::where('user_id', auth()->id())
-            ->where('status', $this->activeTab)
-            ->latest()
-            ->get();
+       $this->confirmingDeleteId = null;
+       session()->flash('success', 'Savings milestone and its associated transaction logs were completely cleared.');
+   }
 
-        return view('livewire.student.goals-manager', [
-            'goals' => $goals
-        ])->layout('layouts.student');
-    }
+   private function resetForm()
+   {
+       $this->target_name = '';
+       $this->target_amount = '';
+       $this->already_saved = '';
+       $this->target_date = '';
+       $this->resetErrorBag();
+   }
+
+   public function render()
+   {
+       $goals = SavingsGoal::where('user_id', auth()->id())
+           ->where('status', $this->activeTab)
+           ->latest()
+           ->get();
+
+       return view('livewire.student.goals-manager', [
+           'goals' => $goals
+       ])->layout('layouts.student');
+   }
 }
