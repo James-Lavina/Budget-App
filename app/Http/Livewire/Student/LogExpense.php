@@ -108,7 +108,7 @@ class LogExpense extends Component
         }
 
         session()->flash('success', 'Expense tracked successfully!');
-        return redirect()->route('student.expenses.create');
+        return redirect()->route('student.dashboard');
     }
 
     public function render()

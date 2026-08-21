@@ -47,4 +47,32 @@ class Expense extends Model
     {
         return $this->belongsTo(SavingsGoal::class);
     }
+
+    // Dynamic icon type, pulled directly from the category row - no hardcoded name matching.
+    public function getIconTypeAttribute()
+    {
+        return $this->category->icon ?? 'default';
+    }
+
+    // Dynamic icon background/text color, same source.
+    public function getIconBgColorAttribute()
+    {
+        return $this->category->color ?? 'bg-slate-100 text-slate-600';
+    }
+
+    // Shared human-friendly date formatting, used by both Dashboard and All Expenses views.
+    public function getFormattedDateAttribute()
+    {
+        $date = \Carbon\Carbon::parse($this->transaction_date);
+
+        if ($date->isToday()) {
+            return 'Today, ' . $date->format('g:i A');
+        } elseif ($date->isYesterday()) {
+            return 'Yesterday, ' . $date->format('g:i A');
+        } elseif ($date->greaterThan(now()->subDays(7))) {
+            return $date->format('D, g:i A');
+        }
+
+        return $date->format('M d, Y • g:i A');
+    }
 }

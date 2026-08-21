@@ -1,6 +1,6 @@
 <div class="min-h-screen py-3 sm:py-6 md:py-8 px-2.5 sm:px-6 lg:px-8 text-slate-800 antialiased relative pb-28 sm:pb-24 w-full max-w-full overflow-x-hidden">
     <div class="max-w-7xl mx-auto space-y-3 sm:space-y-6 w-full min-w-0">
-      
+
         <!-- HEADER SECTION: GREETING & STATUS -->
         <div class="flex flex-col md:flex-row md:items-center justify-between gap-2 sm:gap-4 w-full min-w-0">
             <div class="min-w-0">
@@ -151,9 +151,14 @@
                 <!-- HEADING -->
                 <div class="flex items-center justify-between gap-2 pb-3 border-b border-slate-100">
                     <h3 class="text-xs sm:text-sm font-extrabold text-slate-900 truncate">Weekly Spending</h3>
-                    <span class="text-[10px] sm:text-xs text-slate-400 font-medium shrink-0">
-                        Safe: <span class="font-bold text-slate-600">₱{{ number_format($safeToSpend, 2) }} / day</span>
-                    </span>
+                    <div class="flex items-center gap-3 shrink-0">
+                        <span class="text-[10px] sm:text-xs text-slate-400 font-medium">
+                            Spent: <span class="font-bold text-slate-700">₱{{ number_format($totalSpent, 2) }}</span>
+                        </span>
+                        <span class="text-[10px] sm:text-xs text-slate-400 font-medium">
+                            Safe: <span class="font-bold text-slate-600">₱{{ number_format($safeToSpend, 2) }} / day</span>
+                        </span>
+                    </div>
                 </div>
 
                 <!-- WEEKLY SPENDING CATEGORY LEGEND (HORIZONTALLY SCROLLABLE ON MOBILE) -->
@@ -174,7 +179,7 @@
                         </div>
                     @endforeach
                 </div>
-          
+
                 @php
                     $chartLabels = array_values($daysOfWeek);
                     $chartMatrix = [];
@@ -192,15 +197,15 @@
                         'matrix'     => $chartMatrix,
                     ];
                 @endphp
-          
+
                 <script type="application/json" id="weeklySpendingData">{!! json_encode($weeklyChartPayload) !!}</script>
-          
+
                 <div class="pt-4 sm:pt-6 pb-1 w-full min-w-0" wire:ignore>
                     <div class="relative h-40 sm:h-52 w-full">
                         <canvas id="weeklySpendingChart"></canvas>
                     </div>
                 </div>
-          
+
                 <p class="text-[10px] text-slate-400 font-medium text-center pt-1 sm:hidden">
                     Tap a bar for category breakdown
                 </p>
@@ -215,7 +220,10 @@
         <!-- RECENT EXPENSES SECTION -->
         <div class="bg-white rounded-2xl sm:rounded-3xl p-4 sm:p-6 border border-slate-100 shadow-sm w-full min-w-0 overflow-hidden">
             <div class="pb-4 border-b border-slate-100 flex items-center justify-between gap-3">
-                <h3 class="text-base sm:text-lg font-bold text-slate-900 truncate">Recent Expenses</h3>
+                <div class="min-w-0">
+                    <h3 class="text-base sm:text-lg font-bold text-slate-900 truncate">Recent Expenses</h3>
+                    <p class="text-[11px] text-slate-400 font-medium mt-0.5">Your last 5 transactions</p>
+                </div>
                 <a href="{{ route('student.expenses.index') }}" class="text-xs sm:text-sm font-semibold text-indigo-600 hover:text-indigo-700 transition-colors flex items-center gap-1 shrink-0">
                     <span>View all</span>
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
@@ -250,87 +258,7 @@
             @else
                 <div class="divide-y divide-slate-100/80 mt-1">
                     @foreach($recentExpenses as $expense)
-                        @php
-                            $catName = strtolower($expense->category->name ?? $expense->category ?? '');
-                            $itemName = strtolower($expense->item_name);
-                            if (str_contains($catName, 'food') || str_contains($catName, 'snack') || str_contains($itemName, 'lunch') || str_contains($itemName, 'tea') || str_contains($itemName, 'coffee')) {
-                                $iconType = 'food';
-                                $bgColor = 'bg-amber-50 text-amber-600';
-                            } elseif (str_contains($catName, 'transport') || str_contains($catName, 'fare') || str_contains($itemName, 'jeep') || str_contains($itemName, 'bus') || str_contains($itemName, 'grab')) {
-                                $iconType = 'transport';
-                                $bgColor = 'bg-blue-50 text-blue-600';
-                            } elseif (str_contains($catName, 'school') || str_contains($catName, 'acad') || str_contains($itemName, 'book') || str_contains($itemName, 'pen') || str_contains($itemName, 'print')) {
-                                $iconType = 'school';
-                                $bgColor = 'bg-emerald-50 text-emerald-600';
-                            } elseif (str_contains($catName, 'entertain') || str_contains($catName, 'game') || str_contains($itemName, 'game') || str_contains($itemName, 'steam') || str_contains($itemName, 'movie')) {
-                                $iconType = 'entertainment';
-                                $bgColor = 'bg-purple-50 text-purple-600';
-                            } elseif (str_contains($catName, 'person') || str_contains($catName, 'shop') || str_contains($itemName, 'shampoo') || str_contains($itemName, 'soap') || str_contains($itemName, 'clothes')) {
-                                $iconType = 'shopping';
-                                $bgColor = 'bg-pink-50 text-pink-600';
-                            } else {
-                                $iconType = 'default';
-                                $bgColor = 'bg-slate-100 text-slate-600';
-                            }
-
-                            $date = \Carbon\Carbon::parse($expense->transaction_date);
-                            if ($date->isToday()) {
-                                $formattedDate = 'Today, ' . $date->format('g:i A');
-                            } elseif ($date->isYesterday()) {
-                                $formattedDate = 'Yesterday';
-                            } elseif ($date->greaterThan(now()->subDays(7))) {
-                                $formattedDate = $date->format('D');
-                            } else {
-                                $formattedDate = $date->format('M d');
-                            }
-                        @endphp
-                        <div class="py-3.5 sm:py-4 flex items-center justify-between gap-3 group hover:bg-slate-50/60 -mx-2 px-2 rounded-2xl transition-all">
-                            <div class="flex items-center gap-3.5 min-w-0">
-                                <div class="h-10 w-10 sm:h-11 sm:w-11 rounded-full {{ $bgColor }} flex items-center justify-center shrink-0 shadow-xs">
-                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                                        @if($iconType === 'food')
-                                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 8.25v-1.5m0 1.5c-1.355 0-2.697.056-4.024.166C6.845 8.51 6 9.473 6 10.608v2.513m6-4.871c1.355 0 2.697.056 4.024.166C17.155 8.51 18 9.473 18 10.608v2.513M15 8.25v-1.5m-6 1.5v-1.5m12 9.75-1.5.75m-15-.75 1.5.75m12-3.75h3m-18 0h3m0 0v2.25c0 .414.336.75.75.75h10.5a.75.75 0 0 0 .75-.75V12M6 12a2.25 2.25 0 0 0-2.25 2.25v.75c0 .414.336.75.75.75h15a.75.75 0 0 0 .75-.75v-.75A2.25 2.25 0 0 0 18 12H6Z" />
-                                        @elseif($iconType === 'transport')
-                                            <path stroke-linecap="round" stroke-linejoin="round" d="M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
-                                            <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1 1 15 0Z" />
-                                        @elseif($iconType === 'school')
-                                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 0 0 6 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 0 1 6 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 0 1 6-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0 0 18 18c-2.305 0-4.408.867-6 2.292m0-14.25v14.25" />
-                                        @elseif($iconType === 'entertainment')
-                                            <path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 0 0-2.456 2.456Z" />
-                                        @elseif($iconType === 'shopping')
-                                            <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 10.5V6a3.75 3.75 0 1 0-7.5 0v4.5m11.356-1.993 1.263 12c.07.665-.45 1.243-1.119 1.243H4.25a1.125 1.125 0 0 1-1.12-1.243l1.264-12A1.125 1.125 0 0 1 5.513 7.5h12.974c.576 0 1.059.435 1.119.993Z" />
-                                        @else
-                                            <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 18.75a60.07 60.07 0 0 1 15.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5h16.5a1.5 1.5 0 0 1 1.5 1.5v9.75a1.5 1.5 0 0 1-1.5 1.5H3.75a1.5 1.5 0 0 1-1.5-1.5V6a1.5 1.5 0 0 1 1.5-1.5Zm13.5 3h.008v.008h-.008V7.5Zm0 3h.008v.008h-.008v-.008Zm0 3h.008v.008h-.008v-.008Z" />
-                                        @endif
-                                    </svg>
-                                </div>
-                                <div class="min-w-0">
-                                    <h4 class="font-bold text-slate-900 text-xs sm:text-sm truncate">
-                                        {{ $expense->item_name }}
-                                    </h4>
-                                    <p class="text-[11px] sm:text-xs text-slate-400 font-medium truncate mt-0.5">
-                                        {{ ucfirst($expense->category->name ?? $expense->category ?? 'General') }} · {{ $formattedDate }}
-                                    </p>
-                                </div>
-                            </div>
-                            <div class="flex items-center gap-2 sm:gap-3 shrink-0">
-                                <span class="font-bold text-slate-900 text-xs sm:text-sm font-mono tracking-tight">
-                                    -₱{{ number_format($expense->amount, 2) }}
-                                </span>
-                                <div class="flex items-center gap-0.5 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
-                                    <a href="{{ route('student.expenses.edit', $expense->id) }}" class="p-1.5 text-slate-400 hover:text-indigo-600 rounded-lg hover:bg-slate-100 transition-colors" title="Edit">
-                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125"/>
-                                        </svg>
-                                    </a>
-                                    <button wire:click="deleteExpense({{ $expense->id }})" onclick="confirm('Are you sure?') || event.stopImmediatePropagation()" class="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-slate-100 transition-colors" title="Delete">
-                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"/>
-                                        </svg>
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
+                        <x-expense-row :expense="$expense" />
                     @endforeach
                 </div>
             @endif
@@ -344,6 +272,31 @@
             </svg>
             <span>Add Expense</span>
         </a>
+
+        <!-- DELETE CONFIRMATION MODAL -->
+        @if($confirmingDeleteId)
+            <div class="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm" wire:click.self="$set('confirmingDeleteId', null)">
+                <div class="bg-white rounded-3xl shadow-xl max-w-sm w-full p-6 space-y-4">
+                    <div class="h-11 w-11 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+                        </svg>
+                    </div>
+                    <div>
+                        <h3 class="text-sm font-extrabold text-slate-900">Remove this expense?</h3>
+                        <p class="text-xs text-slate-500 font-medium mt-1">This will refund the amount back to your remaining budget and can't be undone.</p>
+                    </div>
+                    <div class="flex items-center gap-2 pt-1">
+                        <button wire:click="$set('confirmingDeleteId', null)" class="flex-1 px-4 py-2.5 text-xs font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors">
+                            Cancel
+                        </button>
+                        <button wire:click="deleteExpense({{ $confirmingDeleteId }})" wire:loading.attr="disabled" class="flex-1 px-4 py-2.5 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 rounded-xl transition-colors">
+                            Delete
+                        </button>
+                    </div>
+                </div>
+            </div>
+        @endif
     </div>
 </div>
 

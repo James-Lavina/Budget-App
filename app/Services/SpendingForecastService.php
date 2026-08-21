@@ -20,35 +20,50 @@ class SpendingForecastService
             return ['status' => 'error', 'message' => 'No active tracking budget period established yet.'];
         }
 
-        // 1. Force cycle window strictly to current calendar week (Monday to Sunday)
-        $now       = Carbon::now();
-        $startDate = $now->copy()->startOfWeek(Carbon::MONDAY);
-        $endDate   = $now->copy()->endOfWeek(Carbon::SUNDAY);
-        $today     = Carbon::today();
+        // 1. Derive cycle window from the actual budget cycle (matches Dashboard/RiskDetectionService)
+        $today          = Carbon::today();
+        $startDate      = Carbon::parse($activeBudget->cycle_start_date)->startOfDay();
+        $targetResetDay = $activeBudget->reset_day ?? $user->default_reset_day ?? 'Monday';
+
+        if (strtolower($startDate->format('l')) === strtolower($targetResetDay)) {
+            $nextResetDate = $startDate->copy()->addWeek();
+        } else {
+            $nextResetDate = $startDate->copy()->next($targetResetDay);
+        }
+
+        $endDate = $nextResetDate->copy()->subSecond();
 
         // 2. Compute Days Elapsed dynamically (Fast-forwards if test/seeded expenses exist ahead of real-time today)
         $latestExpenseDate = Expense::where('user_id', $user->id)
             ->whereBetween('transaction_date', [$startDate, $endDate])
             ->max('transaction_date');
 
-        $evalDate = $today;
+        $evalDate         = $today;
+        $isFastForwarded  = false;
         if ($latestExpenseDate) {
             $latestCarbon = Carbon::parse($latestExpenseDate)->startOfDay();
             if ($latestCarbon->gt($today)) {
-                $evalDate = $latestCarbon;
+                $evalDate        = $latestCarbon;
+                $isFastForwarded = true;
             }
         }
 
         $daysElapsed         = max(1, min(7, (int)$startDate->diffInDays($evalDate) + 1));
         $remainingDaysInWeek = 7 - $daysElapsed;
-        $daysRemainingCount  = max(1, $remainingDaysInWeek + 1);
+
+        // If fast-forwarded, $evalDate is a COMPLETED simulated day - don't re-count it as "still open".
+        $daysRemainingCount = $isFastForwarded
+            ? max(1, $remainingDaysInWeek)
+            : max(1, $remainingDaysInWeek + 1);
+
+        $spentTodayDate = $isFastForwarded ? $evalDate->copy()->addDay() : $evalDate;
 
         $baseAllowance      = (float) ($activeBudget->total_allowance ?? 1000.00);
         $remainingAllowance = (float) ($activeBudget->remaining_allowance ?? 0.00);
 
-        // 3. Compute Daily Safe-to-Spend quota for current evaluation date
-        $spentToday = (float) Expense::where('user_id', $user->id)
-            ->whereDate('transaction_date', $evalDate)
+            // 3. Compute Daily Safe-to-Spend quota for current evaluation date
+            $spentToday = (float) Expense::where('user_id', $user->id)
+            ->whereDate('transaction_date', $spentTodayDate)
             ->whereNull('savings_goal_id')
             ->whereDoesntHave('category', function ($query) {
                 $query->where('name', 'LIKE', '%Savings%');
@@ -130,15 +145,18 @@ class SpendingForecastService
         $isFasterPacing  = !$isCriticalState && ($spentToday > $todayStartingQuota);
 
         if ($isCriticalState) {
+            $anomalyType = $daysElapsed <= 3 ? 'early_week_depletion' : 'rapid_overspending';
+
             $alreadyLoggedToday = RiskLog::where('user_id', $user->id)
-                ->where('created_at', '>=', Carbon::today())
-                ->where('description', 'LIKE', '%Pace Warning%')
+                ->where('anomaly_type', $anomalyType)
+                ->where('resolved', false)
+                ->whereDate('created_at', Carbon::today())
                 ->exists();
 
             if (!$alreadyLoggedToday) {
                 $riskLog = RiskLog::create([
                     'user_id'       => $user->id,
-                    'anomaly_type'  => 'early_week_depletion',
+                    'anomaly_type'  => $anomalyType,
                     'severity_tier' => 'high',
                     'description'   => "Pace Warning: At ₱" . number_format($dailyVelocity, 2) . "/day, your projected spending is on track to strain your balance before Sunday.",
                     'resolved'      => false,
@@ -152,18 +170,18 @@ class SpendingForecastService
             ->where('created_at', '>=', $startDate)
             ->count();
 
-        $localForecastMetrics = [
-            'daily_velocity'      => number_format($dailyVelocity, 2),
-            'total_allowance'     => number_format($effectiveTotalAllowance, 2),
-            'remaining_allowance' => number_format($remainingAllowance, 2),
-            'predicted_remaining' => number_format($predictedRemainingBudget, 0),
-            'projected_deficit'   => number_format($projectedDeficit, 0),
-            'predicted_end_spent' => number_format($predictedEndOfWeekSpent, 2),
-            'is_critical'         => $isCriticalState,
-            'is_faster'           => $isFasterPacing,
-            'days_left_in_week'   => $remainingDaysInWeek,
-            'active_risks_count'  => $riskLogsCountThisWeek,
-        ];
+            $localForecastMetrics = [
+                'daily_velocity'      => number_format($dailyVelocity, 2),
+                'total_allowance'     => number_format($effectiveTotalAllowance, 2),
+                'remaining_allowance' => number_format($remainingAllowance, 2),
+                'predicted_remaining' => number_format($predictedRemainingBudget, 0),
+                'projected_deficit'   => number_format($projectedDeficit, 0),
+                'predicted_end_spent' => number_format($predictedEndOfWeekSpent, 2),
+                'is_critical'         => $isCriticalState,
+                'is_faster'           => $isFasterPacing,
+                'days_left_in_week'   => $daysRemainingCount,
+                'active_risks_count'  => $riskLogsCountThisWeek,
+            ];
 
         try {
             $apiKey = env('GROQ_API_KEY');

@@ -79,13 +79,55 @@ class WhatIfSimulator extends Component
             $nextResetDate = $startDate->copy()->next($targetResetDay);
         }
 
-        $daysRemaining = $today->gte($nextResetDate) ? 0 : max(1, (int) $today->diffInDays($nextResetDate));
+        $endDate = $nextResetDate->copy()->subSecond();
+
+        if ($today->gte($nextResetDate)) {
+            return [
+                'startDate'      => $startDate,
+                'nextResetDate'  => $nextResetDate,
+                'endDate'        => $endDate,
+                'daysRemaining'  => 0,
+                'spentTodayDate' => $today,
+            ];
+        }
+
+        // Fast-forward to the latest expense date in this cycle, matching
+        // Dashboard / SpendingForecastService so all pages agree on seeded/test data.
+        $latestExpenseDate = Expense::where('user_id', Auth::id())
+            ->whereBetween('transaction_date', [$startDate, $endDate])
+            ->max('transaction_date');
+
+        $evalDate        = $today;
+        $isFastForwarded = false;
+        if ($latestExpenseDate) {
+            $latestCarbon = Carbon::parse($latestExpenseDate)->startOfDay();
+            if ($latestCarbon->gt($today)) {
+                $evalDate        = $latestCarbon;
+                $isFastForwarded = true;
+            }
+        }
+
+        $totalCycleDays = max(1, (int) $startDate->diffInDays($nextResetDate));
+
+        if ($isFastForwarded) {
+            // $evalDate is a COMPLETED day (simulated/seeded data) — days remaining
+            // = total cycle length minus days already elapsed (same formula Dashboard uses).
+            $daysElapsed   = max(1, (int) $startDate->diffInDays($evalDate) + 1);
+            $daysRemaining = max(1, $totalCycleDays - $daysElapsed);
+        } else {
+            // Genuine real-time "today" is still in progress, so it counts
+            // as one of the remaining days.
+            $daysRemaining = max(1, (int) $evalDate->diffInDays($nextResetDate));
+        }
+
+        $spentTodayDate = $isFastForwarded ? $evalDate->copy()->addDay() : $evalDate;
 
         return [
-            'startDate'     => $startDate,
-            'nextResetDate' => $nextResetDate,
-            'endDate'       => $nextResetDate->copy()->subSecond(),
-            'daysRemaining' => $daysRemaining,
+            'startDate'      => $startDate,
+            'nextResetDate'  => $nextResetDate,
+            'endDate'        => $endDate,
+            'daysRemaining'  => $daysRemaining,
+            'spentTodayDate' => $spentTodayDate,
         ];
     }
 
@@ -132,9 +174,9 @@ class WhatIfSimulator extends Component
         }
 
         $todaySpent = Expense::where('user_id', Auth::id())
-            ->whereDate('transaction_date', Carbon::today())
-            ->whereNull('savings_goal_id')
-            ->sum('amount');
+        ->whereDate('transaction_date', $bounds['spentTodayDate'])
+        ->whereNull('savings_goal_id')
+        ->sum('amount');
 
         $morningBalance = $currentBudget->remaining_allowance + $todaySpent;
         $todayStartingQuota = $morningBalance / $this->daysRemaining;
@@ -143,7 +185,7 @@ class WhatIfSimulator extends Component
         $this->newSafeToSpend = $this->currentSafeToSpend;
         $this->newRemaining = (float) $currentBudget->remaining_allowance;
         $this->dailyImpactDelta = 0.00;
-        $this->isDeficit = false;
+        $this->isDeficit = ((float) $currentBudget->remaining_allowance < 0);
 
         if ($shouldDispatchChart) {
             $this->dispatchBrowserEvent('renderWeeklyImpactChart', [
@@ -158,8 +200,12 @@ class WhatIfSimulator extends Component
 
     public function applyPreset($amount, $name = '')
     {
-        $this->purchaseAmount = $amount;
-        $this->itemName = $name;
+        $existingAmount = is_numeric($this->purchaseAmount) ? (float) $this->purchaseAmount : 0;
+        $this->purchaseAmount = $existingAmount + (float) $amount;
+        $this->itemName = trim($this->itemName) !== ''
+            ? trim($this->itemName) . ' + ' . $name
+            : $name;
+
         $this->runSimulation();
     }
 
@@ -192,8 +238,8 @@ class WhatIfSimulator extends Component
             ->whereNotNull('savings_goal_id')
             ->sum('amount');
 
-        $todaySpent = Expense::where('user_id', Auth::id())
-            ->whereDate('transaction_date', Carbon::today())
+            $todaySpent = Expense::where('user_id', Auth::id())
+            ->whereDate('transaction_date', $bounds['spentTodayDate'])
             ->whereNull('savings_goal_id')
             ->sum('amount');
 

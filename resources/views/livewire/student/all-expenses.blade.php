@@ -3,7 +3,7 @@
 
         <!-- Main Ledger Card Container -->
         <div class="bg-white rounded-2xl sm:rounded-3xl shadow-sm border border-slate-100 overflow-hidden">
-            
+
             <!-- Ledger Header -->
             <div class="px-6 py-5 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div class="space-y-1">
@@ -42,6 +42,12 @@
                     </select>
                 </div>
 
+                <!-- Select Page Toggle -->
+                <label class="flex items-center gap-2 px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-600 cursor-pointer whitespace-nowrap shrink-0 w-full sm:w-auto justify-center sm:justify-start">
+                    <input type="checkbox" wire:model="selectAll" class="h-3.5 w-3.5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500">
+                    <span>Select page</span>
+                </label>
+
                 <!-- Reset Filters Button -->
                 @if($search || $selectedCategory)
                     <button wire:click="clearFilters"
@@ -50,6 +56,34 @@
                     </button>
                 @endif
             </div>
+
+            <!-- Active Filter Indicator -->
+            @if($search || $selectedCategory)
+                <div class="px-6 py-2.5 bg-indigo-50/50 border-b border-indigo-100 flex items-center gap-2 text-[11px] font-bold text-indigo-700">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 3c2.755 0 5.455.232 8.083.678.533.09.917.556.917 1.096v1.044a2.25 2.25 0 01-.659 1.591l-5.432 5.432a2.25 2.25 0 00-.659 1.591v2.927a2.25 2.25 0 01-1.244 2.013L9.75 21v-6.568a2.25 2.25 0 00-.659-1.591L3.659 7.409A2.25 2.25 0 013 5.818V4.774c0-.54.384-1.006.917-1.096A48.32 48.32 0 0112 3z" />
+                    </svg>
+                    <span>Filtered: {{ $allExpenses->total() }} {{ Str::plural('result', $allExpenses->total()) }}
+                        @if($search) for "{{ $search }}" @endif
+                        @if($selectedCategory) in {{ $categories->firstWhere('id', $selectedCategory)->name ?? '' }} @endif
+                    </span>
+                </div>
+            @endif
+
+            <!-- Bulk Action Bar -->
+            @if(count($selected) > 0)
+                <div class="mx-6 mt-4 p-3 bg-indigo-50 border border-indigo-100 rounded-xl flex items-center justify-between gap-3">
+                    <span class="text-xs font-bold text-indigo-700">{{ count($selected) }} {{ Str::plural('item', count($selected)) }} selected</span>
+                    <div class="flex items-center gap-2">
+                        <button wire:click="$set('selected', [])" class="text-xs font-bold text-slate-500 hover:text-slate-700 px-2">
+                            Clear
+                        </button>
+                        <button wire:click="confirmBulkDelete" class="px-3 py-1.5 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 rounded-lg transition-colors">
+                            Delete Selected
+                        </button>
+                    </div>
+                </div>
+            @endif
 
             <!-- Flash Notifications Alerts -->
             @if (session()->has('success'))
@@ -92,95 +126,11 @@
                 <!-- Expense List Container -->
                 <div class="p-4 sm:p-6 divide-y divide-slate-100">
                     @foreach($allExpenses as $expense)
-                        @php
-                            $catName = strtolower($expense->category->name ?? $expense->category ?? '');
-                            $itemName = strtolower($expense->item_name);
-                         
-                            if (str_contains($catName, 'food') || str_contains($catName, 'snack') || str_contains($itemName, 'lunch') || str_contains($itemName, 'tea') || str_contains($itemName, 'coffee')) {
-                                $bgColor = 'bg-amber-50 text-amber-600';
-                                $iconType = 'food';
-                            } elseif (str_contains($catName, 'transport') || str_contains($catName, 'fare') || str_contains($itemName, 'jeep') || str_contains($itemName, 'bus') || str_contains($itemName, 'grab')) {
-                                $bgColor = 'bg-blue-50 text-blue-600';
-                                $iconType = 'transport';
-                            } elseif (str_contains($catName, 'school') || str_contains($catName, 'acad') || str_contains($itemName, 'book') || str_contains($itemName, 'pen') || str_contains($itemName, 'print')) {
-                                $bgColor = 'bg-emerald-50 text-emerald-600';
-                                $iconType = 'school';
-                            } elseif (str_contains($catName, 'entertain') || str_contains($catName, 'game') || str_contains($itemName, 'game') || str_contains($itemName, 'steam') || str_contains($itemName, 'movie')) {
-                                $bgColor = 'bg-purple-50 text-purple-600';
-                                $iconType = 'entertainment';
-                            } elseif (str_contains($catName, 'person') || str_contains($catName, 'shop') || str_contains($itemName, 'shampoo') || str_contains($itemName, 'soap') || str_contains($itemName, 'clothes')) {
-                                $bgColor = 'bg-pink-50 text-pink-600';
-                                $iconType = 'shopping';
-                            } else {
-                                $bgColor = 'bg-slate-100 text-slate-600';
-                                $iconType = 'default';
-                            }
-
-                            $date = \Carbon\Carbon::parse($expense->transaction_date);
-                            if ($date->isToday()) {
-                                $formattedDate = 'Today, ' . $date->format('g:i A');
-                            } elseif ($date->isYesterday()) {
-                                $formattedDate = 'Yesterday, ' . $date->format('g:i A');
-                            } elseif ($date->greaterThan(now()->subDays(7))) {
-                                $formattedDate = $date->format('D, g:i A');
-                            } else {
-                                $formattedDate = $date->format('M d, Y • g:i A');
-                            }
-                            $merchant = !empty($expense->merchant_name) ? ' · ' . $expense->merchant_name : '';
-                        @endphp
-                        
-                        <div class="py-3.5 sm:py-4 flex items-center justify-between gap-3 group hover:bg-slate-50/70 -mx-2 px-2 rounded-2xl transition-all">
-                            <div class="flex items-center gap-3.5 min-w-0">
-                                <div class="h-10 w-10 sm:h-11 sm:w-11 rounded-2xl {{ $bgColor }} flex items-center justify-center shrink-0 shadow-xs">
-                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                                        @if($iconType === 'food')
-                                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 8.25v-1.5m0 1.5c-1.355 0-2.697.056-4.024.166C6.845 8.51 6 9.473 6 10.608v2.513m6-4.871c1.355 0 2.697.056 4.024.166C17.155 8.51 18 9.473 18 10.608v2.513M15 8.25v-1.5m-6 1.5v-1.5m12 9.75-1.5.75m-15-.75 1.5.75m12-3.75h3m-18 0h3m0 0v2.25c0 .414.336.75.75.75h10.5a.75.75 0 0 0 .75-.75V12M6 12a2.25 2.25 0 0 0-2.25 2.25v.75c0 .414.336.75.75.75h15a.75.75 0 0 0 .75-.75v-.75A2.25 2.25 0 0 0 18 12H6Z" />
-                                        @elseif($iconType === 'transport')
-                                            <path stroke-linecap="round" stroke-linejoin="round" d="M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
-                                            <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1 1 15 0Z" />
-                                        @elseif($iconType === 'school')
-                                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 0 0 6 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 0 1 6 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 0 1 6-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0 0 18 18c-2.305 0-4.408.867-6 2.292m0-14.25v14.25" />
-                                        @elseif($iconType === 'entertainment')
-                                            <path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 0 0-2.456 2.456Z" />
-                                        @elseif($iconType === 'shopping')
-                                            <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 10.5V6a3.75 3.75 0 1 0-7.5 0v4.5m11.356-1.993 1.263 12c.07.665-.45 1.243-1.119 1.243H4.25a1.125 1.125 0 0 1-1.12-1.243l1.264-12A1.125 1.125 0 0 1 5.513 7.5h12.974c.576 0 1.059.435 1.119.993Z" />
-                                        @else
-                                            <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 18.75a60.07 60.07 0 0 1 15.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5h16.5a1.5 1.5 0 0 1 1.5 1.5v9.75a1.5 1.5 0 0 1-1.5 1.5H3.75a1.5 1.5 0 0 1-1.5-1.5V6a1.5 1.5 0 0 1 1.5-1.5Zm13.5 3h.008v.008h-.008V7.5Zm0 3h.008v.008h-.008v-.008Zm0 3h.008v.008h-.008v-.008Z" />
-                                        @endif
-                                    </svg>
-                                </div>
-                                <div class="min-w-0">
-                                    <h4 class="font-bold text-slate-900 text-xs sm:text-sm truncate">
-                                        {{ $expense->item_name }}
-                                    </h4>
-                                    <p class="text-[11px] sm:text-xs text-slate-400 font-medium truncate mt-0.5">
-                                        {{ ucfirst($expense->category->name ?? $expense->category ?? 'General') }}{{ $merchant }} · {{ $formattedDate }}
-                                    </p>
-                                </div>
-                            </div>
-                            
-                            <div class="flex items-center gap-2 sm:gap-3 shrink-0">
-                                <span class="font-bold text-slate-900 text-xs sm:text-sm font-mono tracking-tight">
-                                    -₱{{ number_format($expense->amount, 2) }}
-                                </span>
-                                
-                                <div class="flex items-center gap-1">
-                                    <a href="{{ route('student.expenses.edit', $expense->id) }}" 
-                                       class="p-1.5 text-slate-400 hover:text-indigo-600 rounded-lg hover:bg-slate-100 transition-colors" 
-                                       title="Edit">
-                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125"/>
-                                        </svg>
-                                    </a>
-                                    <button wire:click="deleteExpense({{ $expense->id }})" 
-                                            onclick="confirm('Are you sure you want to remove this transaction?') || event.stopImmediatePropagation()" 
-                                            class="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-slate-100 transition-colors" 
-                                            title="Delete">
-                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"/>
-                                        </svg>
-                                    </button>
-                                </div>
+                        <div class="flex items-start gap-3">
+                            <input type="checkbox" wire:model="selected" value="{{ $expense->id }}"
+                                   class="mt-4 sm:mt-5 h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 shrink-0">
+                            <div class="flex-1 min-w-0">
+                                <x-expense-row :expense="$expense" :show-merchant="true" />
                             </div>
                         </div>
                     @endforeach
@@ -193,4 +143,54 @@
             @endif
         </div>
     </div>
+
+    <!-- Single-Delete Confirmation Modal -->
+    @if($confirmingDeleteId)
+        <div class="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm" wire:click.self="$set('confirmingDeleteId', null)">
+            <div class="bg-white rounded-3xl shadow-xl max-w-sm w-full p-6 space-y-4">
+                <div class="h-11 w-11 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+                    </svg>
+                </div>
+                <div>
+                    <h3 class="text-sm font-extrabold text-slate-900">Remove this expense?</h3>
+                    <p class="text-xs text-slate-500 font-medium mt-1">This will refund the amount back to your remaining budget and can't be undone.</p>
+                </div>
+                <div class="flex items-center gap-2 pt-1">
+                    <button wire:click="$set('confirmingDeleteId', null)" class="flex-1 px-4 py-2.5 text-xs font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors">
+                        Cancel
+                    </button>
+                    <button wire:click="deleteExpense({{ $confirmingDeleteId }})" wire:loading.attr="disabled" class="flex-1 px-4 py-2.5 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 rounded-xl transition-colors">
+                        Delete
+                    </button>
+                </div>
+            </div>
+        </div>
+    @endif
+
+    <!-- Bulk-Delete Confirmation Modal -->
+    @if($confirmingBulkDelete)
+        <div class="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm" wire:click.self="cancelBulkDelete">
+            <div class="bg-white rounded-3xl shadow-xl max-w-sm w-full p-6 space-y-4">
+                <div class="h-11 w-11 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+                    </svg>
+                </div>
+                <div>
+                    <h3 class="text-sm font-extrabold text-slate-900">Delete {{ count($selected) }} {{ Str::plural('expense', count($selected)) }}?</h3>
+                    <p class="text-xs text-slate-500 font-medium mt-1">This refunds ₱{{ number_format($bulkDeleteTotal, 2) }} back to your remaining budget and can't be undone.</p>
+                </div>
+                <div class="flex items-center gap-2 pt-1">
+                    <button wire:click="cancelBulkDelete" class="flex-1 px-4 py-2.5 text-xs font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors">
+                        Cancel
+                    </button>
+                    <button wire:click="bulkDelete" wire:loading.attr="disabled" class="flex-1 px-4 py-2.5 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 rounded-xl transition-colors">
+                        Delete All
+                    </button>
+                </div>
+            </div>
+        </div>
+    @endif
 </div>

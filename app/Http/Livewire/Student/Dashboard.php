@@ -16,6 +16,7 @@ class Dashboard extends Component
     public $safeToSpend = 0.00;
     public $currentBudget;
     public $daysRemaining = 7;
+    public $confirmingDeleteId = null;
 
     protected $listeners = [
         'refreshBudgetMetrics' => 'mount',
@@ -55,27 +56,27 @@ class Dashboard extends Component
                 $oldTotalAllowance = (float) $this->currentBudget->total_allowance;
                 $amountSpent       = max(0.00, $oldTotalAllowance - $this->currentBudget->remaining_allowance);
                 $user              = auth()->user();
-        
+
                 $nextCycleBaseline = (float) ($user->default_allowance ?? 1000.00);
                 $nextCycleResetDay = $user->default_reset_day ?? $targetResetDay;
-        
+
                 $newWeeklyTotal    = $nextCycleBaseline + $unspentSavings;
-        
+
                 $this->currentBudget->update([
                     'total_allowance'     => $nextCycleBaseline,
                     'remaining_allowance' => $newWeeklyTotal,
                     'reset_day'           => $nextCycleResetDay,
                     'cycle_start_date'    => Carbon::today(),
                 ]);
-        
+
                 $severity = $amountSpent > $oldTotalAllowance ? 'high' : 'low';
-        
+
                 // Trigger the dedicated notification class
                 $user->notify(new WeeklyBudgetReview($amountSpent, $unspentSavings, $severity));
-        
+
                 session()->flash('message', 'Weekly budget reset successfully! ₱' . number_format($unspentSavings, 2) . ' rolled over to your new cycle.');
             });
-        
+
             $this->currentBudget->refresh();
         }
     }
@@ -102,11 +103,36 @@ class Dashboard extends Component
             return;
         }
 
-        $this->daysRemaining = max(1, (int) $today->diffInDays($nextResetDate));
+        // Fast-forward "today" to the latest expense date in this cycle,
+        // same logic already used in render() / SpendingForecastService.
+        $endDate = $nextResetDate->copy()->subSecond();
+        $latestExpenseDate = Expense::where('user_id', auth()->id())
+            ->whereBetween('transaction_date', [$startDate, $endDate])
+            ->max('transaction_date');
+
+        $evalDate        = $today;
+        $isFastForwarded = false;
+        if ($latestExpenseDate) {
+            $latestCarbon = Carbon::parse($latestExpenseDate)->startOfDay();
+            if ($latestCarbon->gt($today)) {
+                $evalDate        = $latestCarbon;
+                $isFastForwarded = true;
+            }
+        }
+
+        if ($isFastForwarded) {
+            $daysElapsed   = max(1, (int) $startDate->diffInDays($evalDate) + 1);
+            $totalCycleDays = max(1, (int) $startDate->diffInDays($nextResetDate));
+            $this->daysRemaining = max(1, $totalCycleDays - $daysElapsed);
+            $spentTodayDate = $evalDate->copy()->addDay();
+        } else {
+            $this->daysRemaining = max(1, (int) $evalDate->diffInDays($nextResetDate));
+            $spentTodayDate = $evalDate;
+        }
 
         if ($this->daysRemaining > 0) {
             $spentToday = Expense::where('user_id', auth()->id())
-                ->whereDate('transaction_date', Carbon::today())
+                ->whereDate('transaction_date', $spentTodayDate)
                 ->whereNull('savings_goal_id')
                 ->sum('amount');
 
@@ -120,6 +146,8 @@ class Dashboard extends Component
 
     public function deleteExpense($expenseId)
     {
+        $this->confirmingDeleteId = null;
+
         $expense = Expense::where('id', $expenseId)
             ->where('user_id', auth()->id())
             ->first();
@@ -149,18 +177,15 @@ class Dashboard extends Component
                 }
 
                 $expense->delete();
-
                 \App\Models\RiskLog::where('user_id', auth()->id())
                     ->whereDate('created_at', Carbon::today())
                     ->delete();
-
                 app(\App\Services\RiskDetectionService::class)->evaluateSpendingRisk(auth()->user());
             });
 
             $this->computeBehavioralMetrics();
             $this->emit('refreshSavings');
             $this->emit('expenseUpdated');
-
             session()->flash('success', 'Expense deleted! Balance updated.');
         } else {
             session()->flash('error', 'Active budget not found. Unable to update balance.');
@@ -309,6 +334,7 @@ class Dashboard extends Component
 
         return view('livewire.student.dashboard', [
             'recentExpenses'         => $recentExpenses,
+            'totalSpent'             => $totalSpent,
             'todaySavingsTotal'      => $todaySavingsTotal,
             'dailyVelocity'          => $dailyVelocity,
             'futureDaysRemaining'    => $futureDaysRemaining,

@@ -12,6 +12,8 @@ class ExpenseCategory extends Model
     protected $fillable = [
         'name',
         'description',
+        'icon',
+        'color',
     ];
 
     // One-to-Many: A category can belong to many different logged expenses
