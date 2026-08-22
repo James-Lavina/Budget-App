@@ -146,7 +146,7 @@
 
     <!-- Single-Delete Confirmation Modal -->
     @if($confirmingDeleteId)
-        <div class="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm" wire:click.self="$set('confirmingDeleteId', null)">
+        <div class="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm transform-gpu" wire:click.self="$set('confirmingDeleteId', null)">
             <div class="bg-white rounded-3xl shadow-xl max-w-sm w-full p-6 space-y-4">
                 <div class="h-11 w-11 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
@@ -171,7 +171,7 @@
 
     <!-- Bulk-Delete Confirmation Modal -->
     @if($confirmingBulkDelete)
-        <div class="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm" wire:click.self="cancelBulkDelete">
+        <div class="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm transform-gpu" wire:click.self="cancelBulkDelete">
             <div class="bg-white rounded-3xl shadow-xl max-w-sm w-full p-6 space-y-4">
                 <div class="h-11 w-11 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">

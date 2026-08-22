@@ -131,7 +131,7 @@
                         @elseif($isDailyQuotaHit)
                             Daily budget met. Total remaining: <span class="font-bold">₱{{ number_format($currentBudget->remaining_allowance, 2) }}</span> (<span class="font-bold">₱{{ number_format($remainingDailyRate, 2) }}/day</span> for the next {{ $futureDaysRemaining }} {{ Str::plural('day', $futureDaysRemaining) }}).
                         @else
-                            On track to finish the week with ~<span class="font-bold">₱{{ number_format($projectedRemaining, 0) }}</span> remaining.
+                            On track to finish the week with ~<span class="font-bold">₱{{ number_format($projectedRemaining, 2) }}</span> remaining.
                         @endif
                     </p>
                 </div>
@@ -272,32 +272,32 @@
             </svg>
             <span>Add Expense</span>
         </a>
+    </div>
 
-        <!-- DELETE CONFIRMATION MODAL -->
-        @if($confirmingDeleteId)
-            <div class="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm" wire:click.self="$set('confirmingDeleteId', null)">
-                <div class="bg-white rounded-3xl shadow-xl max-w-sm w-full p-6 space-y-4">
-                    <div class="h-11 w-11 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
-                        </svg>
-                    </div>
-                    <div>
-                        <h3 class="text-sm font-extrabold text-slate-900">Remove this expense?</h3>
-                        <p class="text-xs text-slate-500 font-medium mt-1">This will refund the amount back to your remaining budget and can't be undone.</p>
-                    </div>
-                    <div class="flex items-center gap-2 pt-1">
-                        <button wire:click="$set('confirmingDeleteId', null)" class="flex-1 px-4 py-2.5 text-xs font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors">
-                            Cancel
-                        </button>
-                        <button wire:click="deleteExpense({{ $confirmingDeleteId }})" wire:loading.attr="disabled" class="flex-1 px-4 py-2.5 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 rounded-xl transition-colors">
-                            Delete
-                        </button>
-                    </div>
+    <!-- DELETE CONFIRMATION MODAL -->
+    @if($confirmingDeleteId)
+        <div class="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm" wire:click.self="$set('confirmingDeleteId', null)">
+            <div class="bg-white rounded-3xl shadow-xl max-w-sm w-full p-6 space-y-4">
+                <div class="h-11 w-11 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+                    </svg>
+                </div>
+                <div>
+                    <h3 class="text-sm font-extrabold text-slate-900">Remove this expense?</h3>
+                    <p class="text-xs text-slate-500 font-medium mt-1">This will refund the amount back to your remaining budget and can't be undone.</p>
+                </div>
+                <div class="flex items-center gap-2 pt-1">
+                    <button wire:click="$set('confirmingDeleteId', null)" class="flex-1 px-4 py-2.5 text-xs font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors">
+                        Cancel
+                    </button>
+                    <button wire:click="deleteExpense({{ $confirmingDeleteId }})" wire:loading.attr="disabled" class="flex-1 px-4 py-2.5 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 rounded-xl transition-colors">
+                        Delete
+                    </button>
                 </div>
             </div>
-        @endif
-    </div>
+        </div>
+    @endif
 </div>
 
 <script>
