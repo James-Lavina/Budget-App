@@ -219,7 +219,7 @@ class Dashboard extends Component
             }
         }
 
-        $daysElapsed = max(1, $startDate->diffInDays($evalDate) + 1);
+        $daysElapsed = max(1, $startDate->diffInDays($evalDate));
 
         $todaySavingsTotal = Expense::where('user_id', auth()->id())
             ->whereDate('transaction_date', $today)

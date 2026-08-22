@@ -66,13 +66,11 @@ class GoalsManager extends Component
            'user_id' => auth()->id(),
            'target_name' => $this->target_name,
            'target_amount' => $targetAmount,
-           'current_saved' => $initialSaved,
+           'current_saved' => 0.00,
            'target_date' => $this->target_date ?: null,
            'status' => $status,
        ]);
 
-       // Evaluate initial progress milestone
-       $this->checkAndNotifySavingsMilestone($goal);
 
        $this->closeCreateModal();
        session()->flash('success', 'Savings milestone established successfully!');
@@ -319,20 +317,26 @@ class GoalsManager extends Component
    {
        $this->target_name = '';
        $this->target_amount = '';
-       $this->already_saved = '';
        $this->target_date = '';
        $this->resetErrorBag();
    }
 
    public function render()
-   {
-       $goals = SavingsGoal::where('user_id', auth()->id())
-           ->where('status', $this->activeTab)
-           ->latest()
-           ->get();
+    {
+        $goals = SavingsGoal::where('user_id', auth()->id())
+            ->where('status', $this->activeTab)
+            ->latest()
+            ->get();
 
-       return view('livewire.student.goals-manager', [
-           'goals' => $goals
-       ])->layout('layouts.student');
-   }
+        $counts = [
+            'active'    => SavingsGoal::where('user_id', auth()->id())->where('status', 'active')->count(),
+            'achieved'  => SavingsGoal::where('user_id', auth()->id())->where('status', 'achieved')->count(),
+            'abandoned' => SavingsGoal::where('user_id', auth()->id())->where('status', 'abandoned')->count(),
+        ];
+
+        return view('livewire.student.goals-manager', [
+            'goals'  => $goals,
+            'counts' => $counts,
+        ])->layout('layouts.student');
+    }
 }
