@@ -4,16 +4,16 @@ namespace App\Http\Livewire\Student;
 
 use App\Models\Expense;
 use App\Models\WeeklyBudget;
-use Carbon\Carbon;
-use Illuminate\Notifications\DatabaseNotification;
 use App\Notifications\WeeklyBudgetReview;
+use App\Services\BudgetCycleService;
+use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Str;
 use Livewire\Component;
 
 class Dashboard extends Component
 {
     public $safeToSpend = 0.00;
+    public $spentToday = 0.00;
     public $currentBudget;
     public $daysRemaining = 7;
     public $confirmingDeleteId = null;
@@ -87,61 +87,26 @@ class Dashboard extends Component
             $this->currentBudget->refresh();
         }
 
-        $today = Carbon::today();
-        $startDate = Carbon::parse($this->currentBudget->cycle_start_date)->startOfDay();
-        $targetResetDay = $this->currentBudget->reset_day ?? auth()->user()->default_reset_day ?? 'Monday';
+        $cycle = app(BudgetCycleService::class)->resolve($this->currentBudget, auth()->user());
 
-        if (strtolower($startDate->format('l')) === strtolower($targetResetDay)) {
-            $nextResetDate = $startDate->copy()->addWeek();
-        } else {
-            $nextResetDate = $startDate->copy()->next($targetResetDay);
-        }
-
-        if ($today->gte($nextResetDate)) {
+        if ($cycle['today']->gte($cycle['nextResetDate'])) {
             $this->daysRemaining = 0;
             $this->safeToSpend = 0.00;
             return;
         }
 
-        // Fast-forward "today" to the latest expense date in this cycle,
-        // same logic already used in render() / SpendingForecastService.
-        $endDate = $nextResetDate->copy()->subSecond();
-        $latestExpenseDate = Expense::where('user_id', auth()->id())
-            ->whereBetween('transaction_date', [$startDate, $endDate])
-            ->max('transaction_date');
+        $this->daysRemaining = $cycle['daysRemaining'];
 
-        $evalDate        = $today;
-        $isFastForwarded = false;
-        if ($latestExpenseDate) {
-            $latestCarbon = Carbon::parse($latestExpenseDate)->startOfDay();
-            if ($latestCarbon->gt($today)) {
-                $evalDate        = $latestCarbon;
-                $isFastForwarded = true;
-            }
-        }
+        $spentToday = Expense::where('user_id', auth()->id())
+            ->whereDate('transaction_date', $cycle['spentTodayDate'])
+            ->whereNull('savings_goal_id')
+            ->sum('amount');
 
-        if ($isFastForwarded) {
-            $daysElapsed   = max(1, (int) $startDate->diffInDays($evalDate) + 1);
-            $totalCycleDays = max(1, (int) $startDate->diffInDays($nextResetDate));
-            $this->daysRemaining = max(1, $totalCycleDays - $daysElapsed);
-            $spentTodayDate = $evalDate->copy()->addDay();
-        } else {
-            $this->daysRemaining = max(1, (int) $evalDate->diffInDays($nextResetDate));
-            $spentTodayDate = $evalDate;
-        }
+        $this->spentToday = $spentToday;
 
-        if ($this->daysRemaining > 0) {
-            $spentToday = Expense::where('user_id', auth()->id())
-                ->whereDate('transaction_date', $spentTodayDate)
-                ->whereNull('savings_goal_id')
-                ->sum('amount');
-
-            $startingBudgetForRemainingDays = $this->currentBudget->remaining_allowance + $spentToday;
-            $todayStartingQuota = $startingBudgetForRemainingDays / $this->daysRemaining;
-            $this->safeToSpend = max(0.00, $todayStartingQuota - $spentToday);
-        } else {
-            $this->safeToSpend = 0.00;
-        }
+        $startingBudgetForRemainingDays = $this->currentBudget->remaining_allowance + $spentToday;
+        $todayStartingQuota = $startingBudgetForRemainingDays / $this->daysRemaining;
+        $this->safeToSpend = max(0.00, $todayStartingQuota - $spentToday);
     }
 
     public function deleteExpense($expenseId)
@@ -194,32 +159,13 @@ class Dashboard extends Component
 
     public function render()
     {
-        $startDate = Carbon::parse($this->currentBudget->cycle_start_date)->startOfDay();
-        $targetResetDay = $this->currentBudget->reset_day ?? auth()->user()->default_reset_day ?? 'Monday';
+        $cycle = app(BudgetCycleService::class)->resolve($this->currentBudget, auth()->user());
 
-        if (strtolower($startDate->format('l')) === strtolower($targetResetDay)) {
-            $nextResetDate = $startDate->copy()->addWeek();
-        } else {
-            $nextResetDate = $startDate->copy()->next($targetResetDay);
-        }
-
-        $endDate = $nextResetDate->copy()->subSecond();
-        $today   = Carbon::today();
-
-        // Fast-forward evaluation date if seeded/test expenses exist past real-time today
-        $latestExpenseDate = Expense::where('user_id', auth()->id())
-            ->whereBetween('transaction_date', [$startDate, $endDate])
-            ->max('transaction_date');
-
-        $evalDate = $today;
-        if ($latestExpenseDate) {
-            $latestCarbon = Carbon::parse($latestExpenseDate)->startOfDay();
-            if ($latestCarbon->gt($today)) {
-                $evalDate = $latestCarbon;
-            }
-        }
-
-        $daysElapsed = max(1, $startDate->diffInDays($evalDate));
+        $startDate     = $cycle['startDate'];
+        $endDate       = $cycle['endDate'];
+        $nextResetDate = $cycle['nextResetDate'];
+        $today         = $cycle['today'];
+        $daysElapsed   = $cycle['daysElapsed'];
 
         $todaySavingsTotal = Expense::where('user_id', auth()->id())
             ->whereDate('transaction_date', $today)
@@ -229,12 +175,15 @@ class Dashboard extends Component
         $hasSavingsToday = $todaySavingsTotal > 0;
 
         $totalSpent = Expense::where('user_id', auth()->id())
-            ->whereBetween('transaction_date', [$startDate, $endDate])
+            ->whereBetween('transaction_date', [$startDate, $cycle['evalDate']->copy()->endOfDay()])
             ->whereNull('savings_goal_id')
+            ->whereDoesntHave('category', function ($query) {
+                $query->where('name', 'LIKE', '%Savings%');
+            })
             ->sum('amount');
 
         $dailyVelocity       = $totalSpent / $daysElapsed;
-        $futureDaysRemaining = max(0, 7 - $daysElapsed);
+        $futureDaysRemaining = $cycle['daysRemaining'];
         $projectedRemaining  = max(0, $this->currentBudget->remaining_allowance - ($dailyVelocity * $futureDaysRemaining));
         $projectedDaysLeft   = $dailyVelocity > 0 ? ($this->currentBudget->remaining_allowance / $dailyVelocity) : $this->daysRemaining;
 
@@ -279,6 +228,7 @@ class Dashboard extends Component
         $alphabeticalCategories = Expense::where('expenses.user_id', auth()->id())
             ->whereBetween('transaction_date', [$startDate, $endDate])
             ->join('expense_categories', 'expenses.expense_category_id', '=', 'expense_categories.id')
+            ->where('expense_categories.name', 'NOT LIKE', '%Savings%')
             ->distinct()
             ->orderBy('expense_categories.name', 'asc')
             ->pluck('expense_categories.name')
@@ -302,19 +252,32 @@ class Dashboard extends Component
             $categoryTotalsMap[$cat->name] = (float) $cat->total_amount;
         }
 
+        $totalSavedThisWeek = 0.0;
+        foreach ($categoryTotalsMap as $catName => $amount) {
+            if (stripos($catName, 'savings') !== false) {
+                $totalSavedThisWeek += $amount;
+                unset($categoryTotalsMap[$catName]);
+            }
+        }
+
         $cycleExpenses = Expense::with('category')
             ->where('user_id', auth()->id())
             ->whereBetween('transaction_date', [$startDate, $endDate])
             ->get();
 
-        foreach ($cycleExpenses as $exp) {
-            $expDateKey = Carbon::parse($exp->transaction_date)->format('Y-m-d');
-            if (array_key_exists($expDateKey, $dailyTotals)) {
-                $dailyTotals[$expDateKey] += (float) $exp->amount;
+            foreach ($cycleExpenses as $exp) {
+                $expDateKey = Carbon::parse($exp->transaction_date)->format('Y-m-d');
                 $catName = $exp->category->name ?? 'Uncategorized';
-                $dailyCategoryBreakdown[$expDateKey][$catName] = ($dailyCategoryBreakdown[$expDateKey][$catName] ?? 0) + (float) $exp->amount;
+            
+                if (stripos($catName, 'savings') !== false) {
+                    continue;
+                }
+            
+                if (array_key_exists($expDateKey, $dailyTotals)) {
+                    $dailyTotals[$expDateKey] += (float) $exp->amount;
+                    $dailyCategoryBreakdown[$expDateKey][$catName] = ($dailyCategoryBreakdown[$expDateKey][$catName] ?? 0) + (float) $exp->amount;
+                }
             }
-        }
 
         $highestSpent = max(array_values($dailyTotals));
         $maxDaily     = max(100, $highestSpent * 1.35);
@@ -335,6 +298,7 @@ class Dashboard extends Component
         return view('livewire.student.dashboard', [
             'recentExpenses'         => $recentExpenses,
             'totalSpent'             => $totalSpent,
+            'totalSavedThisWeek'     => $totalSavedThisWeek,
             'todaySavingsTotal'      => $todaySavingsTotal,
             'dailyVelocity'          => $dailyVelocity,
             'futureDaysRemaining'    => $futureDaysRemaining,

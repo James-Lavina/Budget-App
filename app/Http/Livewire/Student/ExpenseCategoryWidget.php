@@ -24,15 +24,18 @@ class ExpenseCategoryWidget extends Component
     public function loadCategoryBreakdown()
     {
         $userId = auth()->id();
-        
+    
         // Locate the active budget tracking row to bound our chart parameters
         $activeBudget = WeeklyBudget::where('user_id', $userId)->latest()->first();
 
         if ($activeBudget) {
             // Aggregate totals grouped by category name for the current cycle
+            // NOTE: Savings excluded — it's a separate bucket, not a spending
+            // category, consistent with the Dashboard's Weekly Spending panel.
             $rawExpenses = Expense::where('expenses.user_id', $userId)
                 ->where('transaction_date', '>=', $activeBudget->cycle_start_date)
                 ->join('expense_categories', 'expenses.expense_category_id', '=', 'expense_categories.id')
+                ->where('expense_categories.name', 'NOT LIKE', '%Savings%')
                 ->select('expense_categories.name', DB::raw('SUM(expenses.amount) as total_amount'))
                 ->groupBy('expense_categories.name')
                 ->get();

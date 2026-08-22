@@ -668,6 +668,17 @@ input:where([type='file']):focus {
   --tw-backdrop-saturate:  ;
   --tw-backdrop-sepia:  ;
 }
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
 .pointer-events-none {
   pointer-events: none;
 }
@@ -1664,6 +1675,9 @@ input:where([type='file']):focus {
 .bg-indigo-50\/30 {
   background-color: rgb(238 242 255 / 0.3);
 }
+.bg-indigo-50\/40 {
+  background-color: rgb(238 242 255 / 0.4);
+}
 .bg-indigo-50\/50 {
   background-color: rgb(238 242 255 / 0.5);
 }
@@ -1743,6 +1757,10 @@ input:where([type='file']):focus {
 }
 .bg-slate-100\/80 {
   background-color: rgb(241 245 249 / 0.8);
+}
+.bg-slate-200 {
+  --tw-bg-opacity: 1;
+  background-color: rgb(226 232 240 / var(--tw-bg-opacity));
 }
 .bg-slate-50 {
   --tw-bg-opacity: 1;
@@ -2825,6 +2843,17 @@ input:where([type='file']):focus {
   transform: translate(var(--tw-translate-x), var(--tw-translate-y)) rotate(var(--tw-rotate)) skewX(var(--tw-skew-x)) skewY(var(--tw-skew-y)) scaleX(var(--tw-scale-x)) scaleY(var(--tw-scale-y));
 }
 @media (min-width: 640px) {
+
+  .sm\:not-sr-only {
+    position: static;
+    width: auto;
+    height: auto;
+    padding: 0;
+    margin: 0;
+    overflow: visible;
+    clip: auto;
+    white-space: normal;
+  }
 
   .sm\:-left-4 {
     left: -1rem;

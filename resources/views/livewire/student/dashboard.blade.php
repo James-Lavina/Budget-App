@@ -83,9 +83,11 @@
                     <div class="text-lg sm:text-2xl font-black text-slate-900 font-mono truncate">
                         ₱{{ number_format($safeToSpend, 2) }}
                     </div>
-                    <span class="text-[10px] sm:text-[11px] font-medium text-slate-400 block truncate">
-                        Per day for the next {{ $daysRemaining }} {{ Str::plural('day', $daysRemaining) }}
-                    </span>
+                    <div class="flex items-center gap-1.5 text-[10px] sm:text-[11px] font-medium text-slate-400 truncate">
+                        <span>Spent today: ₱{{ number_format($spentToday, 2) }}</span>
+                        <span>·</span>
+                        <span>{{ $daysRemaining }} {{ Str::plural('day', $daysRemaining) }} left</span>
+                    </div>
                 </div>
                 <div class="h-9 w-9 sm:h-12 sm:w-12 rounded-xl sm:rounded-2xl {{ $isSavingsLocked ? 'bg-indigo-50 text-indigo-600' : 'bg-emerald-50 text-emerald-600' }} flex items-center justify-center shrink-0 ml-2">
                     <svg class="w-4 h-4 sm:w-6 sm:h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
@@ -179,6 +181,20 @@
                         </div>
                     @endforeach
                 </div>
+
+                @if($totalSavedThisWeek > 0)
+                    <!-- SAVED THIS WEEK — visually separate from spending categories -->
+                    <div class="mt-3 pt-3 border-t border-dashed border-slate-200 flex items-center justify-between text-xs bg-indigo-50/40 px-2.5 py-2 rounded-lg">
+                        <div class="flex items-center gap-2 min-w-0">
+                            <span class="w-2.5 h-2.5 rounded-full shrink-0 bg-indigo-500"></span>
+                            <span class="font-semibold text-indigo-700">Saved this week</span>
+                            <span class="text-[10px] text-slate-400 font-medium">(not counted as spending)</span>
+                        </div>
+                        <span class="font-black text-indigo-700 font-mono shrink-0 pl-2">
+                            ₱{{ number_format($totalSavedThisWeek, 2) }}
+                        </span>
+                    </div>
+                @endif
 
                 @php
                     $chartLabels = array_values($daysOfWeek);
