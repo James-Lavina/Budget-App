@@ -69,8 +69,10 @@ class LogExpense extends Component
                       ->orWhere('data', 'LIKE', '%risk_log_id%'); 
             })->delete();
 
-        DB::transaction(function() use ($currentBudget) {
-            Expense::create([
+        $newExpense = null;
+
+        DB::transaction(function() use ($currentBudget, &$newExpense) {
+            $newExpense = Expense::create([
                 'user_id' => auth()->id(),
                 'expense_category_id' => $this->expense_category_id,
                 'merchant_name' => $this->merchant_name,
@@ -79,12 +81,14 @@ class LogExpense extends Component
                 'transaction_date' => $this->transaction_date . ' ' . Carbon::now()->format('H:i:s'),
                 'tracking_type' => 'manual',
             ]);
-
+        
             $currentBudget->remaining_allowance -= $this->amount;
             $currentBudget->save();
         });
-
-        app(\App\Services\RiskDetectionService::class)->evaluateSpendingRisk(auth()->user());
+            
+        $riskService = app(\App\Services\RiskDetectionService::class);
+        $riskService->evaluateSpendingRisk(auth()->user());
+        $riskService->checkLargeTransaction(auth()->user(), $newExpense, $currentBudget->total_allowance);
 
         $thresholdAmount = $currentBudget->total_allowance * 0.20;
         

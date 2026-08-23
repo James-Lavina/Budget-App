@@ -26,9 +26,9 @@ class SavingsMilestoneReached extends Notification
     public function toArray($notifiable)
     {
         return [
-            'anomaly_type' => 'savings_milestone',
-            'title' => 'Savings Milestone Reached!',
-            'message' => "Great job! You've officially reached {$this->milestone}% of your target for '{$this->goalName}'.",
+            'anomaly_type'  => 'savings_milestone',
+            'severity_tier' => 'success',
+            'description'   => "Milestone Unlocked! 📈 You've saved {$this->milestone}% of your target for '{$this->goalName}'.",
         ];
     }
 }

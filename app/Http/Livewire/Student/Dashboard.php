@@ -151,6 +151,7 @@ class Dashboard extends Component
             $this->computeBehavioralMetrics();
             $this->emit('refreshSavings');
             $this->emit('expenseUpdated');
+            $this->emit('refreshNotifications');
             session()->flash('success', 'Expense deleted! Balance updated.');
         } else {
             session()->flash('error', 'Active budget not found. Unable to update balance.');

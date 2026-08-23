@@ -3,18 +3,14 @@
 namespace App\Http\Livewire\Student;
 
 use Livewire\Component;
-use Illuminate\Notifications\DatabaseNotification; // Import Laravel's notification model
+use Illuminate\Notifications\DatabaseNotification;
 
 class NotificationCenter extends Component
 {
     protected $listeners = ['refreshNotifications' => '$refresh'];
 
-    /**
-     * Marks a single notification as read safely
-     */
     public function markAsRead($notificationId)
     {
-        // Target the notification directly while ensuring it belongs to the logged-in student
         $notification = DatabaseNotification::where('id', $notificationId)
             ->where('notifiable_id', auth()->id())
             ->first();
@@ -24,9 +20,6 @@ class NotificationCenter extends Component
         }
     }
 
-    /**
-     * Marks all unread notifications for this student as read at once
-     */
     public function markAllAsRead()
     {
         DatabaseNotification::where('notifiable_id', auth()->id())
@@ -34,16 +27,36 @@ class NotificationCenter extends Component
             ->update(['read_at' => now()]);
     }
 
+    /**
+     * NEW: dismiss a single notification from the dropdown without
+     * navigating to the full Notification Center page.
+     */
+    public function dismiss($notificationId)
+    {
+        DatabaseNotification::where('id', $notificationId)
+            ->where('notifiable_id', auth()->id())
+            ->delete();
+
+        $this->emit('refreshNotifications');
+    }
+
     public function render()
     {
-        // Pull unread notifications directly from the database table
+        // NEW: cap to 6 most recent unread — prevents the dropdown from
+        // growing unbounded for users who don't check it often.
         $notifications = DatabaseNotification::where('notifiable_id', auth()->id())
             ->whereNull('read_at')
             ->latest()
+            ->take(6)
             ->get();
 
+        $totalUnreadCount = DatabaseNotification::where('notifiable_id', auth()->id())
+            ->whereNull('read_at')
+            ->count();
+
         return view('livewire.student.notification-center', [
-            'notifications' => $notifications
+            'notifications'     => $notifications,
+            'totalUnreadCount'  => $totalUnreadCount,
         ]);
     }
 }

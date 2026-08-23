@@ -33,6 +33,18 @@ class NotificationIndex extends Component
         $this->emit('refreshNotifications'); // Sync with the bell dropdown
     }
 
+    public function delete($notificationId)
+    {
+        $notification = DatabaseNotification::where('id', $notificationId)
+            ->where('notifiable_id', auth()->id())
+            ->first();
+
+        if ($notification) {
+            $notification->delete();
+            $this->emit('refreshNotifications');
+        }
+    }
+
     public function render()
     {
         $notifications = DatabaseNotification::where('notifiable_id', auth()->id())

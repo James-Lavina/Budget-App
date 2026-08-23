@@ -181,10 +181,12 @@ class ScanExpense extends Component
             })->delete();
 
         try {
-            DB::transaction(function() use ($currentBudget) {
+            $newExpense = null;
+            
+            DB::transaction(function() use ($currentBudget, &$newExpense) {
                 $formattedDateTime = \Carbon\Carbon::today()->format('Y-m-d') . ' ' . \Carbon\Carbon::now()->format('H:i:s');
             
-                $expense = Expense::create([
+                $newExpense = Expense::create([
                     'user_id' => auth()->id(),
                     'expense_category_id' => $this->expense_category_id,
                     'merchant_name' => $this->merchant_name,
@@ -197,7 +199,7 @@ class ScanExpense extends Component
                 $receipt = Receipt::find($this->receiptId);
                 if($receipt) {
                     $receipt->update([
-                        'expense_id' => $expense->id,
+                        'expense_id' => $newExpense->id,
                         'status' => 'processed',
                     ]);
                 }
@@ -205,7 +207,9 @@ class ScanExpense extends Component
                 $currentBudget->decrement('remaining_allowance', $this->amount);
             });
 
-            app(\App\Services\RiskDetectionService::class)->evaluateSpendingRisk(auth()->user());
+            $riskService = app(\App\Services\RiskDetectionService::class);
+            $riskService->evaluateSpendingRisk(auth()->user());
+            $riskService->checkLargeTransaction(auth()->user(), $newExpense, $currentBudget->total_allowance);
 
             $thresholdAmount = $currentBudget->total_allowance * 0.20;
             if ($currentBudget->remaining_allowance <= $thresholdAmount) {
