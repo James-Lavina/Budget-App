@@ -2,13 +2,15 @@
 
 namespace App\Http\Livewire\Student;
 
+use Illuminate\Support\Facades\Auth;
 use App\Models\Expense;
 use App\Models\WeeklyBudget;
-use Carbon\Carbon;
 use Livewire\Component;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
+use App\Services\BudgetCycleService;
+use Illuminate\Support\Str;
 
 class WhatIfSimulator extends Component
 {
@@ -24,8 +26,19 @@ class WhatIfSimulator extends Component
     public $daysRemaining = 1;
     public $newRemaining = 0.00;
 
+    // Chart data — mirrors of the dispatched event payload, used so the
+    // initial Blade render can paint the chart directly instead of relying
+    // solely on the browser event (which can race with the JS listener
+    // attaching on first page load).
+    public $chartSpent = 0.00;
+    public $chartSavings = 0.00;
+    public $chartSimulated = 0.00;
+    public $chartRemaining = 0.00;
+    public $chartDeficit = 0.00;
+
     // Evaluation States
     public $isDeficit = false;
+    public $isCriticalZero = false; 
     public $isOfflineMode = false;
     public $aiInsight = 'Type an item name and cost or choose a preset to simulate impact.';
 
@@ -69,65 +82,15 @@ class WhatIfSimulator extends Component
 
     private function getCycleBounds($currentBudget)
     {
-        $today = Carbon::today();
-        $startDate = Carbon::parse($currentBudget->cycle_start_date)->startOfDay();
-        $targetResetDay = $currentBudget->reset_day ?? Auth::user()->default_reset_day ?? 'Monday';
-
-        if (strtolower($startDate->format('l')) === strtolower($targetResetDay)) {
-            $nextResetDate = $startDate->copy()->addWeek();
-        } else {
-            $nextResetDate = $startDate->copy()->next($targetResetDay);
-        }
-
-        $endDate = $nextResetDate->copy()->subSecond();
-
-        if ($today->gte($nextResetDate)) {
-            return [
-                'startDate'      => $startDate,
-                'nextResetDate'  => $nextResetDate,
-                'endDate'        => $endDate,
-                'daysRemaining'  => 0,
-                'spentTodayDate' => $today,
-            ];
-        }
-
-        // Fast-forward to the latest expense date in this cycle, matching
-        // Dashboard / SpendingForecastService so all pages agree on seeded/test data.
-        $latestExpenseDate = Expense::where('user_id', Auth::id())
-            ->whereBetween('transaction_date', [$startDate, $endDate])
-            ->max('transaction_date');
-
-        $evalDate        = $today;
-        $isFastForwarded = false;
-        if ($latestExpenseDate) {
-            $latestCarbon = Carbon::parse($latestExpenseDate)->startOfDay();
-            if ($latestCarbon->gt($today)) {
-                $evalDate        = $latestCarbon;
-                $isFastForwarded = true;
-            }
-        }
-
-        $totalCycleDays = max(1, (int) $startDate->diffInDays($nextResetDate));
-
-        if ($isFastForwarded) {
-            // $evalDate is a COMPLETED day (simulated/seeded data) — days remaining
-            // = total cycle length minus days already elapsed (same formula Dashboard uses).
-            $daysElapsed   = max(1, (int) $startDate->diffInDays($evalDate) + 1);
-            $daysRemaining = max(1, $totalCycleDays - $daysElapsed);
-        } else {
-            // Genuine real-time "today" is still in progress, so it counts
-            // as one of the remaining days.
-            $daysRemaining = max(1, (int) $evalDate->diffInDays($nextResetDate));
-        }
-
-        $spentTodayDate = $isFastForwarded ? $evalDate->copy()->addDay() : $evalDate;
+        $cycle = app(BudgetCycleService::class)->resolve($currentBudget, Auth::user());
 
         return [
-            'startDate'      => $startDate,
-            'nextResetDate'  => $nextResetDate,
-            'endDate'        => $endDate,
-            'daysRemaining'  => $daysRemaining,
-            'spentTodayDate' => $spentTodayDate,
+            'startDate'      => $cycle['startDate'],
+            'nextResetDate'  => $cycle['nextResetDate'],
+            'endDate'        => $cycle['endDate'],
+            'evalDate'       => $cycle['evalDate'],
+            'daysRemaining'  => $cycle['daysRemaining'],
+            'spentTodayDate' => $cycle['spentTodayDate'],
         ];
     }
 
@@ -143,11 +106,14 @@ class WhatIfSimulator extends Component
         $bounds = $this->getCycleBounds($currentBudget);
         $this->daysRemaining = $bounds['daysRemaining'];
 
-        // Regular expenses excluding savings transfers
+        // Regular expenses excluding savings transfers and Savings-category items
         $realConsumed = Expense::where('user_id', Auth::id())
-            ->whereBetween('transaction_date', [$bounds['startDate'], $bounds['endDate']])
-            ->whereNull('savings_goal_id')
-            ->sum('amount');
+        ->whereBetween('transaction_date', [$bounds['startDate'], $bounds['evalDate']->copy()->endOfDay()])
+        ->whereNull('savings_goal_id')
+        ->whereDoesntHave('category', function ($query) {
+            $query->where('name', 'LIKE', '%Savings%');
+        })
+        ->sum('amount');
 
         // Total transfers allocated to savings goals
         $totalSavings = Expense::where('user_id', Auth::id())
@@ -155,28 +121,38 @@ class WhatIfSimulator extends Component
             ->whereNotNull('savings_goal_id')
             ->sum('amount');
 
-        if ($this->daysRemaining === 0) {
-            $this->currentSafeToSpend = 0.00;
-            $this->newSafeToSpend = 0.00;
-            $this->newRemaining = 0.00;
-            $this->dailyImpactDelta = 0.00;
+            if ($this->daysRemaining === 0) {
+                $this->currentSafeToSpend = 0.00;
+                $this->newSafeToSpend = 0.00;
+                $this->newRemaining = 0.00;
+                $this->dailyImpactDelta = 0.00;
+                $this->isDeficit = ((float) $currentBudget->remaining_allowance < 0);
+            
+                $this->chartSpent     = (float) $realConsumed;
+                $this->chartSavings   = (float) $totalSavings;
+                $this->chartSimulated = 0.00;
+                $this->chartRemaining = 0.00;
+                $this->chartDeficit   = 0.00;
 
-            if ($shouldDispatchChart) {
-                $this->dispatchBrowserEvent('renderWeeklyImpactChart', [
-                    'spent'     => (float)$realConsumed,
-                    'savings'   => (float)$totalSavings,
-                    'simulated' => 0.00,
-                    'remaining' => 0.00,
-                    'deficit'   => 0.00,
-                ]);
-            }
-            return;
+                if ($shouldDispatchChart) {
+                    $this->dispatchBrowserEvent('renderWeeklyImpactChart', [
+                        'spent'     => $this->chartSpent,
+                        'savings'   => $this->chartSavings,
+                        'simulated' => $this->chartSimulated,
+                        'remaining' => $this->chartRemaining,
+                        'deficit'   => $this->chartDeficit,
+                    ]);
+                }
+                return;
         }
 
         $todaySpent = Expense::where('user_id', Auth::id())
-        ->whereDate('transaction_date', $bounds['spentTodayDate'])
-        ->whereNull('savings_goal_id')
-        ->sum('amount');
+            ->whereDate('transaction_date', $bounds['spentTodayDate'])
+            ->whereNull('savings_goal_id')
+            ->whereDoesntHave('category', function ($query) {
+                $query->where('name', 'LIKE', '%Savings%');
+            })
+            ->sum('amount');
 
         $morningBalance = $currentBudget->remaining_allowance + $todaySpent;
         $todayStartingQuota = $morningBalance / $this->daysRemaining;
@@ -186,14 +162,21 @@ class WhatIfSimulator extends Component
         $this->newRemaining = (float) $currentBudget->remaining_allowance;
         $this->dailyImpactDelta = 0.00;
         $this->isDeficit = ((float) $currentBudget->remaining_allowance < 0);
+        $this->isCriticalZero = !$this->isDeficit && ((float) $currentBudget->remaining_allowance <= 0.01);
+
+        $this->chartSpent     = (float) $realConsumed;
+        $this->chartSavings   = (float) $totalSavings;
+        $this->chartSimulated = 0.00;
+        $this->chartRemaining = (float) $currentBudget->remaining_allowance;
+        $this->chartDeficit   = 0.00;
 
         if ($shouldDispatchChart) {
             $this->dispatchBrowserEvent('renderWeeklyImpactChart', [
-                'spent'     => (float)$realConsumed,
-                'savings'   => (float)$totalSavings,
-                'simulated' => 0.00,
-                'remaining' => (float)$currentBudget->remaining_allowance,
-                'deficit'   => 0.00,
+                'spent'     => $this->chartSpent,
+                'savings'   => $this->chartSavings,
+                'simulated' => $this->chartSimulated,
+                'remaining' => $this->chartRemaining,
+                'deficit'   => $this->chartDeficit,
             ]);
         }
     }
@@ -229,8 +212,11 @@ class WhatIfSimulator extends Component
         }
 
         $realConsumed = Expense::where('user_id', Auth::id())
-            ->whereBetween('transaction_date', [$bounds['startDate'], $bounds['endDate']])
+            ->whereBetween('transaction_date', [$bounds['startDate'], $bounds['evalDate']->copy()->endOfDay()])
             ->whereNull('savings_goal_id')
+            ->whereDoesntHave('category', function ($query) {
+                $query->where('name', 'LIKE', '%Savings%');
+            })
             ->sum('amount');
 
         $totalSavings = Expense::where('user_id', Auth::id())
@@ -238,13 +224,17 @@ class WhatIfSimulator extends Component
             ->whereNotNull('savings_goal_id')
             ->sum('amount');
 
-            $todaySpent = Expense::where('user_id', Auth::id())
+        $todaySpent = Expense::where('user_id', Auth::id())
             ->whereDate('transaction_date', $bounds['spentTodayDate'])
             ->whereNull('savings_goal_id')
+            ->whereDoesntHave('category', function ($query) {
+                $query->where('name', 'LIKE', '%Savings%');
+            })
             ->sum('amount');
 
         $this->newRemaining = $currentBudget->remaining_allowance - $simulatedCost;
         $this->isDeficit = ($this->newRemaining < 0);
+        $this->isCriticalZero = !$this->isDeficit && ($this->newRemaining <= 0.01);
 
         if ($this->isDeficit || $this->daysRemaining === 0) {
             $this->newSafeToSpend = 0.00;
@@ -259,12 +249,18 @@ class WhatIfSimulator extends Component
         $remainingForChart = max(0, $this->newRemaining);
         $deficitForChart = $this->isDeficit ? abs($this->newRemaining) : 0.00;
 
+        $this->chartSpent     = (float) $realConsumed;
+        $this->chartSavings   = (float) $totalSavings;
+        $this->chartSimulated = (float) $simulatedCost;
+        $this->chartRemaining = (float) $remainingForChart;
+        $this->chartDeficit   = (float) $deficitForChart;
+
         $this->dispatchBrowserEvent('renderWeeklyImpactChart', [
-            'spent'     => (float)$realConsumed,
-            'savings'   => (float)$totalSavings,
-            'simulated' => (float)$simulatedCost,
-            'remaining' => (float)$remainingForChart,
-            'deficit'   => (float)$deficitForChart,
+            'spent'     => $this->chartSpent,
+            'savings'   => $this->chartSavings,
+            'simulated' => $this->chartSimulated,
+            'remaining' => $this->chartRemaining,
+            'deficit'   => $this->chartDeficit,
         ]);
 
         $this->generateSimulationInsight($simulatedCost);
@@ -274,6 +270,27 @@ class WhatIfSimulator extends Component
     {
         $item = trim($this->itemName) !== '' ? $this->itemName : 'this item';
         $this->isOfflineMode = false;
+
+        // Short-lived cache: rapid re-clicks of the same preset, or nudging the
+        // amount within the same rough ballpark, shouldn't refire the API.
+        // Rounding to the nearest ₱5 groups "near-identical" scenarios together
+        // without being so coarse that meaningfully different amounts collide.
+        $roundedCost = (int) (round($simulatedCost / 5) * 5);
+        $cacheKey = sprintf(
+            'simulator_ai:%d:%s:%d:%d:%d',
+            Auth::id(),
+            Str::slug($item),
+            $roundedCost,
+            $this->daysRemaining,
+            $this->isDeficit ? 1 : 0
+        );
+
+        $cachedInsight = Cache::get($cacheKey);
+        if ($cachedInsight !== null) {
+            $this->aiInsight = $cachedInsight['text'];
+            $this->isOfflineMode = $cachedInsight['offline'];
+            return;
+        }
 
         try {
             $apiKey = env('GROQ_API_KEY') ?? config('services.groq.key');
@@ -298,7 +315,7 @@ class WhatIfSimulator extends Component
                             ['role' => 'user', 'content' => $prompt]
                         ],
                         'temperature' => 0.5,
-                        'max_tokens' => 200
+                        'max_tokens' => 400
                     ]);
 
                 if ($response->successful()) {
@@ -307,6 +324,7 @@ class WhatIfSimulator extends Component
 
                     if (!empty(trim($rawText))) {
                         $this->aiInsight = trim($rawText);
+                        Cache::put($cacheKey, ['text' => $this->aiInsight, 'offline' => false], now()->addMinutes(3));
                         return;
                     }
                 }
@@ -318,12 +336,18 @@ class WhatIfSimulator extends Component
         $this->isOfflineMode = true;
         if ($this->isDeficit) {
             $this->aiInsight = "Warning! Purchasing {$item} puts you over budget by ₱" . number_format(abs($this->newRemaining), 2) . ". You will run out of cash before the week ends.";
+        } elseif ($this->isCriticalZero) {
+            $this->aiInsight = "Heads up! Buying {$item} would use up your entire remaining balance for the week. You'll have ₱0.00 left until your next reset.";
         } elseif ($this->newSafeToSpend == 0) {
-            $this->aiInsight = "Buying {$item} uses up your entire spending limit for today, but your remaining week stays covered.";
+            $this->aiInsight = "Buying {$item} uses up your entire spending limit for today, but ₱" . number_format($this->newRemaining, 2) . " stays available for the rest of the week.";
         } else {
             $newDaily = number_format($this->newSafeToSpend, 2);
             $this->aiInsight = "You can comfortably afford {$item}! You will still have ₱{$newDaily}/day left for the rest of the week.";
         }
+
+        // Cache the offline fallback too
+        // deterministic text on every rapid re-click.
+        Cache::put($cacheKey, ['text' => $this->aiInsight, 'offline' => true], now()->addMinutes(3));
     }
 
     public function resetSimulation()

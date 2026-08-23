@@ -115,9 +115,10 @@
                     </div>
 
                     <!-- Outcome Daily Quota Card -->
-                    <div class="border rounded-3xl p-5 shadow-sm flex items-center gap-4 transition-all duration-300 {{ $isDeficit ? 'border-rose-200 bg-rose-50/40' : 'border-indigo-200/80 bg-indigo-50/30 ring-1 ring-indigo-500/10' }}">
-                        <div class="h-11 w-11 rounded-2xl flex items-center justify-center shrink-0 {{ $isDeficit ? 'bg-rose-100 text-rose-600 border border-rose-200/50' : 'bg-indigo-600 text-white shadow-md shadow-indigo-200' }}">
-                            @if($isDeficit)
+                    @php $isWarningState = $isDeficit || $isCriticalZero; @endphp
+                    <div class="border rounded-3xl p-5 shadow-sm flex items-center gap-4 transition-all duration-300 {{ $isWarningState ? 'border-rose-200 bg-rose-50/40' : 'border-indigo-200/80 bg-indigo-50/30 ring-1 ring-indigo-500/10' }}">
+                        <div class="h-11 w-11 rounded-2xl flex items-center justify-center shrink-0 {{ $isWarningState ? 'bg-rose-100 text-rose-600 border border-rose-200/50' : 'bg-indigo-600 text-white shadow-md shadow-indigo-200' }}">
+                            @if($isWarningState)
                                 <svg class="w-5 h-5 animate-pulse" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                                     <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                                 </svg>
@@ -128,18 +129,18 @@
                             @endif
                         </div>
                         <div class="flex-1">
-                            <span class="block text-[9px] uppercase font-bold tracking-widest {{ $isDeficit ? 'text-rose-600' : 'text-indigo-600' }}">Simulated Safe-to-Spend</span>
+                            <span class="block text-[9px] uppercase font-bold tracking-widest {{ $isWarningState ? 'text-rose-600' : 'text-indigo-600' }}">Simulated Safe-to-Spend</span>
                             
                             <!-- Staked Layout to Prevent Red Impact Text Overflow -->
                             <div class="flex flex-col">
-                                <span class="text-lg font-black font-mono tracking-tight {{ $isDeficit ? 'text-rose-600' : 'text-slate-900' }}">
+                                <span class="text-lg font-black font-mono tracking-tight {{ $isWarningState ? 'text-rose-600' : 'text-slate-900' }}">
                                     @if($isDeficit)
                                         ₱0.00
                                     @else
                                         ₱{{ number_format($newSafeToSpend, 2) }}<span class="text-xs text-slate-400 font-medium">/day</span>
                                     @endif
                                 </span>
-                                @if($purchaseAmount && floatval($purchaseAmount) > 0 && !$isDeficit)
+                                @if($purchaseAmount && floatval($purchaseAmount) > 0 && !$isWarningState)
                                     <span class="text-[11px] font-bold text-rose-500 font-mono mt-0.5">
                                         (-₱{{ number_format($dailyImpactDelta, 2) }}/day)
                                     </span>
@@ -149,6 +150,8 @@
                             <span class="text-[10px] text-slate-500 font-medium block mt-1">
                                 @if($isDeficit)
                                     Deficit: <span class="font-bold text-rose-600 font-mono">₱{{ number_format(abs($newRemaining), 2) }}</span>
+                                @elseif($isCriticalZero)
+                                    <span class="font-bold text-rose-600">All of your remaining balance used</span>
                                 @else
                                     Money Left: <span class="font-bold text-slate-700 font-mono">₱{{ number_format($newRemaining, 2) }}</span>
                                 @endif
@@ -158,7 +161,8 @@
                 </div>
 
                 <!-- AI Advice Banner -->
-                <div class="p-5 rounded-3xl border transition-all duration-200 {{ $isDeficit ? 'bg-rose-50/70 border-rose-200/80 text-rose-900' : 'bg-gradient-to-br from-indigo-50/70 via-white to-blue-50/40 border-indigo-100 text-slate-800' }}">
+                @php $isWarningState = $isDeficit || $isCriticalZero; @endphp
+                <div class="p-5 rounded-3xl border transition-all duration-200 {{ $isWarningState ? 'bg-rose-50/70 border-rose-200/80 text-rose-900' : 'bg-gradient-to-br from-indigo-50/70 via-white to-blue-50/40 border-indigo-100 text-slate-800' }}">
                     <div class="flex items-start gap-3.5">
                         <div class="p-2 rounded-xl shrink-0 {{ $isDeficit ? 'bg-rose-100 text-rose-600' : 'bg-indigo-600 text-white shadow-sm shadow-indigo-600/10' }}">
                             <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
@@ -167,8 +171,8 @@
                         </div>
                         <div class="space-y-1.5 w-full">
                             <div class="flex items-center justify-between gap-2">
-                                <h4 class="text-[10px] font-black uppercase tracking-widest {{ $isDeficit ? 'text-rose-800' : 'text-slate-400' }}">
-                                    {{ $isDeficit ? 'Budget Overdraft Warning' : 'AI Budget Advice' }}
+                                <h4 class="text-[10px] font-black uppercase tracking-widest {{ $isWarningState ? 'text-rose-800' : 'text-slate-400' }}">
+                                    {{ $isDeficit ? 'Budget Overdraft Warning' : ($isCriticalZero ? 'Zero Balance Warning' : 'AI Budget Advice') }}
                                 </h4>
                                 <div wire:loading.remove wire:target="runSimulation, resetSimulation, applyPreset">
                                     @if(!empty($aiInsight))
@@ -224,11 +228,11 @@
                 data: {
                     labels: ['Weekly Allowance'],
                     datasets: [
-                        { label: 'Already Spent', data: [0], backgroundColor: '#94a3b8', borderRadius: 6 },
-                        { label: 'Savings Set Aside', data: [0], backgroundColor: '#06b6d4', borderRadius: 6 },
-                        { label: 'This Purchase', data: [0], backgroundColor: '#6366f1', borderRadius: 6 },
-                        { label: 'Money Left', data: [0], backgroundColor: '#10b981', borderRadius: 6 },
-                        { label: 'Overdraft / Deficit', data: [0], backgroundColor: '#f43f5e', borderRadius: 6 }
+                        { label: 'Already Spent', data: [{{ $chartSpent }}], backgroundColor: '#94a3b8', borderRadius: 6 },
+                        { label: 'Savings Set Aside', data: [{{ $chartSavings }}], backgroundColor: '#06b6d4', borderRadius: 6 },
+                        { label: 'This Purchase', data: [{{ $chartSimulated }}], backgroundColor: '#6366f1', borderRadius: 6 },
+                        { label: 'Money Left', data: [{{ $chartRemaining }}], backgroundColor: '#10b981', borderRadius: 6 },
+                        { label: 'Overdraft / Deficit', data: [{{ $chartDeficit }}], backgroundColor: '#f43f5e', borderRadius: 6 }
                     ]
                 },
                 options: {
