@@ -126,10 +126,37 @@
                             <label for="password" class="block text-xs font-bold text-slate-700">
                                 Password
                             </label>
-                            <div>
-                                <input id="password" type="password" wire:model.lazy="password" placeholder="8+ characters"
-                                    class="block w-full rounded-2xl px-4 py-3 bg-slate-50 border placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-2 sm:text-sm transition-all duration-200
-                                    @error('password') border-rose-300 text-rose-900 placeholder-rose-300 focus:border-rose-500 focus:ring-rose-500/20 bg-rose-50/30 @else border-slate-200 focus:border-indigo-600 focus:ring-indigo-600/20 text-slate-900 @enderror">
+                            <div class="relative">
+                                <input
+                                    id="password"
+                                    type="password"
+                                    wire:model.lazy="password"
+                                    placeholder="8+ characters"
+                                    class="block w-full rounded-2xl px-4 py-3 pr-11 bg-slate-50 border placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-2 sm:text-sm transition-all duration-200
+                                    @error('password')
+                                        border-rose-300 text-rose-900 placeholder-rose-300 focus:border-rose-500 focus:ring-rose-500/20 bg-rose-50/30
+                                    @else
+                                        border-slate-200 focus:border-indigo-600 focus:ring-indigo-600/20 text-slate-900
+                                    @enderror"
+                                >
+                            
+                                <button
+                                    type="button"
+                                    onclick="togglePassword('password', 'password-eye-open', 'password-eye-closed')"
+                                    class="absolute inset-y-0 right-0 flex items-center px-3 text-slate-400 hover:text-indigo-600 transition-colors"
+                                    aria-label="Show password"
+                                >
+                                    <svg id="password-eye-open" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round"
+                                            d="M2.25 12s3.75-6 9.75-6 9.75 6 9.75 6-3.75 6-9.75 6-9.75-6-9.75-6z"/>
+                                        <circle cx="12" cy="12" r="2.5"/>
+                                    </svg>
+                            
+                                    <svg id="password-eye-closed" class="w-5 h-5 hidden" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round"
+                                            d="M3 3l18 18M10.58 10.58a2 2 0 102.83 2.83M9.88 4.24A10.2 10.2 0 0112 4c6 0 10 8 10 8a18.2 18.2 0 01-3.17 4.33M6.61 6.61C3.93 8.63 2 12 2 12s4 8 10 8a9.83 9.83 0 004.39-1.03"/>
+                                    </svg>
+                                </button>
                             </div>
                             @error('password')
                                 <span class="text-xs text-rose-600 mt-1 font-medium flex items-center gap-1">
@@ -143,9 +170,32 @@
                             <label for="password_confirmation" class="block text-xs font-bold text-slate-700">
                                 Confirm password
                             </label>
-                            <div>
-                                <input id="password_confirmation" type="password" wire:model.lazy="password_confirmation" placeholder="Repeat password"
-                                    class="block w-full rounded-2xl px-4 py-3 bg-slate-50 border border-slate-200 placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:border-indigo-600 focus:ring-indigo-600/20 sm:text-sm text-slate-900 transition-all duration-200">
+                            <div class="relative">
+                                <input
+                                    id="password_confirmation"
+                                    type="password"
+                                    wire:model.lazy="password_confirmation"
+                                    placeholder="Repeat password"
+                                    class="block w-full rounded-2xl px-4 py-3 pr-11 bg-slate-50 border border-slate-200 placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:border-indigo-600 focus:ring-indigo-600/20 sm:text-sm text-slate-900 transition-all duration-200"
+                                >
+                            
+                                <button
+                                    type="button"
+                                    onclick="togglePassword('password_confirmation', 'confirm-eye-open', 'confirm-eye-closed')"
+                                    class="absolute inset-y-0 right-0 flex items-center px-3 text-slate-400 hover:text-indigo-600 transition-colors"
+                                    aria-label="Show confirm password"
+                                >
+                                    <svg id="confirm-eye-open" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round"
+                                            d="M2.25 12s3.75-6 9.75-6 9.75 6 9.75 6-3.75 6-9.75 6-9.75-6-9.75-6z"/>
+                                        <circle cx="12" cy="12" r="2.5"/>
+                                    </svg>
+                            
+                                    <svg id="confirm-eye-closed" class="w-5 h-5 hidden" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round"
+                                            d="M3 3l18 18M10.58 10.58a2 2 0 102.83 2.83M9.88 4.24A10.2 10.2 0 0112 4c6 0 10 8 10 8a18.2 18.2 0 01-3.17 4.33M6.61 6.61C3.93 8.63 2 12 2 12s4 8 10 8a9.83 9.83 0 004.39-1.03"/>
+                                    </svg>
+                                </button>
                             </div>
                         </div>
                     </div>
@@ -187,3 +237,23 @@
         </div>
     </div>
 </div>
+
+<script>
+    function togglePassword(inputId, openIconId, closedIconId) {
+        const input = document.getElementById(inputId);
+        const openIcon = document.getElementById(openIconId);
+        const closedIcon = document.getElementById(closedIconId);
+
+        if (input.type === 'password') {
+            input.type = 'text';
+
+            openIcon.classList.add('hidden');
+            closedIcon.classList.remove('hidden');
+        } else {
+            input.type = 'password';
+
+            openIcon.classList.remove('hidden');
+            closedIcon.classList.add('hidden');
+        }
+    }
+</script>

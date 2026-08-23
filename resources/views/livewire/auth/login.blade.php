@@ -126,10 +126,37 @@
                                 </a>
                             @endif
                         </div>
-                        <div>
-                            <input id="password" type="password" wire:model.lazy="password" placeholder="Enter your password"
-                                class="block w-full rounded-2xl px-4 py-3 bg-slate-50 border placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-2 sm:text-sm transition-all duration-200
-                                @error('password') border-rose-300 text-rose-900 placeholder-rose-300 focus:border-rose-500 focus:ring-rose-500/20 bg-rose-50/30 @else border-slate-200 focus:border-indigo-600 focus:ring-indigo-600/20 text-slate-900 @enderror">
+                        <div class="relative">
+                            <input
+                                id="password"
+                                type="password"
+                                wire:model.lazy="password"
+                                placeholder="Enter your password"
+                                class="block w-full rounded-2xl px-4 py-3 pr-12 bg-slate-50 border placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-2 sm:text-sm transition-all duration-200
+                                @error('password')
+                                    border-rose-300 text-rose-900 placeholder-rose-300 focus:border-rose-500 focus:ring-rose-500/20 bg-rose-50/30
+                                @else
+                                    border-slate-200 focus:border-indigo-600 focus:ring-indigo-600/20 text-slate-900
+                                @enderror"
+                            >
+                        
+                            <button
+                                type="button"
+                                onclick="togglePassword()"
+                                class="absolute inset-y-0 right-0 flex items-center px-4 text-slate-400 hover:text-indigo-600 transition-colors"
+                                aria-label="Show password"
+                            >
+                                <svg id="eye-open" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round"
+                                        d="M2.25 12s3.75-6 9.75-6 9.75 6 9.75 6-3.75 6-9.75 6-9.75-6-9.75-6z" />
+                                    <circle cx="12" cy="12" r="2.5" />
+                                </svg>
+                        
+                                <svg id="eye-closed" class="w-5 h-5 hidden" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round"
+                                        d="M3 3l18 18M10.58 10.58a2 2 0 102.83 2.83M9.88 4.24A10.2 10.2 0 0112 4c6 0 10 8 10 8a18.2 18.2 0 01-3.17 4.33M6.61 6.61C3.93 8.63 2 12 2 12s4 8 10 8a9.83 9.83 0 004.39-1.03" />
+                                </svg>
+                            </button>
                         </div>
                         @error('password')
                             <span class="text-xs text-rose-600 mt-1 font-medium flex items-center gap-1">
@@ -184,3 +211,23 @@
         </div>
     </div>
 </div>
+
+<script>
+    function togglePassword() {
+        const password = document.getElementById('password');
+        const eyeOpen = document.getElementById('eye-open');
+        const eyeClosed = document.getElementById('eye-closed');
+
+        if (password.type === 'password') {
+            password.type = 'text';
+
+            eyeOpen.classList.add('hidden');
+            eyeClosed.classList.remove('hidden');
+        } else {
+            password.type = 'password';
+
+            eyeOpen.classList.remove('hidden');
+            eyeClosed.classList.add('hidden');
+        }
+    }
+</script>
