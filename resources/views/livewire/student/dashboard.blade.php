@@ -188,7 +188,7 @@
                         <div class="flex items-center gap-2 min-w-0">
                             <span class="w-2.5 h-2.5 rounded-full shrink-0 bg-indigo-500"></span>
                             <span class="font-semibold text-indigo-700">Saved this week</span>
-                            <span class="text-[10px] text-slate-400 font-medium">(not counted as spending)</span>
+                            {{-- <span class="text-[10px] text-slate-400 font-medium">(not counted as spending)</span> --}}
                         </div>
                         <span class="font-black text-indigo-700 font-mono shrink-0 pl-2">
                             ₱{{ number_format($totalSavedThisWeek, 2) }}
@@ -237,7 +237,7 @@
         <div class="bg-white rounded-2xl sm:rounded-3xl p-4 sm:p-6 border border-slate-100 shadow-sm w-full min-w-0 overflow-hidden">
             <div class="pb-4 border-b border-slate-100 flex items-center justify-between gap-3">
                 <div class="min-w-0">
-                    <h3 class="text-base sm:text-lg font-bold text-slate-900 truncate">Recent Expenses</h3>
+                    <h3 class="text-base sm:text-lg font-bold text-slate-900 truncate">Recent Activity</h3>
                     <p class="text-[11px] text-slate-400 font-medium mt-0.5">Your last 5 transactions</p>
                 </div>
                 <a href="{{ route('student.expenses.index') }}" class="text-xs sm:text-sm font-semibold text-indigo-600 hover:text-indigo-700 transition-colors flex items-center gap-1 shrink-0">

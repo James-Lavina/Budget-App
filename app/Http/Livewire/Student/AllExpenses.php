@@ -231,7 +231,12 @@ class AllExpenses extends Component
     {
         $query = $this->buildQuery();
 
-        $totalSpent = (clone $query)->sum('amount');
+        $totalSpent = (clone $query)
+            ->whereNull('savings_goal_id')
+            ->whereDoesntHave('category', function ($query) {
+                $query->where('name', 'LIKE', '%Savings%');
+            })
+            ->sum('amount');
         $allExpenses = $query->latest('transaction_date')->paginate(10);
         $categories = ExpenseCategory::orderBy('name')->get();
 

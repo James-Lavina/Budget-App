@@ -28,7 +28,6 @@
               <nav class="hidden md:flex items-center gap-8 text-sm font-semibold text-slate-600">
                   <a href="#features" class="hover:text-indigo-600 transition-colors">Features</a>
                   <a href="#how-it-works" class="hover:text-indigo-600 transition-colors">How It Works</a>
-                  <a href="#comparison" class="hover:text-indigo-600 transition-colors">Why SampleName</a>
                   <a href="{{ route('login') }}" class="hover:text-indigo-600 transition-colors">Log in</a>
               </nav>
               <!-- CTA Button -->
@@ -53,7 +52,7 @@
                   <svg class="w-3.5 h-3.5 text-indigo-500" fill="currentColor" viewBox="0 0 20 20">
                       <path d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.57l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.57l7-10a1 1 0 011.12-.384z"/>
                   </svg>
-                  Built for students, not bankers
+                  Made for weekly allowances, not monthly paychecks
               </div>
               <!-- Main Heading -->
               <h1 class="text-4xl sm:text-6xl font-extrabold text-slate-900 tracking-tight leading-[1.12]">
@@ -188,7 +187,7 @@
                   </div>
                   <h3 class="text-lg font-bold text-slate-900">Smart Nudges</h3>
                   <p class="text-xs sm:text-sm text-slate-500 leading-relaxed font-normal">
-                      Gentle behavioral notifications that keep your spending balanced without feeling stressful.
+                      Gentle behavioral notifications that keep your spending balanced, right when it matters.
                   </p>
               </div>
           </div>
@@ -213,7 +212,7 @@
                       </div>
                       <h3 class="text-lg font-bold">Set your allowance</h3>
                       <p class="text-xs sm:text-sm text-indigo-100 leading-relaxed font-normal">
-                          Tell us your weekly budget — it takes 10 seconds to establish your primary cycle.
+                          Tell us your weekly budget. Takes 10 seconds, no bank connections needed.
                       </p>
                   </div>
                   <div class="bg-white/10 backdrop-blur-md border border-white/10 rounded-3xl p-6 sm:p-8 space-y-4" data-aos="zoom-in-up" data-aos-delay="200">
@@ -222,7 +221,7 @@
                       </div>
                       <h3 class="text-lg font-bold">Log expenses fast</h3>
                       <p class="text-xs sm:text-sm text-indigo-100 leading-relaxed font-normal">
-                          Tap a category chip or scan a receipt with AI. No tedious typing marathons.
+                        Snap a receipt or tap a category — logging takes seconds, not minutes.
                       </p>
                   </div>
                   <div class="bg-white/10 backdrop-blur-md border border-white/10 rounded-3xl p-6 sm:p-8 space-y-4" data-aos="zoom-in-up" data-aos-delay="300">
@@ -231,67 +230,9 @@
                       </div>
                       <h3 class="text-lg font-bold">Stay on track</h3>
                       <p class="text-xs sm:text-sm text-indigo-100 leading-relaxed font-normal">
-                          See your daily safe-to-spend limit and build better habits effortlessly.
+                          See your daily safe-to-spend number and build the habit.
                       </p>
                   </div>
-              </div>
-          </div>
-      </div>
-  </section>
-
-  <!-- COMPARISON SECTION -->
-  <section id="comparison" class="py-16 sm:py-20 px-4 sm:px-6 lg:px-8">
-      <div class="max-w-5xl mx-auto space-y-10">
-        
-          <div class="text-center max-w-xl mx-auto space-y-2" data-aos="fade-up">
-              <h2 class="text-3xl font-extrabold text-slate-900 tracking-tight">
-                  A smarter way to handle weekly money
-              </h2>
-              <p class="text-sm text-slate-500 font-medium">
-                  Traditional budgeting feels like homework. Here is how SampleName changes the game.
-              </p>
-          </div>
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-            
-              <!-- Traditional Expense Trackers -->
-              <div class="bg-rose-50/50 border border-rose-100 rounded-[2rem] p-8 space-y-5" data-aos="fade-right" data-aos-delay="100">
-                  <div class="inline-flex items-center gap-2 text-xs font-bold text-rose-600 bg-rose-100/80 px-3 py-1 rounded-full">
-                      Traditional Expense Trackers
-                  </div>
-                  <ul class="space-y-3.5 text-xs sm:text-sm text-slate-600 font-medium">
-                      <li class="flex items-start gap-3">
-                          <span class="text-rose-500 font-black text-base line-none">•</span>
-                          <span>Constantly guessing if your remaining allowance will actually last until the end of the week.</span>
-                      </li>
-                      <li class="flex items-start gap-3">
-                          <span class="text-rose-500 font-black text-base line-none">•</span>
-                          <span>No clear visibility into how much you can safely spend each day.</span>
-                      </li>
-                      <li class="flex items-start gap-3">
-                          <span class="text-rose-500 font-black text-base line-none">•</span>
-                          <span>Overwhelming monthly charts that don't fit weekly allowance cycles.</span>
-                      </li>
-                  </ul>
-              </div>
-              <!-- SampleName Way -->
-              <div class="bg-indigo-50/50 border border-indigo-100 rounded-[2rem] p-8 space-y-5 shadow-sm" data-aos="fade-left" data-aos-delay="200">
-                  <div class="inline-flex items-center gap-2 text-xs font-bold text-indigo-600 bg-indigo-100/80 px-3 py-1 rounded-full">
-                      The SampleName Approach
-                  </div>
-                  <ul class="space-y-3.5 text-xs sm:text-sm text-slate-700 font-medium">
-                      <li class="flex items-start gap-3">
-                          <span class="text-indigo-600 font-black text-base line-none">✓</span>
-                          <span>Know your daily <strong>Safe-to-Spend</strong> limit before making a purchase.</span>
-                      </li>
-                      <li class="flex items-start gap-3">
-                          <span class="text-indigo-600 font-black text-base line-none">✓</span>
-                          <span>Instant AI receipt extraction with zero manual data entry.</span>
-                      </li>
-                      <li class="flex items-start gap-3">
-                          <span class="text-indigo-600 font-black text-base line-none">✓</span>
-                          <span>Real-time "What-If" purchase simulations to protect your savings goal.</span>
-                      </li>
-                  </ul>
               </div>
           </div>
       </div>
@@ -308,7 +249,7 @@
                     Ready to take control of your allowance?
                 </h2>
                 <p class="text-sm sm:text-base text-slate-500 font-medium max-w-xl mx-auto">
-                    Join thousands of students building better money habits — one week at a time.
+                    Set your allowance, track what matters, and always know what's safe to spend — one week at a time.
                 </p>
                 <div class="pt-2">
                     <a href="{{ route('register') }}" class="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-2xl text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 active:scale-95 shadow-lg shadow-indigo-600/20 transition">
@@ -340,7 +281,6 @@
           <nav class="flex items-center gap-6 text-xs font-medium text-slate-500">
               <a href="#features" class="hover:text-slate-900 transition-colors">Features</a>
               <a href="#how-it-works" class="hover:text-slate-900 transition-colors">How It Works</a>
-              <a href="#comparison" class="hover:text-slate-900 transition-colors">Why SampleName</a>
           </nav>
       </div>
   </footer>

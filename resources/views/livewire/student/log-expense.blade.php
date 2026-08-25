@@ -50,8 +50,15 @@
                         <span class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-800 font-extrabold text-base">
                             ₱
                         </span>
-                        <input id="amount" type="number" step="0.01" wire:model.defer="amount" placeholder="0.00"
-                            class="w-full pl-9 pr-4 py-3 bg-slate-100/80 border-0 rounded-2xl text-slate-900 font-extrabold text-base placeholder-slate-400 focus:bg-white focus:ring-2 focus:ring-indigo-500 transition-all">
+                        <input
+                        id="amount"
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        wire:model.defer="amount"
+                        placeholder="0.00"
+                        onblur="formatAmount(this)"
+                        class="w-full pl-9 pr-4 py-3 bg-slate-100/80 border-0 rounded-2xl text-slate-900 font-extrabold text-base placeholder-slate-400 focus:bg-white focus:ring-2 focus:ring-indigo-500 transition-all">
                     </div>
                     @error('amount')
                         <span class="text-[11px] font-semibold text-rose-500 block mt-1">{{ $message }}</span>
@@ -113,3 +120,14 @@
 
     </div>
 </div>
+
+<script>
+    function formatAmount(input) {
+        if (input.value !== '') {
+            input.value = parseFloat(input.value).toFixed(2);
+
+            // Keep Livewire updated
+            input.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+    }
+</script>

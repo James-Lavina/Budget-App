@@ -93,9 +93,22 @@
                             <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
                                 <span class="text-slate-400 font-bold text-sm">₱</span>
                             </div>
-                            <input id="total_allowance" type="number" step="0.01" placeholder="0.00" wire:model.debounce.500ms="total_allowance"
+                        
+                            <input
+                                id="total_allowance"
+                                type="number"
+                                step="1"
+                                min="0"
+                                placeholder="0.00"
+                                wire:model.debounce.500ms="total_allowance"
+                                onblur="formatAllowance(this)"
                                 class="block w-full rounded-2xl pl-9 pr-4 py-3 bg-slate-50 border placeholder-slate-400 font-semibold focus:bg-white focus:outline-none focus:ring-2 sm:text-sm transition-all duration-200
-                                @error('total_allowance') border-rose-300 text-rose-900 placeholder-rose-300 focus:border-rose-500 focus:ring-rose-500/20 bg-rose-50/30 @else border-slate-200 focus:border-indigo-600 focus:ring-indigo-600/20 text-slate-900 @enderror">
+                                @error('total_allowance')
+                                    border-rose-300 text-rose-900 placeholder-rose-300 focus:border-rose-500 focus:ring-rose-500/20 bg-rose-50/30
+                                @else
+                                    border-slate-200 focus:border-indigo-600 focus:ring-indigo-600/20 text-slate-900
+                                @enderror"
+                            >
                         </div>
                         @error('total_allowance')
                             <span class="text-xs text-rose-600 mt-1 font-medium flex items-center gap-1">
@@ -124,7 +137,7 @@
                     </div>
 
                     <!-- Initial Interval Timeline Banner -->
-                    <div class="bg-indigo-50/60 rounded-2xl p-4 border border-indigo-100/80 space-y-1 text-xs">
+                    {{-- <div class="bg-indigo-50/60 rounded-2xl p-4 border border-indigo-100/80 space-y-1 text-xs">
                         <span class="font-extrabold block text-indigo-950 text-xs">Your First Week</span>
                         <p class="text-slate-600 leading-relaxed">
                             Your budget runs from
@@ -136,7 +149,7 @@
                                 {{ \Carbon\Carbon::today()->addDays(6)->format('M d, Y') }}
                             </span>
                         </p>
-                    </div>
+                    </div> --}}
 
                     <!-- Submit Button -->
                     <div class="pt-2">
@@ -161,3 +174,14 @@
         </div>
     </div>
 </div>
+
+<script>
+    function formatAllowance(input) {
+        if (input.value !== '') {
+            input.value = parseFloat(input.value).toFixed(2);
+
+            // Update Livewire value
+            input.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+    }
+</script>

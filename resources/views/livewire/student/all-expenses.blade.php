@@ -7,8 +7,8 @@
             <!-- Ledger Header -->
             <div class="px-6 py-5 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div class="space-y-1">
-                    <h1 class="text-xl sm:text-2xl font-extrabold text-slate-900 tracking-tight">Expense Records</h1>
-                    <p class="text-xs text-slate-500 font-medium">Complete historical breakdown of your tracked budget items.</p>
+                    <h1 class="text-xl sm:text-2xl font-extrabold text-slate-900 tracking-tight">Transaction History</h1>
+                    <p class="text-xs text-slate-500 font-medium">Complete history of your logged transactions.</p>
                 </div>
                 <div class="flex items-center gap-2 self-start sm:self-center">
                     <span class="inline-flex items-center text-xs font-bold px-3 py-1.5 bg-slate-100 text-slate-700 rounded-xl">
