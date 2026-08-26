@@ -24,10 +24,15 @@
                         <span class="h-2 w-2 rounded-full bg-emerald-500"></span>
                         On track this week
                     </span>
+                @elseif($isDepleted)
+                    <span class="inline-flex items-center gap-1.5 text-[11px] sm:text-xs bg-rose-50 border border-rose-200/80 text-rose-700 px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-full font-bold">
+                        <span class="h-2 w-2 rounded-full bg-rose-500 animate-pulse"></span>
+                        Budget Exhausted
+                    </span>
                 @else
                     <span class="inline-flex items-center gap-1.5 text-[11px] sm:text-xs bg-rose-50 border border-rose-200/80 text-rose-700 px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-full font-bold">
                         <span class="h-2 w-2 rounded-full bg-rose-500 animate-pulse"></span>
-                        Spending Quickly
+                        Spending Warning
                     </span>
                 @endif
             </div>
@@ -63,8 +68,12 @@
                     <div class="text-lg sm:text-2xl font-black text-slate-900 font-mono truncate">
                         ₱{{ number_format($currentBudget->remaining_allowance, 2) }}
                     </div>
-                    <div class="flex items-center gap-1.5 text-[10px] sm:text-[11px] font-medium text-slate-400 truncate">
+                    <div class="flex flex-wrap items-center gap-1.5 text-[10px] sm:text-[11px] font-medium text-slate-400">
                         <span>{{ $remainingPercentage }}% left</span>
+                        @if($rolloverAmount > 0)
+                            <span>·</span>
+                            <span class="text-emerald-600 font-semibold">+₱{{ number_format($rolloverAmount, 2) }} rolled over</span>
+                        @endif
                         <span>·</span>
                         <a href="{{ route('student.budget.add') }}" class="inline-flex items-center px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 hover:bg-indigo-50 hover:text-indigo-600 font-semibold transition-colors">Add</a>
                     </div>

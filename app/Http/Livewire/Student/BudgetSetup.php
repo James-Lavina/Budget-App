@@ -18,7 +18,12 @@ class BudgetSetup extends Component
 
     public function initializeEngine() {
         $this->validate();
-
+    
+        auth()->user()->update([
+            'default_allowance' => $this->total_allowance,
+            'default_reset_day' => $this->reset_day,
+        ]);
+    
         WeeklyBudget::create([
             'user_id' => auth()->id(),
             'total_allowance' => $this->total_allowance,
@@ -26,7 +31,7 @@ class BudgetSetup extends Component
             'reset_day' => $this->reset_day,
             'cycle_start_date' => Carbon::today(),
         ]);
-
+    
         return redirect()->route('student.dashboard');
     }
 

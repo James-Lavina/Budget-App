@@ -57,7 +57,7 @@ class Dashboard extends Component
                 $amountSpent       = max(0.00, $oldTotalAllowance - $this->currentBudget->remaining_allowance);
                 $user              = auth()->user();
 
-                $nextCycleBaseline = (float) ($user->default_allowance ?? 1000.00);
+                $nextCycleBaseline = (float) ($user->default_allowance ?? $this->currentBudget->total_allowance);
                 $nextCycleResetDay = $user->default_reset_day ?? $targetResetDay;
 
                 $newWeeklyTotal    = $nextCycleBaseline + $unspentSavings;
@@ -296,8 +296,11 @@ class Dashboard extends Component
             $chartColors[] = $categoryColorMap[$cat] ?? $colorPalette[0];
         }
 
+        $rolloverAmount = max(0, $this->currentBudget->remaining_allowance - $this->currentBudget->total_allowance);
+
         return view('livewire.student.dashboard', [
             'recentExpenses'         => $recentExpenses,
+            'rolloverAmount'         => $rolloverAmount,
             'totalSpent'             => $totalSpent,
             'totalSavedThisWeek'     => $totalSavedThisWeek,
             'todaySavingsTotal'      => $todaySavingsTotal,

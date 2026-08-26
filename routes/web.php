@@ -70,6 +70,34 @@ Route::middleware(['auth'])->group(function() {
             // Profile
             Route::get('/profile', Profile::class)->name('profile');
         });
+
+    if (app()->environment('local')) {
+        Route::middleware(['auth'])
+            ->prefix('test')
+            ->name('test.')
+            ->group(function () {
+                // Usage: GET /test/fast-forward?date=2026-08-27
+                Route::get('/fast-forward', function (\Illuminate\Http\Request $request) {
+                    $date = $request->query('date');
+
+                    if ($date) {
+                        \Illuminate\Support\Carbon::setTestNow($date);
+                        session(['test_fake_now' => $date]);
+                    }
+    
+                    return redirect()->back();
+                })->name('fast-forward');
+    
+                // Usage: GET /test/fast-forward/reset
+                Route::get('/fast-forward/reset', function () {
+                    \Illuminate\Support\Carbon::setTestNow(null);
+                    session()->forget('test_fake_now');
+    
+                    return redirect()->back();
+                })->name('fast-forward.reset');
+            });
+    }
+    
     // Admin Routes
     Route::middleware(['admin'])
         ->prefix('admin')
