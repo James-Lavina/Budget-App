@@ -128,7 +128,7 @@ class ScanExpense extends Component
 
             $this->merchant_name = $extracted['merchant_name'] ?? null;
             $this->item_name = $extracted['item_name'] ?? '';
-            $this->amount = (float) $extracted['amount'];
+            $this->amount = number_format((float) $extracted['amount'], 2, '.', '');
 
             $aiDate = $extracted['transaction_date'] ?? null;
             if($aiDate && preg_match('/^\d{4}-\d{2}-\d{2}$/', $aiDate)) {

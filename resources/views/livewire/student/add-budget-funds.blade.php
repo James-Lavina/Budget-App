@@ -28,8 +28,14 @@
                 <div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400 font-extrabold font-mono text-base">
                     ₱
                 </div>
-                <input type="number" step="0.01" wire:model.defer="amount" placeholder="0.00" 
-                    class="block w-full pl-8 pr-4 py-3 border border-slate-200 rounded-2xl text-slate-900 font-mono font-bold text-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all">
+                <input
+                id="amount"
+                type="text"
+                inputmode="decimal"
+                wire:model.defer="amount"
+                placeholder="0.00"
+                onblur="formatBudgetAmount(this)"
+                class="block w-full pl-8 pr-4 py-3 border border-slate-200 rounded-2xl text-slate-900 font-mono font-bold text-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all">
             </div>
             @error('amount') 
                 <span class="text-xs text-rose-500 font-semibold mt-1 block">{{ $message }}</span> 
@@ -41,9 +47,11 @@
             <span class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Quick Select</span>
             <div class="flex flex-wrap gap-2">
                 @foreach([50, 100, 200, 500] as $preset)
-                    <button type="button" wire:click="$set('amount', {{ $preset }})" 
+                    <button
+                        type="button"
+                        wire:click="$set('amount', '{{ number_format($preset, 2, '.', '') }}')"
                         class="px-3 py-1.5 text-xs font-bold font-mono rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 transition-colors">
-                        +₱{{ $preset }}
+                        +₱{{ number_format($preset, 2) }}
                     </button>
                 @endforeach
             </div>
@@ -62,3 +70,20 @@
         </div>
     </form>
 </div>
+
+<script>
+    function formatBudgetAmount(input) {
+        if (input.value !== '') {
+            const value = parseFloat(input.value);
+
+            if (!isNaN(value)) {
+                input.value = value.toFixed(2);
+
+                // Keep Livewire updated
+                input.dispatchEvent(new Event('input', {
+                    bubbles: true
+                }));
+            }
+        }
+    }
+</script>

@@ -7,6 +7,9 @@
                 <h1 class="text-lg sm:text-2xl md:text-3xl font-extrabold text-slate-900 tracking-tight flex items-center gap-1.5 truncate">
                     Good {{ \Carbon\Carbon::now()->format('H') < 12 ? 'Morning' : (\Carbon\Carbon::now()->format('H') < 18 ? 'Afternoon' : 'Evening') }}, {{ auth()->user()->name }}
                 </h1>
+                <p class="text-[12px] sm:text-xs md:text-sm text-slate-500 font-medium mt-1">
+                    Here’s how your money is looking today.
+                </p>
             </div>
             <div class="flex items-center gap-2 self-start md:self-auto shrink-0">
                 @if($isSavingsLocked)

@@ -184,7 +184,12 @@ class WhatIfSimulator extends Component
     public function applyPreset($amount, $name = '')
     {
         $existingAmount = is_numeric($this->purchaseAmount) ? (float) $this->purchaseAmount : 0;
-        $this->purchaseAmount = $existingAmount + (float) $amount;
+        $this->purchaseAmount = number_format(
+            $existingAmount + (float) $amount,
+            2,
+            '.',
+            ''
+        );
         $this->itemName = trim($this->itemName) !== ''
             ? trim($this->itemName) . ' + ' . $name
             : $name;

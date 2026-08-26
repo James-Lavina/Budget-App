@@ -122,8 +122,14 @@
                         <label class="block text-xs font-bold text-slate-700">Goal amount</label>
                         <div class="relative">
                             <span class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400 font-bold text-xs">₱</span>
-                            <input type="number" step="0.01" min="0" wire:model.defer="target_amount" placeholder="0.00" 
-                                class="w-full pl-8 pr-3 py-3 bg-slate-100/70 border border-slate-200/80 rounded-2xl text-slate-900 font-bold text-xs placeholder-slate-400 focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all outline-none">
+                            <input
+                            type="number"
+                            step="1.00"
+                            min="0"
+                            wire:model.defer="target_amount"
+                            placeholder="0.00"
+                            onblur="formatAmount(this, 'target_amount')"
+                            class="w-full pl-8 pr-3 py-3 bg-slate-100/70 border border-slate-200/80 rounded-2xl text-slate-900 font-bold text-xs placeholder-slate-400 focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all outline-none">
                         </div>
                         @error('target_amount') <span class="text-[10px] font-bold text-rose-600 block mt-1">{{ $message }}</span> @enderror
                     </div>
@@ -168,13 +174,20 @@
                         <label class="block text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">Savings Amount (₱)</label>
                         <div class="relative">
                             <span class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400 font-bold text-xs">₱</span>
-                            <input type="number" step="0.01" wire:model.defer="fund_amount" autofocus placeholder="0.00" class="block w-full pl-8 pr-3.5 py-2.5 border border-slate-200 bg-slate-50/50 text-xs font-bold rounded-2xl text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:border-indigo-500 focus:ring-indigo-500/20 transition-all">
+                            <input
+                            type="number"
+                            step="1"
+                            wire:model.defer="fund_amount"
+                            autofocus
+                            placeholder="0.00"
+                            onblur="formatAmount(this, 'fund_amount')"
+                            class="block w-full pl-8 pr-3.5 py-2.5 border border-slate-200 bg-slate-50/50 text-xs font-bold rounded-2xl text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:border-indigo-500 focus:ring-indigo-500/20 transition-all">
                         </div>
                         @error('fund_amount') <span class="text-[10px] font-bold text-rose-600 block mt-1">{{ $message }}</span> @enderror
                     </div>
                     <div class="flex items-center gap-2 pt-2">
                         <button type="button" wire:click="$set('fundingGoalId', null)" class="px-4 py-2.5 rounded-2xl border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-50 transition-colors">Go Back</button>
-                        <button type="submit" class="flex-1 px-4 py-2.5 rounded-2xl text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 shadow-md shadow-indigo-200 transition-all text-center">Confirm Savings</button>
+                        <button type="submit" class="flex-1 px-4 py-2.5 rounded-2xl text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 shadow-md shadow-indigo-200 transition-all text-center">Confirm</button>
                     </div>
                 </form>
             </div>
@@ -212,3 +225,14 @@
         </div>
     @endif
  </div>
+
+ <script>
+    function formatAmount(input, wireModel) {
+        if (input.value !== '') {
+            input.value = parseFloat(input.value).toFixed(2);
+
+            // Update Livewire value
+            input.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+    }
+</script>

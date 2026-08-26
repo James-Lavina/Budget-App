@@ -39,7 +39,7 @@
             <span class="text-[10px] font-extrabold uppercase tracking-wider">Saved Balance</span>
             <div class="text-right">
                 <span class="text-sm font-black text-slate-900">₱{{ number_format($goal->current_saved, 2) }}</span>
-                <span class="text-[10px] font-bold text-slate-400">/ ₱{{ number_format($goal->target_amount, 0) }}</span>
+                <span class="text-[10px] font-bold text-slate-400">/ ₱{{ number_format($goal->target_amount, 2) }}</span>
             </div>
         </div>
 

@@ -58,8 +58,14 @@
                     <label for="purchaseAmount" class="block text-xs font-bold text-slate-700">Estimated Cost (₱)</label>
                     <div class="relative">
                         <span class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-800 font-extrabold text-sm">₱</span>
-                        <input id="purchaseAmount" type="number" min="0" step="1" wire:model.lazy="purchaseAmount" placeholder="0.00"
-                            class="w-full pl-9 pr-4 py-2.5 bg-slate-50 border border-slate-200/80 rounded-2xl text-slate-900 font-extrabold text-sm placeholder-slate-400 focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all font-mono outline-none">
+                        <input
+                        id="purchaseAmount"
+                        type="text"
+                        inputmode="decimal"
+                        wire:model.lazy="purchaseAmount"
+                        placeholder="0.00"
+                        onblur="formatPurchaseAmount(this)"
+                        class="w-full pl-9 pr-4 py-2.5 bg-slate-50 border border-slate-200/80 rounded-2xl text-slate-900 font-extrabold text-sm placeholder-slate-400 focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all font-mono outline-none">
                     </div>
                 </div>
 
@@ -270,3 +276,20 @@
         });
     </script>
 </div>
+
+<script>
+    function formatPurchaseAmount(input) {
+        if (input.value !== '') {
+            const value = parseFloat(input.value);
+
+            if (!isNaN(value)) {
+                input.value = value.toFixed(2);
+
+                // Tell Livewire about the formatted value
+                input.dispatchEvent(new Event('input', {
+                    bubbles: true
+                }));
+            }
+        }
+    }
+</script>

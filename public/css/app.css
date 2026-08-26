@@ -2130,6 +2130,9 @@ input:where([type='file']):focus {
 .text-\[11px\] {
   font-size: 11px;
 }
+.text-\[12px\] {
+  font-size: 12px;
+}
 .text-\[9px\] {
   font-size: 9px;
 }
@@ -3294,6 +3297,11 @@ input:where([type='file']):focus {
   .md\:text-3xl {
     font-size: 1.875rem;
     line-height: 2.25rem;
+  }
+
+  .md\:text-sm {
+    font-size: 0.875rem;
+    line-height: 1.25rem;
   }
 }
 @media (min-width: 1024px) {
