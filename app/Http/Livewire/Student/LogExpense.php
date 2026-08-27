@@ -19,6 +19,7 @@ class LogExpense extends Component
     public $item_name;
     public $amount;
     public $transaction_date;
+    public $sessionLog = [];
 
     protected $rules = [
         'expense_category_id' => 'required|exists:expense_categories,id',
@@ -41,32 +42,29 @@ class LogExpense extends Component
         $this->transaction_date = Carbon::today()->format('Y-m-d');
     }
 
-    public function storeExpense() {
+    // Shared logic extracted so both buttons reuse it
+    private function persistExpense()
+    {
         $this->validate();
 
-        $currentBudget = WeeklyBudget::where('user_id', auth()->id())
-            ->latest()
-            ->first();
+        $currentBudget = WeeklyBudget::where('user_id', auth()->id())->latest()->first();
 
-        if(!$currentBudget) {
+        if (!$currentBudget) {
             session()->flash('error', 'No active budget found. Set up your allowance first.');
-            return redirect()->route('student.budget-setup');
+            return null;
         }
 
         if ($this->amount > $currentBudget->remaining_allowance) {
             $this->addError('amount', 'Insufficient allowance. You only have ₱' . number_format($currentBudget->remaining_allowance, 2) . ' left.');
-            return;
+            return null;
         }
 
-        RiskLog::where('user_id', auth()->id())
-            ->whereDate('created_at', Carbon::today())
-            ->delete();
-
+        RiskLog::where('user_id', auth()->id())->whereDate('created_at', Carbon::today())->delete();
         DatabaseNotification::where('notifiable_id', auth()->id())
             ->where('notifiable_type', 'App\Models\User')
             ->where(function($query) {
                 $query->where('data', 'LIKE', '%"anomaly_type":"low_allowance_threshold"%')
-                      ->orWhere('data', 'LIKE', '%risk_log_id%'); 
+                    ->orWhere('data', 'LIKE', '%risk_log_id%');
             })->delete();
 
         $newExpense = null;
@@ -81,19 +79,17 @@ class LogExpense extends Component
                 'transaction_date' => $this->transaction_date . ' ' . Carbon::now()->format('H:i:s'),
                 'tracking_type' => 'manual',
             ]);
-        
+
             $currentBudget->remaining_allowance -= $this->amount;
             $currentBudget->save();
         });
-            
+
         $riskService = app(\App\Services\RiskDetectionService::class);
         $riskService->evaluateSpendingRisk(auth()->user());
         $riskService->checkLargeTransaction(auth()->user(), $newExpense, $currentBudget->total_allowance);
 
         $thresholdAmount = $currentBudget->total_allowance * 0.20;
-        
         if ($currentBudget->remaining_allowance <= $thresholdAmount) {
-            
             $alreadyNotified = DatabaseNotification::where('notifiable_id', auth()->id())
                 ->where('notifiable_type', 'App\Models\User')
                 ->where('data', 'LIKE', '%"anomaly_type":"low_allowance_threshold"%')
@@ -102,17 +98,56 @@ class LogExpense extends Component
 
             if (!$alreadyNotified) {
                 $percentageLeft = round(($currentBudget->remaining_allowance / $currentBudget->total_allowance) * 100);
-                
-                $user = auth()->user();
-                $user->notify(new LowAllowanceWarning(
-                    $percentageLeft, 
-                    $currentBudget->remaining_allowance
-                ));
+                auth()->user()->notify(new LowAllowanceWarning($percentageLeft, $currentBudget->remaining_allowance));
             }
         }
 
+        return $newExpense;
+    }
+
+    public function storeExpense() {
+        $expense = $this->persistExpense();
+        if (!$expense) return;
+
         session()->flash('success', 'Expense tracked successfully!');
         return redirect()->route('student.dashboard');
+    }
+
+    public function storeAndAddAnother() {
+        $expense = $this->persistExpense();
+        if (!$expense) return;
+
+        $this->sessionLog[] = [
+            'id' => $expense->id,
+            'item_name' => $expense->item_name,
+            'amount' => $expense->amount,
+        ];
+
+        // Reset only item-specific fields; keep category & date for the next entry
+        $this->reset(['item_name', 'amount', 'merchant_name']);
+        $this->resetErrorBag();
+
+        $this->dispatchBrowserEvent('expense-added'); // used to refocus item_name input
+    }
+
+    public function removeFromSessionLog($expenseId)
+    {
+        $expense = Expense::where('id', $expenseId)->where('user_id', auth()->id())->first();
+        if (!$expense) return;
+
+        $currentBudget = WeeklyBudget::where('user_id', auth()->id())->latest()->first();
+
+        DB::transaction(function () use ($expense, $currentBudget) {
+            if ($currentBudget) {
+                $currentBudget->remaining_allowance += $expense->amount;
+                $currentBudget->save();
+            }
+            $expense->delete();
+        });
+
+        $this->sessionLog = array_values(array_filter($this->sessionLog, fn($e) => $e['id'] !== $expenseId));
+
+        app(\App\Services\RiskDetectionService::class)->evaluateSpendingRisk(auth()->user());
     }
 
     public function render()

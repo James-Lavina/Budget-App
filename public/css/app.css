@@ -1647,6 +1647,9 @@ input:where([type='file']):focus {
   --tw-bg-opacity: 1;
   background-color: rgb(236 253 245 / var(--tw-bg-opacity));
 }
+.bg-emerald-50\/60 {
+  background-color: rgb(236 253 245 / 0.6);
+}
 .bg-emerald-500 {
   --tw-bg-opacity: 1;
   background-color: rgb(16 185 129 / var(--tw-bg-opacity));
@@ -1801,6 +1804,9 @@ input:where([type='file']):focus {
 }
 .bg-white\/10 {
   background-color: rgb(255 255 255 / 0.1);
+}
+.bg-white\/70 {
+  background-color: rgb(255 255 255 / 0.7);
 }
 .bg-white\/90 {
   background-color: rgb(255 255 255 / 0.9);
