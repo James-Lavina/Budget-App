@@ -682,6 +682,9 @@ input:where([type='file']):focus {
 .pointer-events-none {
   pointer-events: none;
 }
+.visible {
+  visibility: visible;
+}
 .fixed {
   position: fixed;
 }
@@ -750,8 +753,14 @@ input:where([type='file']):focus {
 .bottom-4 {
   bottom: 1rem;
 }
+.bottom-full {
+  bottom: 100%;
+}
 .left-0 {
   left: 0px;
+}
+.left-1\/2 {
+  left: 50%;
 }
 .left-3 {
   left: 0.75rem;
@@ -804,6 +813,10 @@ input:where([type='file']):focus {
 .-mx-2 {
   margin-left: -0.5rem;
   margin-right: -0.5rem;
+}
+.mx-3 {
+  margin-left: 0.75rem;
+  margin-right: 0.75rem;
 }
 .mx-6 {
   margin-left: 1.5rem;
@@ -1004,6 +1017,9 @@ input:where([type='file']):focus {
 .min-h-\[360px\] {
   min-height: 360px;
 }
+.min-h-\[420px\] {
+  min-height: 420px;
+}
 .min-h-full {
   min-height: 100%;
 }
@@ -1124,8 +1140,15 @@ input:where([type='file']):focus {
 .shrink-0 {
   flex-shrink: 0;
 }
+.flex-grow {
+  flex-grow: 1;
+}
 .grow {
   flex-grow: 1;
+}
+.-translate-x-1\/2 {
+  --tw-translate-x: -50%;
+  transform: translate(var(--tw-translate-x), var(--tw-translate-y)) rotate(var(--tw-rotate)) skewX(var(--tw-skew-x)) skewY(var(--tw-skew-y)) scaleX(var(--tw-scale-x)) scaleY(var(--tw-scale-y));
 }
 .-translate-x-\[calc\(100\%\+1rem\)\] {
   --tw-translate-x: calc(calc(100% + 1rem) * -1);
@@ -1157,6 +1180,21 @@ input:where([type='file']):focus {
 .transform-gpu {
   transform: translate3d(var(--tw-translate-x), var(--tw-translate-y), 0) rotate(var(--tw-rotate)) skewX(var(--tw-skew-x)) skewY(var(--tw-skew-y)) scaleX(var(--tw-scale-x)) scaleY(var(--tw-scale-y));
 }
+@keyframes bounce {
+
+  0%, 100% {
+    transform: translateY(-25%);
+    animation-timing-function: cubic-bezier(0.8,0,1,1);
+  }
+
+  50% {
+    transform: none;
+    animation-timing-function: cubic-bezier(0,0,0.2,1);
+  }
+}
+.animate-bounce {
+  animation: bounce 1s infinite;
+}
 @keyframes ping {
 
   75%, 100% {
@@ -1187,6 +1225,9 @@ input:where([type='file']):focus {
 }
 .cursor-default {
   cursor: default;
+}
+.cursor-help {
+  cursor: help;
 }
 .cursor-pointer {
   cursor: pointer;
@@ -2177,6 +2218,9 @@ input:where([type='file']):focus {
 .uppercase {
   text-transform: uppercase;
 }
+.normal-case {
+  text-transform: none;
+}
 .italic {
   font-style: italic;
 }
@@ -2197,6 +2241,9 @@ input:where([type='file']):focus {
 }
 .leading-tight {
   line-height: 1.25;
+}
+.tracking-normal {
+  letter-spacing: 0em;
 }
 .tracking-tight {
   letter-spacing: -0.025em;
@@ -2857,6 +2904,9 @@ input:where([type='file']):focus {
   --tw-scale-y: 1.05;
   transform: translate(var(--tw-translate-x), var(--tw-translate-y)) rotate(var(--tw-rotate)) skewX(var(--tw-skew-x)) skewY(var(--tw-skew-y)) scaleX(var(--tw-scale-x)) scaleY(var(--tw-scale-y));
 }
+.group:hover .group-hover\:opacity-100 {
+  opacity: 1;
+}
 @media (min-width: 640px) {
 
   .sm\:not-sr-only {
@@ -3054,6 +3104,18 @@ input:where([type='file']):focus {
     margin-bottom: calc(2rem * var(--tw-space-y-reverse));
   }
 
+  .sm\:divide-x > :not([hidden]) ~ :not([hidden]) {
+    --tw-divide-x-reverse: 0;
+    border-right-width: calc(1px * var(--tw-divide-x-reverse));
+    border-left-width: calc(1px * calc(1 - var(--tw-divide-x-reverse)));
+  }
+
+  .sm\:divide-y-0 > :not([hidden]) ~ :not([hidden]) {
+    --tw-divide-y-reverse: 0;
+    border-top-width: calc(0px * calc(1 - var(--tw-divide-y-reverse)));
+    border-bottom-width: calc(0px * var(--tw-divide-y-reverse));
+  }
+
   .sm\:self-auto {
     align-self: auto;
   }
@@ -3184,6 +3246,14 @@ input:where([type='file']):focus {
 
   .sm\:pb-24 {
     padding-bottom: 6rem;
+  }
+
+  .sm\:pl-6 {
+    padding-left: 1.5rem;
+  }
+
+  .sm\:pt-0 {
+    padding-top: 0px;
   }
 
   .sm\:pt-6 {

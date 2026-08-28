@@ -28,6 +28,22 @@
             </div>
         </div>
 
+        <!-- Onboarding Strip: always visible, orients any first-time visitor instantly -->
+        <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-4 sm:p-5 flex flex-col sm:flex-row items-stretch sm:items-center gap-4 sm:gap-6 divide-y sm:divide-y-0 sm:divide-x divide-slate-100">
+            <div class="flex items-center gap-3 flex-1 pt-3 sm:pt-0">
+                <span class="h-7 w-7 rounded-full bg-indigo-600 text-white text-xs font-black flex items-center justify-center shrink-0">1</span>
+                <p class="text-xs font-semibold text-slate-600">Pick a preset or type a price</p>
+            </div>
+            <div class="flex items-center gap-3 flex-1 pt-3 sm:pt-0 sm:pl-6">
+                <span class="h-7 w-7 rounded-full bg-indigo-600 text-white text-xs font-black flex items-center justify-center shrink-0">2</span>
+                <p class="text-xs font-semibold text-slate-600">See it hit your daily budget instantly</p>
+            </div>
+            <div class="flex items-center gap-3 flex-1 pt-3 sm:pt-0 sm:pl-6">
+                <span class="h-7 w-7 rounded-full bg-indigo-600 text-white text-xs font-black flex items-center justify-center shrink-0">3</span>
+                <p class="text-xs font-semibold text-slate-600">Decide before you actually buy it</p>
+            </div>
+        </div>
+
         <div class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
          
             <!-- Left Panel: Input Controls & Presets -->
@@ -36,7 +52,35 @@
                     <h3 class="text-xs font-extrabold text-slate-800 uppercase tracking-wider">Simulated Item Details</h3>
                     <span class="text-[10px] text-indigo-600 font-bold bg-indigo-50 px-2 py-0.5 rounded-md">Live Calculation</span>
                 </div>
-
+            
+                <!-- Quick Presets: MOVED to top, framed as the fast path -->
+                <div>
+                    <label class="flex items-center gap-1.5 text-[11px] font-bold text-slate-500 mb-2">
+                        <svg class="w-3.5 h-3.5 text-amber-500" fill="currentColor" viewBox="0 0 20 20"><path d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z"/></svg>
+                        Tap one to try it instantly
+                    </label>
+                    <div class="flex flex-wrap gap-2">
+                        <button type="button" wire:click="applyPreset(50, 'Milk Tea')"
+                            class="px-3 py-2 text-xs font-bold bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-100 rounded-xl transition-all">
+                            +₱50 Milk Tea
+                        </button>
+                        <button type="button" wire:click="applyPreset(150, 'Campus Lunch')"
+                            class="px-3 py-2 text-xs font-bold bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-100 rounded-xl transition-all">
+                            +₱150 Lunch
+                        </button>
+                        <button type="button" wire:click="applyPreset(500, 'Textbooks')"
+                            class="px-3 py-2 text-xs font-bold bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-100 rounded-xl transition-all">
+                            +₱500 Books
+                        </button>
+                    </div>
+                </div>
+            
+                <div class="relative flex items-center py-1">
+                    <div class="flex-grow border-t border-slate-100"></div>
+                    <span class="mx-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider">or enter your own</span>
+                    <div class="flex-grow border-t border-slate-100"></div>
+                </div>
+            
                 <!-- Input: Item Name -->
                 <div class="space-y-1.5">
                     <label for="itemName" class="block text-xs font-bold text-slate-700">What do you want to buy?</label>
@@ -52,226 +96,244 @@
                             class="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200/80 rounded-2xl text-slate-900 font-semibold text-xs placeholder-slate-400 focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all outline-none">
                     </div>
                 </div>
-
+            
                 <!-- Input: Cost -->
                 <div class="space-y-1.5">
                     <label for="purchaseAmount" class="block text-xs font-bold text-slate-700">Estimated Cost (₱)</label>
                     <div class="relative">
                         <span class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-800 font-extrabold text-sm">₱</span>
                         <input
-                        id="purchaseAmount"
-                        type="text"
-                        inputmode="decimal"
-                        wire:model.lazy="purchaseAmount"
-                        placeholder="0.00"
-                        onblur="formatPurchaseAmount(this)"
-                        class="w-full pl-9 pr-4 py-2.5 bg-slate-50 border border-slate-200/80 rounded-2xl text-slate-900 font-extrabold text-sm placeholder-slate-400 focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all font-mono outline-none">
-                    </div>
-                </div>
-
-                <!-- Quick Presets -->
-                <div class="pt-3 border-t border-slate-100">
-                    <label class="block text-[11px] font-bold text-slate-500 mb-2">Quick Student Presets</label>
-                    <div class="flex flex-wrap gap-2">
-                        <button 
-                            type="button" 
-                            wire:click="applyPreset(50, 'Milk Tea')"
-                            class="px-2.5 py-1.5 text-xs font-bold bg-slate-50 hover:bg-indigo-50 hover:text-indigo-600 border border-slate-200 hover:border-indigo-200 rounded-xl transition-all"
-                        >
-                            +₱50 Milk Tea
-                        </button>
-                        <button 
-                            type="button" 
-                            wire:click="applyPreset(150, 'Campus Lunch')"
-                            class="px-2.5 py-1.5 text-xs font-bold bg-slate-50 hover:bg-indigo-50 hover:text-indigo-600 border border-slate-200 hover:border-indigo-200 rounded-xl transition-all"
-                        >
-                            +₱150 Lunch
-                        </button>
-                        <button 
-                            type="button" 
-                            wire:click="applyPreset(500, 'Textbooks')"
-                            class="px-2.5 py-1.5 text-xs font-bold bg-slate-50 hover:bg-indigo-50 hover:text-indigo-600 border border-slate-200 hover:border-indigo-200 rounded-xl transition-all"
-                        >
-                            +₱500 Books
-                        </button>
+                            id="purchaseAmount"
+                            type="text"
+                            inputmode="decimal"
+                            wire:model.lazy="purchaseAmount"
+                            placeholder="0.00"
+                            onblur="formatPurchaseAmount(this)"
+                            class="w-full pl-9 pr-4 py-2.5 bg-slate-50 border border-slate-200/80 rounded-2xl text-slate-900 font-extrabold text-sm placeholder-slate-400 focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all font-mono outline-none">
                     </div>
                 </div>
             </div>
 
             <!-- Right Panel: Predictive Output & Analysis -->
             <div class="lg:col-span-7 space-y-5">
-             
-                <!-- Metric Cards -->
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                 
-                    <!-- Baseline Daily Quota -->
-                    <div class="bg-white border border-slate-100 rounded-3xl p-5 shadow-sm flex items-center gap-4">
-                        <div class="h-11 w-11 bg-slate-50 border border-slate-100 text-slate-700 rounded-2xl flex items-center justify-center shrink-0">
-                            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+
+                @if(!$purchaseAmount || floatval($purchaseAmount) <= 0)
+                    <!-- EMPTY STATE: shown until the user picks a preset or types an amount -->
+                    <div class="bg-white border-2 border-dashed border-slate-200 rounded-3xl p-10 sm:p-14 flex flex-col items-center justify-center text-center space-y-4 min-h-[420px]">
+                        <div class="h-14 w-14 bg-indigo-50 rounded-2xl flex items-center justify-center text-indigo-400 animate-bounce">
+                            <svg class="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
                             </svg>
                         </div>
-                        <div>
-                            <span class="block text-[9px] text-slate-400 uppercase font-bold tracking-widest mb-0.5">Current Safe-to-Spend</span>
-                            <span class="text-lg font-black text-slate-900 tracking-tight font-mono">
-                                ₱{{ number_format($currentSafeToSpend, 2) }}<span class="text-xs text-slate-400 font-medium">/day</span>
-                            </span>
-                            <span class="text-[10px] text-slate-400 font-medium block mt-0.5">Active for <span class="font-bold text-slate-600">{{ $daysRemaining }} day(s)</span> left</span>
+                        <div class="space-y-1.5 max-w-xs">
+                            <h3 class="text-sm font-extrabold text-slate-800">Your simulation will appear here</h3>
+                            <p class="text-xs text-slate-500 font-medium leading-relaxed">
+                                Tap a preset or type an item's price on the left — this panel updates instantly, before you spend a single peso.
+                            </p>
                         </div>
                     </div>
-
-                    <!-- Outcome Daily Quota Card -->
-                    @php $isWarningState = $isDeficit || $isCriticalZero; @endphp
-                    <div class="border rounded-3xl p-5 shadow-sm flex items-center gap-4 transition-all duration-300 {{ $isWarningState ? 'border-rose-200 bg-rose-50/40' : 'border-indigo-200/80 bg-indigo-50/30 ring-1 ring-indigo-500/10' }}">
-                        <div class="h-11 w-11 rounded-2xl flex items-center justify-center shrink-0 {{ $isWarningState ? 'bg-rose-100 text-rose-600 border border-rose-200/50' : 'bg-indigo-600 text-white shadow-md shadow-indigo-200' }}">
-                            @if($isWarningState)
-                                <svg class="w-5 h-5 animate-pulse" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                                </svg>
-                            @else
+                @else
+                    <!-- Metric Cards -->
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <!-- Baseline Daily Quota -->
+                        <div class="bg-white border border-slate-100 rounded-3xl p-5 shadow-sm flex items-center gap-4">
+                            <div class="h-11 w-11 bg-slate-50 border border-slate-100 text-slate-700 rounded-2xl flex items-center justify-center shrink-0">
                                 <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                    <path stroke-linecap="round" stroke-linejoin="round" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                                 </svg>
-                            @endif
-                        </div>
-                        <div class="flex-1">
-                            <span class="block text-[9px] uppercase font-bold tracking-widest {{ $isWarningState ? 'text-rose-600' : 'text-indigo-600' }}">Simulated Safe-to-Spend</span>
-                            
-                            <!-- Staked Layout to Prevent Red Impact Text Overflow -->
-                            <div class="flex flex-col">
-                                <span class="text-lg font-black font-mono tracking-tight {{ $isWarningState ? 'text-rose-600' : 'text-slate-900' }}">
-                                    @if($isDeficit)
-                                        ₱0.00
-                                    @else
-                                        ₱{{ number_format($newSafeToSpend, 2) }}<span class="text-xs text-slate-400 font-medium">/day</span>
-                                    @endif
-                                </span>
-                                @if($purchaseAmount && floatval($purchaseAmount) > 0 && !$isWarningState)
-                                    <span class="text-[11px] font-bold text-rose-500 font-mono mt-0.5">
-                                        (-₱{{ number_format($dailyImpactDelta, 2) }}/day)
+                            </div>
+                            <div>
+                                <span class="flex items-center gap-1 text-[9px] text-slate-400 uppercase font-bold tracking-widest mb-0.5">
+                                    Current Safe-to-Spend
+                                    <span class="group relative">
+                                        <svg class="w-3 h-3 text-slate-300 cursor-help" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                                        <span class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-44 bg-slate-900 text-white text-[10px] font-medium rounded-lg px-2.5 py-2 opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-20 normal-case tracking-normal">
+                                            What you can spend per day and still finish the week without running out.
+                                        </span>
                                     </span>
+                                </span>
+                                <span class="text-lg font-black text-slate-900 tracking-tight font-mono">
+                                    ₱{{ number_format($currentSafeToSpend, 2) }}<span class="text-xs text-slate-400 font-medium">/day</span>
+                                </span>
+                                <span class="text-[10px] text-slate-400 font-medium block mt-0.5">Active for <span class="font-bold text-slate-600">{{ $daysRemaining }} day(s)</span> left</span>
+                            </div>
+                        </div>
+            
+                        <!-- Outcome Daily Quota Card -->
+                        @php $isWarningState = $isDeficit || $isCriticalZero; @endphp
+                        <div class="border rounded-3xl p-5 shadow-sm flex items-center gap-4 transition-all duration-300 {{ $isWarningState ? 'border-rose-200 bg-rose-50/40' : 'border-indigo-200/80 bg-indigo-50/30 ring-1 ring-indigo-500/10' }}">
+                            <div class="h-11 w-11 rounded-2xl flex items-center justify-center shrink-0 {{ $isWarningState ? 'bg-rose-100 text-rose-600 border border-rose-200/50' : 'bg-indigo-600 text-white shadow-md shadow-indigo-200' }}">
+                                @if($isWarningState)
+                                    <svg class="w-5 h-5 animate-pulse" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                    </svg>
+                                @else
+                                    <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+                                    </svg>
                                 @endif
                             </div>
-
-                            <span class="text-[10px] text-slate-500 font-medium block mt-1">
-                                @if($isDeficit)
-                                    Deficit: <span class="font-bold text-rose-600 font-mono">₱{{ number_format(abs($newRemaining), 2) }}</span>
-                                @elseif($isCriticalZero)
-                                    <span class="font-bold text-rose-600">All of your remaining balance used</span>
-                                @else
-                                    Money Left: <span class="font-bold text-slate-700 font-mono">₱{{ number_format($newRemaining, 2) }}</span>
-                                @endif
-                            </span>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- AI Advice Banner -->
-                @php $isWarningState = $isDeficit || $isCriticalZero; @endphp
-                <div class="p-5 rounded-3xl border transition-all duration-200 {{ $isWarningState ? 'bg-rose-50/70 border-rose-200/80 text-rose-900' : 'bg-gradient-to-br from-indigo-50/70 via-white to-blue-50/40 border-indigo-100 text-slate-800' }}">
-                    <div class="flex items-start gap-3.5">
-                        <div class="p-2 rounded-xl shrink-0 {{ $isDeficit ? 'bg-rose-100 text-rose-600' : 'bg-indigo-600 text-white shadow-sm shadow-indigo-600/10' }}">
-                            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
-                            </svg>
-                        </div>
-                        <div class="space-y-1.5 w-full">
-                            <div class="flex items-center justify-between gap-2">
-                                <h4 class="text-[10px] font-black uppercase tracking-widest {{ $isWarningState ? 'text-rose-800' : 'text-slate-400' }}">
-                                    {{ $isDeficit ? 'Budget Overdraft Warning' : ($isCriticalZero ? 'Zero Balance Warning' : 'AI Budget Advice') }}
-                                </h4>
-                                <div wire:loading.remove wire:target="runSimulation, resetSimulation, applyPreset">
-                                    @if(!empty($aiInsight))
-                                        @if($isOfflineMode)
-                                            <span class="px-2 py-0.5 rounded-full text-[9px] font-bold bg-slate-100 text-slate-600 border border-slate-200 uppercase tracking-wider">
-                                                Instant Calculation
-                                            </span>
+                            <div class="flex-1">
+                                <span class="block text-[9px] uppercase font-bold tracking-widest {{ $isWarningState ? 'text-rose-600' : 'text-indigo-600' }}">Simulated Safe-to-Spend</span>
+                                <div class="flex flex-col">
+                                    <span class="text-lg font-black font-mono tracking-tight {{ $isWarningState ? 'text-rose-600' : 'text-slate-900' }}">
+                                        @if($isDeficit)
+                                            ₱0.00
                                         @else
-                                            <span class="px-2 py-0.5 rounded-full text-[9px] font-bold bg-indigo-50 text-indigo-700 ring-1 ring-indigo-700/10 uppercase tracking-wider flex items-center gap-1">
-                                                <span class="w-1 h-1 bg-indigo-500 rounded-full animate-pulse"></span>
-                                                AI Active
-                                            </span>
+                                            ₱{{ number_format($newSafeToSpend, 2) }}<span class="text-xs text-slate-400 font-medium">/day</span>
                                         @endif
+                                    </span>
+                                    @if($purchaseAmount && floatval($purchaseAmount) > 0 && !$isWarningState)
+                                        <span class="text-[11px] font-bold text-rose-500 font-mono mt-0.5">
+                                            (-₱{{ number_format($dailyImpactDelta, 2) }}/day)
+                                        </span>
                                     @endif
                                 </div>
-                                <span wire:loading wire:target="runSimulation, applyPreset" class="px-2 py-0.5 rounded-full text-[9px] font-bold bg-indigo-50 text-indigo-700 ring-1 ring-indigo-700/10 uppercase tracking-wider flex items-center gap-1">
-                                    Analyzing...
+                                <span class="text-[10px] text-slate-500 font-medium block mt-1">
+                                    @if($isDeficit)
+                                        Deficit: <span class="font-bold text-rose-600 font-mono">₱{{ number_format(abs($newRemaining), 2) }}</span>
+                                    @elseif($isCriticalZero)
+                                        <span class="font-bold text-rose-600">All of your remaining balance used</span>
+                                    @else
+                                        Money Left: <span class="font-bold text-slate-700 font-mono">₱{{ number_format($newRemaining, 2) }}</span>
+                                    @endif
                                 </span>
                             </div>
-                            <div class="text-xs font-semibold leading-relaxed">
-                                <div wire:loading wire:target="runSimulation, applyPreset" class="animate-pulse text-indigo-600 italic font-black flex items-center gap-1.5 py-0.5">
-                                    <span class="w-1.5 h-1.5 bg-indigo-500 rounded-full animate-ping"></span>
-                                    Calculating impact on weekly allowance...
+                        </div>
+                    </div>
+            
+                    <!-- AI Advice Banner -->
+                    <div class="p-5 rounded-3xl border transition-all duration-200 {{ $isWarningState ? 'bg-rose-50/70 border-rose-200/80 text-rose-900' : 'bg-gradient-to-br from-indigo-50/70 via-white to-blue-50/40 border-indigo-100 text-slate-800' }}">
+                        <div class="flex items-start gap-3.5">
+                            <div class="p-2 rounded-xl shrink-0 {{ $isDeficit ? 'bg-rose-100 text-rose-600' : 'bg-indigo-600 text-white shadow-sm shadow-indigo-600/10' }}">
+                                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                                </svg>
+                            </div>
+                            <div class="space-y-1.5 w-full">
+                                <div class="flex items-center justify-between gap-2">
+                                    <h4 class="text-[10px] font-black uppercase tracking-widest {{ $isWarningState ? 'text-rose-800' : 'text-slate-400' }}">
+                                        {{ $isDeficit ? 'Budget Overdraft Warning' : ($isCriticalZero ? 'Zero Balance Warning' : 'AI Budget Advice') }}
+                                    </h4>
+                                    <div wire:loading.remove wire:target="runSimulation, resetSimulation, applyPreset">
+                                        @if(!empty($aiInsight))
+                                            @if($isOfflineMode)
+                                                <span class="px-2 py-0.5 rounded-full text-[9px] font-bold bg-slate-100 text-slate-600 border border-slate-200 uppercase tracking-wider">
+                                                    Instant Calculation
+                                                </span>
+                                            @else
+                                                <span class="px-2 py-0.5 rounded-full text-[9px] font-bold bg-indigo-50 text-indigo-700 ring-1 ring-indigo-700/10 uppercase tracking-wider flex items-center gap-1">
+                                                    <span class="w-1 h-1 bg-indigo-500 rounded-full animate-pulse"></span>
+                                                    AI Active
+                                                </span>
+                                            @endif
+                                        @endif
+                                    </div>
+                                    <span wire:loading wire:target="runSimulation, applyPreset" class="px-2 py-0.5 rounded-full text-[9px] font-bold bg-indigo-50 text-indigo-700 ring-1 ring-indigo-700/10 uppercase tracking-wider flex items-center gap-1">
+                                        Analyzing...
+                                    </span>
                                 </div>
-                                <div wire:loading.remove wire:target="runSimulation, applyPreset">
-                                    {{ $aiInsight }}
+                                <div class="text-xs font-semibold leading-relaxed">
+                                    <div wire:loading wire:target="runSimulation, applyPreset" class="animate-pulse text-indigo-600 italic font-black flex items-center gap-1.5 py-0.5">
+                                        <span class="w-1.5 h-1.5 bg-indigo-500 rounded-full animate-ping"></span>
+                                        Calculating impact on weekly allowance...
+                                    </div>
+                                    <div wire:loading.remove wire:target="runSimulation, applyPreset">
+                                        {{ $aiInsight }}
+                                    </div>
                                 </div>
                             </div>
                         </div>
                     </div>
-                </div>
-
-                <!-- Pattern 1: Multi-Color Cash Breakdown Chart -->
-                <div class="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm space-y-3">
-                    <div>
-                        <h3 class="text-xs font-extrabold text-slate-900 uppercase tracking-wider">Weekly Budget Breakdown</h3>
-                        <p class="text-[11px] text-slate-400 font-medium mt-0.5">Stacked breakdown accounting for spent cash, savings set aside, simulated item, and remaining allowance.</p>
+            
+                    <!-- Pattern 1: Multi-Color Cash Breakdown Chart -->
+                    <div class="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm space-y-3">
+                        <div>
+                            <h3 class="text-xs font-extrabold text-slate-900 uppercase tracking-wider">Weekly Budget Breakdown</h3>
+                            <p class="text-[11px] text-slate-400 font-medium mt-0.5">Stacked breakdown accounting for spent cash, savings set aside, simulated item, and remaining allowance.</p>
+                        </div>
+                        <div class="h-36 relative w-full" wire:ignore>
+                            <canvas id="weeklyBreakdownChart"></canvas>
+                        </div>
                     </div>
-                    <div class="h-36 relative w-full" wire:ignore>
-                        <canvas id="weeklyBreakdownChart"></canvas>
-                    </div>
-                </div>
+                @endif
             </div>
         </div>
     </div>
 
-    <!-- Chart.js Setup Script (Pattern 1 with Savings Dataset) -->
     <script>
         document.addEventListener('livewire:load', function () {
-            const ctx = document.getElementById('weeklyBreakdownChart').getContext('2d');
-            let breakdownChart = new Chart(ctx, {
-                type: 'bar',
-                data: {
-                    labels: ['Weekly Allowance'],
-                    datasets: [
-                        { label: 'Already Spent', data: [{{ $chartSpent }}], backgroundColor: '#94a3b8', borderRadius: 6 },
-                        { label: 'Savings Set Aside', data: [{{ $chartSavings }}], backgroundColor: '#06b6d4', borderRadius: 6 },
-                        { label: 'This Purchase', data: [{{ $chartSimulated }}], backgroundColor: '#6366f1', borderRadius: 6 },
-                        { label: 'Money Left', data: [{{ $chartRemaining }}], backgroundColor: '#10b981', borderRadius: 6 },
-                        { label: 'Overdraft / Deficit', data: [{{ $chartDeficit }}], backgroundColor: '#f43f5e', borderRadius: 6 }
-                    ]
-                },
-                options: {
-                    indexAxis: 'y',
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                        legend: {
-                            display: true,
-                            position: 'bottom',
-                            labels: { boxWidth: 10, boxHeight: 10, font: { size: 10, weight: '700' } }
-                        },
-                        tooltip: { 
-                            padding: 10, 
-                            bodyFont: { size: 11, weight: 'bold' }, 
-                            callbacks: { label: (ctx) => ` ${ctx.dataset.label}: ₱${ctx.raw.toLocaleString()}` } 
-                        }
-                    },
-                    scales: {
-                        x: { stacked: true, grid: { color: '#f1f5f9' }, ticks: { font: { size: 9, weight: '600' }, color: '#94a3b8' } },
-                        y: { stacked: true, display: false }
-                    }
+            let breakdownChart = null;
+            let boundCanvas = null; // track which canvas element the chart is currently attached to
+    
+            function getOrCreateChart() {
+                const canvas = document.getElementById('weeklyBreakdownChart');
+                if (!canvas) return null; // still showing the empty state — nothing to draw yet
+    
+                // If Livewire swapped in a NEW canvas element (e.g. after Reset Simulation
+                // hid then re-showed this panel), the old Chart instance is pointing at a
+                // dead canvas. Detect that and rebuild instead of reusing a stale chart.
+                if (breakdownChart && boundCanvas === canvas) {
+                    return breakdownChart;
                 }
-            });
-
+    
+                if (breakdownChart) {
+                    breakdownChart.destroy();
+                }
+    
+                const ctx = canvas.getContext('2d');
+                breakdownChart = new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: ['Weekly Allowance'],
+                        datasets: [
+                            { label: 'Already Spent', data: [{{ $chartSpent }}], backgroundColor: '#94a3b8', borderRadius: 6 },
+                            { label: 'Savings Set Aside', data: [{{ $chartSavings }}], backgroundColor: '#06b6d4', borderRadius: 6 },
+                            { label: 'This Purchase', data: [{{ $chartSimulated }}], backgroundColor: '#6366f1', borderRadius: 6 },
+                            { label: 'Money Left', data: [{{ $chartRemaining }}], backgroundColor: '#10b981', borderRadius: 6 },
+                            { label: 'Overdraft / Deficit', data: [{{ $chartDeficit }}], backgroundColor: '#f43f5e', borderRadius: 6 }
+                        ]
+                    },
+                    options: {
+                        indexAxis: 'y',
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                display: true,
+                                position: 'bottom',
+                                labels: { boxWidth: 10, boxHeight: 10, font: { size: 10, weight: '700' } }
+                            },
+                            tooltip: {
+                                padding: 10,
+                                bodyFont: { size: 11, weight: 'bold' },
+                                callbacks: { label: (ctx) => ` ${ctx.dataset.label}: ₱${ctx.raw.toLocaleString()}` }
+                            }
+                        },
+                        scales: {
+                            x: { stacked: true, grid: { color: '#f1f5f9' }, ticks: { font: { size: 9, weight: '600' }, color: '#94a3b8' } },
+                            y: { stacked: true, display: false }
+                        }
+                    }
+                });
+    
+                boundCanvas = canvas;
+                return breakdownChart;
+            }
+    
+            // Registered unconditionally — no early return, no dependency on the
+            // canvas existing at page-load time.
             window.addEventListener('renderWeeklyImpactChart', event => {
+                const chart = getOrCreateChart();
+                if (!chart) return; // empty state is showing — ignore the event
+    
                 const data = event.detail;
-                breakdownChart.data.datasets[0].data = [data.spent];
-                breakdownChart.data.datasets[1].data = [data.savings || 0];
-                breakdownChart.data.datasets[2].data = [data.simulated];
-                breakdownChart.data.datasets[3].data = [data.remaining];
-                breakdownChart.data.datasets[4].data = [data.deficit || 0];
-                breakdownChart.update();
+                chart.data.datasets[0].data = [data.spent];
+                chart.data.datasets[1].data = [data.savings || 0];
+                chart.data.datasets[2].data = [data.simulated];
+                chart.data.datasets[3].data = [data.remaining];
+                chart.data.datasets[4].data = [data.deficit || 0];
+                chart.update();
             });
         });
     </script>
