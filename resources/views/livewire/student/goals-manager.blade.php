@@ -87,6 +87,12 @@
                         <x-savings-card :goal="$goal" type="manager" />
                     @endforeach
                 </div>
+
+                @if($goals->hasPages())
+                    <div class="pt-2">
+                        {{ $goals->links() }}
+                    </div>
+                @endif
             @endif
         </div>
     </div>

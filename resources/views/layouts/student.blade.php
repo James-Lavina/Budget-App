@@ -130,7 +130,7 @@
 
             <!-- Main View Content -->
             <main class="flex-1 min-w-0 w-full p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto">
-                {{-- @include('partials.test-fast-forward-banner') --}}
+                @include('partials.test-fast-forward-banner')
                 {{ $slot }}
             </main>
         </div>

@@ -12,10 +12,15 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Notifications\DatabaseNotification;
 use Illuminate\Support\Str;
 use Livewire\Component;
+use Livewire\WithPagination;
 
 class GoalsManager extends Component
 {
-   // Form & Modal State
+    use WithPagination;
+
+    protected $paginationTheme = 'tailwind';
+
+    // Form & Modal State
     public $showCreateModal = false;
     public $target_name;
     public $target_amount;
@@ -39,6 +44,13 @@ class GoalsManager extends Component
     ];
 
     protected $listeners = ['refreshSavings' => '$refresh'];
+
+    // Reset to page 1 whenever the tab changes, so switching from a deep
+    // page on "Active" to "Archived" doesn't land on a nonexistent page.
+    public function updatedActiveTab()
+    {
+        $this->resetPage();
+    }
 
     public function openCreateModal()
     {
@@ -71,6 +83,8 @@ class GoalsManager extends Component
             'status' => $status,
         ]);
 
+        // A newly created goal lands on page 1 of the Active tab.
+        $this->resetPage();
 
         $this->closeCreateModal();
         session()->flash('success', 'Savings milestone established successfully!');
@@ -172,7 +186,6 @@ class GoalsManager extends Component
                 'read_at' => null,
             ]);
         } else {
-            // Check for intermediate milestones (25%, 50%, 75%)
             $this->checkAndNotifySavingsMilestone($goal);
         }
 
@@ -214,9 +227,6 @@ class GoalsManager extends Component
         }
     }
 
-    /**
-    * Evaluates progress percentage against key milestone thresholds (25%, 50%, 75%).
-    */
     private function checkAndNotifySavingsMilestone($goal)
     {
         if ($goal->target_amount <= 0) {
@@ -238,7 +248,6 @@ class GoalsManager extends Component
             return;
         }
 
-        // Prevent re-notifying for the exact same milestone on this goal
         $alreadyNotified = DatabaseNotification::where('notifiable_id', auth()->id())
             ->where('notifiable_type', 'App\Models\User')
             ->where('data', 'LIKE', '%"anomaly_type":"savings_milestone"%')
@@ -327,7 +336,7 @@ class GoalsManager extends Component
         $goals = SavingsGoal::where('user_id', auth()->id())
             ->where('status', $this->activeTab)
             ->latest()
-            ->get();
+            ->paginate(6);
 
         $counts = [
             'active'    => SavingsGoal::where('user_id', auth()->id())->where('status', 'active')->count(),
