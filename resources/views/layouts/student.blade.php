@@ -105,7 +105,7 @@
 
         <!-- Right Column Content Area -->
         <div class="flex-1 flex flex-col min-w-0 w-full lg:pl-72">
-            
+    
             <!-- Mobile Top Navigation Header -->
             <header class="lg:hidden bg-white border-b border-slate-200/80 px-4 py-3 flex items-center justify-between sticky top-0 z-30 shadow-sm w-full">
                 <div class="flex items-center gap-3">
@@ -130,7 +130,7 @@
 
             <!-- Main View Content -->
             <main class="flex-1 min-w-0 w-full p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto">
-                @include('partials.test-fast-forward-banner')
+                {{-- @include('partials.test-fast-forward-banner') --}}
                 {{ $slot }}
             </main>
         </div>

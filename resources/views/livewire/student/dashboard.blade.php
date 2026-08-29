@@ -8,10 +8,14 @@
                     Good {{ \Carbon\Carbon::now()->format('H') < 12 ? 'Morning' : (\Carbon\Carbon::now()->format('H') < 18 ? 'Afternoon' : 'Evening') }}, {{ auth()->user()->name }}
                 </h1>
                 <p class="text-[12px] sm:text-xs md:text-sm text-slate-500 font-medium mt-1">
-                    Here’s how your money is looking today.
+                    Here's how your money is looking today.
                 </p>
             </div>
-            <div class="flex items-center gap-2 self-start md:self-auto shrink-0">
+            <div class="flex items-center gap-3 self-start md:self-auto shrink-0">
+                <div class="hidden lg:block">
+                    <livewire:student.notification-center />
+                </div>
+        
                 @if($isSavingsLocked)
                     <span class="inline-flex items-center gap-1.5 text-[11px] sm:text-xs bg-indigo-50 border border-indigo-200 text-indigo-700 px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-full font-bold">
                         <span class="h-2 w-2 rounded-full bg-indigo-500"></span>
@@ -292,14 +296,41 @@
             @endif
         </div>
 
-        <!-- FLOATING "+ ADD EXPENSE" BUTTON -->
-        <a href="{{ route('student.expenses.create') }}"
-           class="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-50 inline-flex items-center gap-1.5 bg-[#ff6542] hover:bg-[#e85331] text-white font-extrabold px-3.5 sm:px-5 py-2.5 sm:py-3.5 rounded-2xl shadow-lg shadow-orange-500/30 transition-all transform hover:scale-105 active:scale-95 text-xs sm:text-sm">
-            <svg class="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" stroke-width="2.8" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-            </svg>
-            <span>Add Expense</span>
-        </a>
+        <!-- FLOATING "+ ADD EXPENSE" BUTTON WITH CHOICE MENU -->
+        <div class="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-50" data-add-expense-widget>
+
+            <!-- Choice Menu (hidden until trigger clicked) -->
+            <div data-add-expense-menu class="hidden absolute bottom-full right-0 mb-3 w-56 bg-white rounded-2xl shadow-xl border border-slate-100 p-2 space-y-1">
+                <a href="{{ route('student.expenses.create') }}"
+                class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold text-slate-700 hover:bg-slate-50 transition-colors">
+                    <span class="h-8 w-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                        </svg>
+                    </span>
+                    Add Manually
+                </a>
+                <a href="{{ route('student.receipt-scanner') }}"
+                class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold text-slate-700 hover:bg-slate-50 transition-colors">
+                    <span class="h-8 w-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/>
+                            <circle cx="12" cy="13" r="3" stroke-width="2"/>
+                        </svg>
+                    </span>
+                    Scan Receipt
+                </a>
+            </div>
+
+            <!-- Trigger Button -->
+            <button type="button" data-add-expense-trigger
+                class="inline-flex items-center gap-1.5 bg-[#ff6542] hover:bg-[#e85331] text-white font-extrabold px-3.5 sm:px-5 py-2.5 sm:py-3.5 rounded-2xl shadow-lg shadow-orange-500/30 transition-all transform hover:scale-105 active:scale-95 text-xs sm:text-sm">
+                <svg data-add-expense-icon class="w-4 h-4 sm:w-5 sm:h-5 transition-transform duration-200" fill="none" stroke="currentColor" stroke-width="2.8" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                </svg>
+                <span>Add Expense</span>
+            </button>
+        </div>
     </div>
 
     <!-- DELETE CONFIRMATION MODAL -->
@@ -329,6 +360,35 @@
 </div>
 
 <script>
+
+if (!window.__addExpenseMenuBound) {
+        window.__addExpenseMenuBound = true;
+
+        document.addEventListener('click', function (event) {
+            const trigger = event.target.closest('[data-add-expense-trigger]');
+
+            if (trigger) {
+                event.stopPropagation();
+                const widget = trigger.closest('[data-add-expense-widget]');
+                const menu = widget.querySelector('[data-add-expense-menu]');
+                const icon = widget.querySelector('[data-add-expense-icon]');
+
+                menu.classList.toggle('hidden');
+                icon.classList.toggle('rotate-45');
+                return;
+            }
+
+            if (!event.target.closest('[data-add-expense-menu]')) {
+                document.querySelectorAll('[data-add-expense-menu]').forEach(function (el) {
+                    el.classList.add('hidden');
+                });
+                document.querySelectorAll('[data-add-expense-icon]').forEach(function (el) {
+                    el.classList.remove('rotate-45');
+                });
+            }
+        });
+    }
+
     (function () {
         let weeklySpendingChart = null;
 

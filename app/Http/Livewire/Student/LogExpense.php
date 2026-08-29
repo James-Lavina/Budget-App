@@ -116,18 +116,22 @@ class LogExpense extends Component
     public function storeAndAddAnother() {
         $expense = $this->persistExpense();
         if (!$expense) return;
-
+    
+        $category = ExpenseCategory::find($expense->expense_category_id);
+    
         $this->sessionLog[] = [
             'id' => $expense->id,
             'item_name' => $expense->item_name,
             'amount' => $expense->amount,
+            'category_name' => $category->name ?? 'Uncategorized',
+            'category_icon' => $category->icon ?? 'default',
         ];
-
+    
         // Reset only item-specific fields; keep category & date for the next entry
         $this->reset(['item_name', 'amount', 'merchant_name']);
         $this->resetErrorBag();
-
-        $this->dispatchBrowserEvent('expense-added'); // used to refocus item_name input
+    
+        $this->dispatchBrowserEvent('expense-added');
     }
 
     public function removeFromSessionLog($expenseId)

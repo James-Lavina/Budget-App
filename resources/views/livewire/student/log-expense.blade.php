@@ -112,8 +112,16 @@
                 </div>
                 <div class="space-y-1.5">
                     @foreach($sessionLog as $entry)
-                        <div class="flex items-center justify-between bg-white/70 rounded-xl px-3 py-2 text-xs">
-                            <span class="font-semibold text-slate-700 truncate">{{ $entry['item_name'] }}</span>
+                        <div class="flex items-center justify-between bg-white/70 rounded-xl px-3 py-2 text-xs gap-2">
+                            <div class="flex items-center gap-2.5 min-w-0">
+                                <div class="h-6 w-6 rounded-lg bg-slate-100 text-slate-500 flex items-center justify-center shrink-0">
+                                    <x-category-icon :type="$entry['category_icon']" />
+                                </div>
+                                <div class="min-w-0">
+                                    <span class="font-semibold text-slate-700 truncate block">{{ $entry['item_name'] }}</span>
+                                    <span class="text-[10px] font-medium text-slate-400">{{ $entry['category_name'] }}</span>
+                                </div>
+                            </div>
                             <div class="flex items-center gap-2 shrink-0">
                                 <span class="font-bold text-slate-900 font-mono">₱{{ number_format($entry['amount'], 2) }}</span>
                                 <button type="button" wire:click="removeFromSessionLog({{ $entry['id'] }})"
