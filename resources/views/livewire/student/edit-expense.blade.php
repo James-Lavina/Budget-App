@@ -76,21 +76,28 @@
                 <label class="block text-xs font-bold text-slate-700">
                     Category
                 </label>
-                
-                <div class="flex flex-wrap gap-2 items-center">
-                    @foreach($categories as $category)
-                        @php
-                            $isSelected = $expense_category_id == $category->id;
-                        @endphp
-                        <button type="button" 
-                            wire:click="$set('expense_category_id', {{ $category->id }})"
-                            class="px-4 py-2 rounded-full text-xs font-bold flex items-center gap-2 transition-all duration-150 transform active:scale-95 {{ $isSelected ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200' : 'bg-slate-100 text-slate-600 hover:bg-slate-200/80' }}">
-                            <x-category-icon :type="$category->icon" />
-                            <span>{{ $category->name }}</span>
-                        </button>
-                    @endforeach
-                </div>
-                
+            
+                @if($isSavingsLinked)
+                    <div class="flex items-center gap-2 px-4 py-2.5 bg-indigo-50/70 border border-indigo-100 rounded-2xl text-xs font-bold text-indigo-700 w-fit">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z"/>
+                        </svg>
+                        Savings — locked to this goal
+                    </div>
+                @else
+                    <div class="flex flex-wrap gap-2 items-center">
+                        @foreach($categories as $category)
+                            @php $isSelected = $expense_category_id == $category->id; @endphp
+                            <button type="button"
+                                wire:click="$set('expense_category_id', {{ $category->id }})"
+                                class="px-4 py-2 rounded-full text-xs font-bold flex items-center gap-2 transition-all duration-150 transform active:scale-95 {{ $isSelected ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200' : 'bg-slate-100 text-slate-600 hover:bg-slate-200/80' }}">
+                                <x-category-icon :type="$category->icon" />
+                                <span>{{ $category->name }}</span>
+                            </button>
+                        @endforeach
+                    </div>
+                @endif
+            
                 @error('expense_category_id')
                     <span class="text-[11px] font-semibold text-rose-500 block mt-1">{{ $message }}</span>
                 @enderror

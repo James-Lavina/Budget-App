@@ -2,9 +2,13 @@
 
 namespace App\Http\Livewire\Student;
 
+use App\Models\ActivityLog;
 use App\Models\Expense;
 use App\Models\ExpenseCategory;
+use App\Models\SavingsGoal;
 use App\Models\WeeklyBudget;
+use App\Services\BudgetCycleService;
+use App\Services\RiskDetectionService;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Livewire\Component;
@@ -17,6 +21,7 @@ class EditExpense extends Component
     public $item_name;
     public $amount;
     public $transaction_date;
+    public $isSavingsLinked = false; // true if this expense is a goal contribution
 
     protected $rules = [
         'expense_category_id' => 'required|exists:expense_categories,id',
@@ -26,10 +31,21 @@ class EditExpense extends Component
         'merchant_name' => 'nullable|string|max:255',
     ];
 
-    public function mount($id) {
+    public function mount($id)
+    {
         $expense = Expense::where('id', $id)
             ->where('user_id', auth()->id())
             ->firstOrFail();
+
+        $currentBudget = WeeklyBudget::where('user_id', auth()->id())
+            ->latest()
+            ->first();
+
+        if (!$currentBudget || !app(BudgetCycleService::class)->isWithinCurrentCycle($currentBudget, auth()->user(), $expense->transaction_date)) {
+            session()->flash('error', 'This expense belongs to a previous budget cycle and can no longer be edited.');
+            redirect()->route('student.expenses.index');
+            return;
+        }
 
         $this->expenseId = $expense->id;
         $this->expense_category_id = $expense->expense_category_id;
@@ -37,9 +53,11 @@ class EditExpense extends Component
         $this->amount = $expense->amount;
         $this->merchant_name = $expense->merchant_name;
         $this->transaction_date = Carbon::parse($expense->transaction_date)->format('Y-m-d');
+        $this->isSavingsLinked = !is_null($expense->savings_goal_id);
     }
 
-    public function updateExpense() {
+    public function updateExpense()
+    {
         $this->validate();
 
         $expense = Expense::where('id', $this->expenseId)
@@ -50,34 +68,79 @@ class EditExpense extends Component
             ->latest()
             ->first();
 
-        if(!$currentBudget) {
+        if (!$currentBudget) {
             session()->flash('error', 'Active budget cycle not found.');
-            return; 
+            return;
         }
 
-        DB::transaction(function () use ($expense, $currentBudget) {
-            $oldAmount = $expense->amount;
-            $newAmount = $this->amount;
-            $adjustmentDelta = $oldAmount - $newAmount;
+        if (!app(BudgetCycleService::class)->isWithinCurrentCycle($currentBudget, auth()->user(), $expense->transaction_date)) {
+            session()->flash('error', 'This expense belongs to a previous budget cycle and can no longer be edited.');
+            return redirect()->route('student.expenses.index');
+        }
 
+        $oldAmount = (float) $expense->amount;
+        $newAmount = (float) $this->amount;
+
+        $availableForThisExpense = (float) $currentBudget->remaining_allowance + $oldAmount;
+        if ($newAmount > $availableForThisExpense) {
+            $this->addError('amount', 'Insufficient allowance. You only have ₱' . number_format($availableForThisExpense, 2) . ' available for this transaction.');
+            return;
+        }
+
+        // Defense in depth: even if the category picker is disabled in the
+        // UI for savings-linked expenses, never trust the client. Force the
+        // category back to the expense's original one for savings entries,
+        // so a goal contribution can never be silently recategorized and
+        // orphaned from its goal.
+        $categoryIdToSave = $this->isSavingsLinked
+            ? $expense->expense_category_id
+            : $this->expense_category_id;
+
+        DB::transaction(function () use ($expense, $currentBudget, $oldAmount, $newAmount, $categoryIdToSave) {
+            $adjustmentDelta = $oldAmount - $newAmount;
             $currentBudget->remaining_allowance += $adjustmentDelta;
             $currentBudget->save();
 
+            if ($expense->savings_goal_id) {
+                $goal = SavingsGoal::find($expense->savings_goal_id);
+                if ($goal && $goal->status !== 'abandoned') {
+                    $newSaved = $goal->current_saved - $oldAmount + $newAmount;
+                    if ($newSaved < 0) {
+                        $newSaved = 0.00;
+                    }
+
+                    $isAchieved = $newSaved >= $goal->target_amount && $goal->target_amount > 0;
+                    if ($isAchieved) {
+                        $newSaved = $goal->target_amount;
+                    }
+
+                    $goal->update([
+                        'current_saved' => $newSaved,
+                        'status' => $isAchieved
+                            ? 'achieved'
+                            : ($goal->status === 'achieved' ? 'active' : $goal->status),
+                    ]);
+                }
+            }
+
             $expense->update([
-                'expense_category_id' => $this->expense_category_id,
+                'expense_category_id' => $categoryIdToSave,
                 'merchant_name' => $this->merchant_name ?: null,
                 'item_name' => $this->item_name,
                 'amount' => $this->amount,
                 'transaction_date' => $this->transaction_date . ' ' . Carbon::now()->format('H:i:s'),
             ]);
+
+            ActivityLog::create([
+                'user_id'    => auth()->id(),
+                'event_type' => 'expense_edited',
+                'ip_address' => request()->ip(),
+                'user_agent' => request()->userAgent(),
+                'details'    => "Edited \"{$expense->item_name}\": ₱" . number_format($oldAmount, 2) . " → ₱" . number_format($newAmount, 2),
+            ]);
         });
 
-        \App\Models\RiskLog::where('user_id', auth()->id())
-            ->whereDate('created_at', Carbon::today())
-            ->delete();
-
-        // Regenerate and evaluate the alert based on the edited numerical metrics
-        app(\App\Services\RiskDetectionService::class)->evaluateSpendingRisk(auth()->user());
+        app(RiskDetectionService::class)->evaluateSpendingRisk(auth()->user());
 
         session()->flash('success', 'Transaction modified. Limits calculated smoothly!');
         return redirect()->route('student.dashboard');
@@ -86,7 +149,12 @@ class EditExpense extends Component
     public function render()
     {
         return view('livewire.student.edit-expense', [
-            'categories' => ExpenseCategory::orderBy('name', 'asc')->get()
+            // Savings is never a selectable category — it's only ever
+            // applied automatically via a goal contribution, never chosen
+            // from this picker.
+            'categories' => ExpenseCategory::whereRaw('LOWER(name) != ?', ['savings'])
+                ->orderBy('name', 'asc')
+                ->get(),
         ])->layout('layouts.student');
     }
 }

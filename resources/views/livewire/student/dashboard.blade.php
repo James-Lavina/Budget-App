@@ -253,7 +253,7 @@
         <div class="bg-white rounded-2xl sm:rounded-3xl p-4 sm:p-6 border border-slate-100 shadow-sm w-full min-w-0 overflow-hidden">
             <div class="pb-4 border-b border-slate-100 flex items-center justify-between gap-3">
                 <div class="min-w-0">
-                    <h3 class="text-base sm:text-lg font-bold text-slate-900 truncate">Recent Activity</h3>
+                    <h3 class="text-base sm:text-lg font-bold text-slate-900 truncate">Recent Transactions</h3>
                     <p class="text-[11px] text-slate-400 font-medium mt-0.5">Your last 5 transactions</p>
                 </div>
                 <a href="{{ route('student.expenses.index') }}" class="text-xs sm:text-sm font-semibold text-indigo-600 hover:text-indigo-700 transition-colors flex items-center gap-1 shrink-0">
@@ -290,7 +290,10 @@
             @else
                 <div class="divide-y divide-slate-100/80 mt-1">
                     @foreach($recentExpenses as $expense)
-                        <x-expense-row :expense="$expense" />
+                        @php
+                            $isLocked = $expense->transaction_date->lt($cycleStart) || $expense->transaction_date->gt($cycleEnd);
+                        @endphp
+                        <x-expense-row :expense="$expense" :locked="$isLocked" />
                     @endforeach
                 </div>
             @endif

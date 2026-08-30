@@ -59,4 +59,21 @@ class BudgetCycleService
             'spentTodayDate', 'targetResetDay'
         );
     }
+
+    /**
+     * Whether a given date falls inside this budget's ACTIVE cycle window.
+     *
+     * Used to gate edit/delete so mutations never touch remaining_allowance
+     * for an expense that belongs to a cycle that has already rolled over —
+     * WeeklyBudget mutates the same row in place on reset, so without this
+     * check, editing/deleting a past-cycle expense would manufacture
+     * phantom balance in the CURRENT cycle.
+     */
+    public function isWithinCurrentCycle(WeeklyBudget $budget, $user, $date): bool
+    {
+        $cycle = $this->resolve($budget, $user);
+        $checkDate = Carbon::parse($date);
+
+        return $checkDate->betweenIncluded($cycle['startDate'], $cycle['endDate']);
+    }
 }

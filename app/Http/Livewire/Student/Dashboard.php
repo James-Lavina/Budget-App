@@ -2,10 +2,13 @@
 
 namespace App\Http\Livewire\Student;
 
+use App\Models\ActivityLog;
 use App\Models\Expense;
+use App\Models\SavingsGoal;
 use App\Models\WeeklyBudget;
 use App\Notifications\WeeklyBudgetReview;
 use App\Services\BudgetCycleService;
+use App\Services\RiskDetectionService;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Livewire\Component;
@@ -128,40 +131,55 @@ class Dashboard extends Component
             return;
         }
 
-        if ($this->currentBudget) {
-            DB::transaction(function () use ($expense) {
-                $this->currentBudget->remaining_allowance += $expense->amount;
-                $this->currentBudget->save();
-
-                if ($expense->savings_goal_id) {
-                    $goal = \App\Models\SavingsGoal::find($expense->savings_goal_id);
-                    if ($goal) {
-                        $goal->current_saved -= $expense->amount;
-                        if ($goal->current_saved < 0) {
-                            $goal->current_saved = 0.00;
-                        }
-                        if ($goal->status === 'achieved' && $goal->current_saved < $goal->target_amount) {
-                            $goal->status = 'active';
-                        }
-                        $goal->save();
-                    }
-                }
-
-                $expense->delete();
-                \App\Models\RiskLog::where('user_id', auth()->id())
-                    ->whereDate('created_at', Carbon::today())
-                    ->delete();
-                app(\App\Services\RiskDetectionService::class)->evaluateSpendingRisk(auth()->user());
-            });
-
-            $this->computeBehavioralMetrics();
-            $this->emit('refreshSavings');
-            $this->emit('expenseUpdated');
-            $this->emit('refreshNotifications');
-            session()->flash('success', 'Expense deleted! Balance updated.');
-        } else {
+        if (!$this->currentBudget) {
             session()->flash('error', 'Active budget not found. Unable to update balance.');
+            return;
         }
+
+        if (!app(BudgetCycleService::class)->isWithinCurrentCycle($this->currentBudget, auth()->user(), $expense->transaction_date)) {
+            session()->flash('error', 'This expense belongs to a previous budget cycle and can no longer be deleted here.');
+            return;
+        }
+
+        DB::transaction(function () use ($expense) {
+            $this->currentBudget->remaining_allowance += $expense->amount;
+            $this->currentBudget->save();
+
+            if ($expense->savings_goal_id) {
+                $goal = SavingsGoal::find($expense->savings_goal_id);
+                if ($goal && $goal->status !== 'abandoned') {
+                    $goal->current_saved -= $expense->amount;
+                    if ($goal->current_saved < 0) {
+                        $goal->current_saved = 0.00;
+                    }
+                    if ($goal->status === 'achieved' && $goal->current_saved < $goal->target_amount) {
+                        $goal->status = 'active';
+                    }
+                    $goal->save();
+                }
+            }
+
+            ActivityLog::create([
+                'user_id'    => auth()->id(),
+                'event_type' => 'expense_deleted',
+                'ip_address' => request()->ip(),
+                'user_agent' => request()->userAgent(),
+                'details'    => "Deleted \"{$expense->item_name}\" (₱" . number_format($expense->amount, 2) . ") dated " . Carbon::parse($expense->transaction_date)->format('Y-m-d'),
+            ]);
+
+            // Delete transaction. NOTE: no longer wiping today's RiskLog
+            // entries here — evaluateSpendingRisk() replaces only the
+            // matching anomaly_type in place if it still applies.
+            $expense->delete();
+
+            app(RiskDetectionService::class)->evaluateSpendingRisk(auth()->user());
+        });
+
+        $this->computeBehavioralMetrics();
+        $this->emit('refreshSavings');
+        $this->emit('expenseUpdated');
+        $this->emit('refreshNotifications');
+        session()->flash('success', 'Expense deleted! Balance updated.');
     }
 
     public function render()
@@ -306,6 +324,8 @@ class Dashboard extends Component
 
         return view('livewire.student.dashboard', [
             'recentExpenses'         => $recentExpenses,
+            'cycleStart'             => $startDate,
+            'cycleEnd'               => $endDate,
             'rolloverAmount'         => $rolloverAmount,
             'totalSpent'             => $totalSpent,
             'totalSavedThisWeek'     => $totalSavedThisWeek,

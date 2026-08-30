@@ -15,7 +15,7 @@
                         {{ $allExpenses->total() }} {{ Str::plural('Entry', $allExpenses->total()) }}
                     </span>
                     <span class="inline-flex items-center text-xs font-bold px-3 py-1.5 bg-indigo-50 text-indigo-700 border border-indigo-100/80 rounded-xl">
-                        ₱{{ number_format($totalSpent, 2) }} Total
+                        ₱{{ number_format($totalSpent, 2) }} Spent
                     </span>
                 </div>
             </div>
@@ -126,11 +126,15 @@
                 <!-- Expense List Container -->
                 <div class="p-4 sm:p-6 divide-y divide-slate-100">
                     @foreach($allExpenses as $expense)
+                        @php
+                            $isLocked = !$cycleStart || $expense->transaction_date->lt($cycleStart) || $expense->transaction_date->gt($cycleEnd);
+                        @endphp
                         <div class="flex items-start gap-3">
                             <input type="checkbox" wire:model="selected" value="{{ $expense->id }}"
-                                   class="mt-4 sm:mt-5 h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 shrink-0">
+                                {{ $isLocked ? 'disabled' : '' }}
+                                class="mt-4 sm:mt-5 h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 shrink-0 disabled:opacity-30">
                             <div class="flex-1 min-w-0">
-                                <x-expense-row :expense="$expense" :show-merchant="true" />
+                                <x-expense-row :expense="$expense" :show-merchant="true" :locked="$isLocked" />
                             </div>
                         </div>
                     @endforeach
