@@ -32,6 +32,7 @@ class CategoryConcentrationWarning extends Notification
           'severity_tier' => 'medium',
           'category'      => $this->categoryName,
           'description'   => "Category Watch 👀: {$this->percentage}% of this week's spending (₱" . number_format($this->categoryTotal, 2) . ") has gone to {$this->categoryName}.",
+          'resolved'      => false,
       ];
   }
 }

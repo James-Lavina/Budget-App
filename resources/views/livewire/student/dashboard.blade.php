@@ -1,7 +1,9 @@
 <div class="min-h-screen py-3 sm:py-6 md:py-8 px-2.5 sm:px-6 lg:px-8 text-slate-800 antialiased relative pb-28 sm:pb-24 w-full max-w-full overflow-x-hidden">
     <div class="max-w-7xl mx-auto space-y-3 sm:space-y-6 w-full min-w-0">
 
-        <!-- HEADER SECTION: GREETING & STATUS -->
+        <!-- HEADER SECTION: GREETING ONLY — status pill removed, it duplicated
+             the Spending Forecast Banner below almost word-for-word. One
+             place to state "how am I doing" instead of two. -->
         <div class="flex flex-col md:flex-row md:items-center justify-between gap-2 sm:gap-4 w-full min-w-0">
             <div class="min-w-0">
                 <h1 class="text-lg sm:text-2xl md:text-3xl font-extrabold text-slate-900 tracking-tight flex items-center gap-1.5 truncate">
@@ -12,36 +14,7 @@
                 </p>
             </div>
             <div class="flex items-center gap-3 self-start md:self-auto shrink-0">
-                <div class="hidden lg:block">
-                    <livewire:student.notification-center />
-                </div>
-        
-                @if($isSavingsLocked)
-                    <span class="inline-flex items-center gap-1.5 text-[11px] sm:text-xs bg-indigo-50 border border-indigo-200 text-indigo-700 px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-full font-bold">
-                        <span class="h-2 w-2 rounded-full bg-indigo-500"></span>
-                        Saved today
-                    </span>
-                @elseif($isDailyQuotaHit)
-                    <span class="inline-flex items-center gap-1.5 text-[11px] sm:text-xs bg-amber-50 border border-amber-200 text-amber-700 px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-full font-bold">
-                        <span class="h-2 w-2 rounded-full bg-amber-500"></span>
-                        Today's budget used
-                    </span>
-                @elseif(!$isCriticalState)
-                    <span class="inline-flex items-center gap-1.5 text-[11px] sm:text-xs bg-emerald-50 border border-emerald-200/80 text-emerald-700 px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-full font-bold">
-                        <span class="h-2 w-2 rounded-full bg-emerald-500"></span>
-                        On track this week
-                    </span>
-                @elseif($isDepleted)
-                    <span class="inline-flex items-center gap-1.5 text-[11px] sm:text-xs bg-rose-50 border border-rose-200/80 text-rose-700 px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-full font-bold">
-                        <span class="h-2 w-2 rounded-full bg-rose-500 animate-pulse"></span>
-                        Budget Exhausted
-                    </span>
-                @else
-                    <span class="inline-flex items-center gap-1.5 text-[11px] sm:text-xs bg-rose-50 border border-rose-200/80 text-rose-700 px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-full font-bold">
-                        <span class="h-2 w-2 rounded-full bg-rose-500 animate-pulse"></span>
-                        Spending Warning
-                    </span>
-                @endif
+                <livewire:student.notification-center />
             </div>
         </div>
 
@@ -104,6 +77,12 @@
                         <span>·</span>
                         <span>{{ $daysRemaining }} {{ Str::plural('day', $daysRemaining) }} left</span>
                     </div>
+                    {{-- NEW: one-line explanation connecting this number to
+                         "Remaining Budget" above it, so it's clear this is a
+                         slice of that total, not a separate figure. --}}
+                    <p class="text-[10px] sm:text-[11px] text-slate-400 font-medium leading-snug pt-0.5">
+                        Spend up to this much today without falling behind pace.
+                    </p>
                 </div>
                 <div class="h-9 w-9 sm:h-12 sm:w-12 rounded-xl sm:rounded-2xl {{ $isSavingsLocked ? 'bg-indigo-50 text-indigo-600' : 'bg-emerald-50 text-emerald-600' }} flex items-center justify-center shrink-0 ml-2">
                     <svg class="w-4 h-4 sm:w-6 sm:h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
@@ -114,12 +93,16 @@
         </div>
 
         <!-- SPENDING FORECAST BANNER -->
-        <div class="bg-white rounded-2xl sm:rounded-3xl p-3.5 sm:p-5 border border-l-4 shadow-sm transition-all flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 sm:gap-4 w-full min-w-0 {{ $isDepleted || $isPaceCritical ? 'border-l-rose-500 border-slate-100' : ($isSavingsLocked ? 'border-l-indigo-500 border-slate-100' : ($isDailyQuotaHit ? 'border-l-amber-500 border-slate-100' : 'border-l-emerald-500 border-slate-100')) }}">
+        <div class="bg-white rounded-2xl sm:rounded-3xl p-3.5 sm:p-5 border border-l-4 shadow-sm transition-all flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 sm:gap-4 w-full min-w-0 {{ $isDepleted || $isPaceCritical ? 'border-l-rose-500 border-slate-100' : ($isSavingsLocked ? 'border-l-indigo-500 border-slate-100' : ($isDailyQuotaHit ? 'border-l-amber-500 border-slate-100' : ($hasNoSpendingYet ? 'border-l-slate-300 border-slate-100' : 'border-l-emerald-500 border-slate-100'))) }}">
             <div class="flex items-center gap-3 min-w-0">
-                <div class="h-9 w-9 sm:h-11 sm:w-11 rounded-xl sm:rounded-2xl flex items-center justify-center shrink-0 {{ $isDepleted || $isPaceCritical ? 'bg-rose-500 text-white' : ($isSavingsLocked ? 'bg-indigo-600 text-white' : ($isDailyQuotaHit ? 'bg-amber-500 text-white' : 'bg-emerald-500 text-white')) }}">
+                <div class="h-9 w-9 sm:h-11 sm:w-11 rounded-xl sm:rounded-2xl flex items-center justify-center shrink-0 {{ $isDepleted || $isPaceCritical ? 'bg-rose-500 text-white' : ($isSavingsLocked ? 'bg-indigo-600 text-white' : ($isDailyQuotaHit ? 'bg-amber-500 text-white' : ($hasNoSpendingYet ? 'bg-slate-400 text-white' : 'bg-emerald-500 text-white'))) }}">
                     <svg class="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
                         @if($isSavingsLocked)
                             <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        @elseif(!$isDepleted && !$isPaceCritical && !$isDailyQuotaHit && $hasNoSpendingYet)
+                            {{-- Fresh-start icon: a simple flag/sparkle, distinct from the
+                                 "trending" icon used once real pace data exists. --}}
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 3v2.25m6.364.386-1.591 1.591M21 12h-2.25m-.386 6.364-1.591-1.591M12 18.75V21m-6.364-2.386 1.591-1.591M3 12h2.25m.386-6.364 1.591 1.591M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                         @else
                             <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 18L9 11.25l4.306 4.307a11.95 11.95 0 015.814-5.519l2.74-1.22m0 0l-5.94-2.28m5.94 2.28l-2.28 5.941" />
                         @endif
@@ -135,19 +118,23 @@
                             Money Saved Today
                         @elseif($isDailyQuotaHit)
                             Today's Budget Met
+                        @elseif($hasNoSpendingYet)
+                            Fresh Start This Week
                         @else
                             On Track This Week
                         @endif
                     </h3>
                     <p class="text-[11px] sm:text-xs text-slate-600 font-medium mt-0.5 leading-tight">
                         @if($isDepleted)
-                            You have ₱0.00 left for the next {{ $daysRemaining }} {{ Str::plural('day', $daysRemaining) }}.
+                            You have ₱0.00 left for the next {{ $daysRemaining }} {{ Str::plural('day', $daysRemaining) }}. Add funds or wait for your {{ $currentBudget->reset_day }} reset.
                         @elseif($isPaceCritical)
-                            At <span class="font-bold">₱{{ number_format($dailyVelocity, 2) }}/day</span>, your money will only last <span class="font-bold">{{ max(1, round($projectedDaysLeft)) }} {{ Str::plural('day', max(1, round($projectedDaysLeft))) }}</span>.
+                            At <span class="font-bold">₱{{ number_format($dailyVelocity, 2) }}/day</span>, your money will only last <span class="font-bold">{{ max(1, round($projectedDaysLeft)) }} {{ Str::plural('day', max(1, round($projectedDaysLeft))) }}</span>. Try staying under <span class="font-bold">₱{{ number_format($remainingDailyRate, 2) }}/day</span> to catch back up.
                         @elseif($isSavingsLocked)
                             Great job! You saved <span class="font-bold">₱{{ number_format($todaySavingsTotal, 2) }}</span> today. Remaining for today: <span class="font-bold">₱{{ number_format($safeToSpend, 2) }}</span>.
                         @elseif($isDailyQuotaHit)
                             Daily budget met. Total remaining: <span class="font-bold">₱{{ number_format($currentBudget->remaining_allowance, 2) }}</span> (<span class="font-bold">₱{{ number_format($remainingDailyRate, 2) }}/day</span> for the next {{ $futureDaysRemaining }} {{ Str::plural('day', $futureDaysRemaining) }}).
+                        @elseif($hasNoSpendingYet)
+                            You haven't logged anything yet this cycle. You've got <span class="font-bold">₱{{ number_format($currentBudget->remaining_allowance, 2) }}</span> for the next {{ $daysRemaining }} {{ Str::plural('day', $daysRemaining) }} — about <span class="font-bold">₱{{ number_format($safeToSpend, 2) }}/day</span> if you spend it evenly.
                         @else
                             On track to finish the week with ~<span class="font-bold">₱{{ number_format($projectedRemaining, 2) }}</span> remaining.
                         @endif

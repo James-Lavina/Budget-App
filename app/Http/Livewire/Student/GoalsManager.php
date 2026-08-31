@@ -125,14 +125,16 @@ class GoalsManager extends Component
             'fund_amount.max' => 'Transfer halted! The amount exceeds either your remaining budget (₱' . number_format($currentBudget->remaining_allowance, 2) . ') or what is left to finish this goal (₱' . number_format($remainingNeeded, 2) . ').'
         ]);
 
-        RiskLog::where('user_id', auth()->id())
-            ->whereDate('created_at', Carbon::today())
-            ->delete();
-
-        DatabaseNotification::where('notifiable_id', auth()->id())
-            ->where('notifiable_type', 'App\Models\User')
-            ->where('data', 'LIKE', '%"anomaly_type":"low_allowance_threshold"%')
-            ->delete();
+        // NOTE: previously this blanket-deleted ALL of today's RiskLog rows
+        // (regardless of type/resolved status) and every low-allowance
+        // notification before doing anything else. That wiped still-valid
+        // warnings unrelated to this action and — same bug as LogExpense —
+        // defeated the "only notify once per cycle" guard below, since the
+        // guard's own exists() check always found nothing right after the
+        // delete. Funding a goal can only ever push remaining_allowance
+        // DOWN (money moves out to savings), never recover it, so there's
+        // no "resolve on recovery" branch needed here — just don't
+        // pre-emptively delete anything before evaluating.
 
         $goalWasAchieved = false;
 
@@ -196,6 +198,7 @@ class GoalsManager extends Component
             $alreadyNotified = DatabaseNotification::where('notifiable_id', auth()->id())
                 ->where('notifiable_type', 'App\Models\User')
                 ->where('data', 'LIKE', '%"anomaly_type":"low_allowance_threshold"%')
+                ->where('data', 'LIKE', '%"resolved":false%')
                 ->where('created_at', '>=', $currentBudget->created_at)
                 ->exists();
 
@@ -211,6 +214,10 @@ class GoalsManager extends Component
                         'anomaly_type' => 'low_allowance_threshold',
                         'severity_tier' => 'medium',
                         'description' => "Great job saving! 🎯 Heads up: you have ₱" . number_format($currentBudget->remaining_allowance, 2) . " left for food and daily expenses this week.",
+                        // NEW: matches the flag added to LowAllowanceWarning's
+                        // toArray() so this manually-created notification is
+                        // eligible for the same dedupe/resolve logic.
+                        'resolved' => false,
                     ],
                     'read_at' => null,
                 ]);

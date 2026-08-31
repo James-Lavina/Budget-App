@@ -172,7 +172,11 @@ class Dashboard extends Component
             // matching anomaly_type in place if it still applies.
             $expense->delete();
 
-            app(RiskDetectionService::class)->evaluateSpendingRisk(auth()->user());
+            $riskService = app(RiskDetectionService::class);
+            $riskService->evaluateSpendingRisk(auth()->user());
+            // NEW: if this expense had triggered a large-transaction alert,
+            // resolve it — the flagged purchase no longer exists.
+            $riskService->resolveLargeTransactionAlert(auth()->user(), $expense->id);
         });
 
         $this->computeBehavioralMetrics();
@@ -206,6 +210,8 @@ class Dashboard extends Component
                 $query->where('name', 'LIKE', '%Savings%');
             })
             ->sum('amount');
+
+        $hasNoSpendingYet = $totalSpent <= 0;
 
         $dailyVelocity       = $totalSpent / $daysElapsed;
         $futureDaysRemaining = $cycle['daysRemaining'];
@@ -328,6 +334,7 @@ class Dashboard extends Component
             'cycleEnd'               => $endDate,
             'rolloverAmount'         => $rolloverAmount,
             'totalSpent'             => $totalSpent,
+            'hasNoSpendingYet'       => $hasNoSpendingYet,
             'totalSavedThisWeek'     => $totalSavedThisWeek,
             'todaySavingsTotal'      => $todaySavingsTotal,
             'dailyVelocity'          => $dailyVelocity,

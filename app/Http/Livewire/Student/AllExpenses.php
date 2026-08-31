@@ -174,6 +174,7 @@ class AllExpenses extends Component
         $count = $deletable->count();
         $deletedTotal = $deletable->sum('amount');
         $itemNames = $deletable->pluck('item_name')->take(5)->implode(', ');
+        $deletableIds = $deletable->pluck('id');
 
         DB::transaction(function () use ($deletable, $currentBudget, $count, $deletedTotal, $itemNames) {
             foreach ($deletable as $expense) {
@@ -212,7 +213,13 @@ class AllExpenses extends Component
             // deleteExpense() below for the same rationale.
         });
 
-        app(RiskDetectionService::class)->evaluateSpendingRisk(auth()->user());
+        $riskService = app(RiskDetectionService::class);
+        $riskService->evaluateSpendingRisk(auth()->user());
+        // NEW: resolve any large-transaction alerts tied to the deleted
+        // expenses — the flagged purchases no longer exist.
+        foreach ($deletableIds as $expenseId) {
+            $riskService->resolveLargeTransactionAlert(auth()->user(), $expenseId);
+        }
 
         $this->selected = [];
         $this->selectAll = false;
@@ -288,7 +295,11 @@ class AllExpenses extends Component
             // still-valid warnings whenever any single expense was removed.
             $expense->delete();
 
-            app(RiskDetectionService::class)->evaluateSpendingRisk(auth()->user());
+            $riskService = app(RiskDetectionService::class);
+            $riskService->evaluateSpendingRisk(auth()->user());
+            // NEW: resolve any large-transaction alert tied to this
+            // specific expense — the flagged purchase no longer exists.
+            $riskService->resolveLargeTransactionAlert(auth()->user(), $expense->id);
         });
 
         $this->emit('refreshSavings');

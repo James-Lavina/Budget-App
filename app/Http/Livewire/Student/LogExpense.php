@@ -7,9 +7,11 @@ use App\Models\ExpenseCategory;
 use App\Models\WeeklyBudget;
 use App\Models\RiskLog;
 use App\Notifications\LowAllowanceWarning;
+use App\Services\BudgetCycleService;
+use App\Services\RiskDetectionService;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Notifications\DatabaseNotification; 
+use Illuminate\Notifications\DatabaseNotification;
 use Livewire\Component;
 
 class LogExpense extends Component
@@ -59,13 +61,15 @@ class LogExpense extends Component
             return null;
         }
 
-        RiskLog::where('user_id', auth()->id())->whereDate('created_at', Carbon::today())->delete();
-        DatabaseNotification::where('notifiable_id', auth()->id())
-            ->where('notifiable_type', 'App\Models\User')
-            ->where(function($query) {
-                $query->where('data', 'LIKE', '%"anomaly_type":"low_allowance_threshold"%')
-                    ->orWhere('data', 'LIKE', '%risk_log_id%');
-            })->delete();
+        // NOTE: we no longer blanket-delete today's RiskLog rows or every
+        // risk/low-allowance notification here before saving. That used to
+        // wipe warnings unrelated to this specific expense (including
+        // still-valid ones), and it broke the "only notify once per cycle"
+        // guard below by deleting the very row that guard checks against —
+        // causing a fresh Low Allowance notification to fire on every
+        // single purchase while under threshold instead of just once.
+        // RiskDetectionService now owns creating/resolving risk logs and
+        // their notifications on its own.
 
         $newExpense = null;
 
@@ -84,15 +88,17 @@ class LogExpense extends Component
             $currentBudget->save();
         });
 
-        $riskService = app(\App\Services\RiskDetectionService::class);
+        $riskService = app(RiskDetectionService::class);
         $riskService->evaluateSpendingRisk(auth()->user());
         $riskService->checkLargeTransaction(auth()->user(), $newExpense, $currentBudget->total_allowance);
 
         $thresholdAmount = $currentBudget->total_allowance * 0.20;
+
         if ($currentBudget->remaining_allowance <= $thresholdAmount) {
             $alreadyNotified = DatabaseNotification::where('notifiable_id', auth()->id())
                 ->where('notifiable_type', 'App\Models\User')
                 ->where('data', 'LIKE', '%"anomaly_type":"low_allowance_threshold"%')
+                ->where('data', 'LIKE', '%"resolved":false%')
                 ->where('created_at', '>=', $currentBudget->created_at)
                 ->exists();
 
@@ -100,6 +106,21 @@ class LogExpense extends Component
                 $percentageLeft = round(($currentBudget->remaining_allowance / $currentBudget->total_allowance) * 100);
                 auth()->user()->notify(new LowAllowanceWarning($percentageLeft, $currentBudget->remaining_allowance));
             }
+        } else {
+            // Balance recovered above threshold — resolve any still-open
+            // low allowance warnings from this cycle instead of leaving
+            // them stuck "active" forever.
+            DatabaseNotification::where('notifiable_id', auth()->id())
+                ->where('notifiable_type', 'App\Models\User')
+                ->where('data', 'LIKE', '%"anomaly_type":"low_allowance_threshold"%')
+                ->where('data', 'LIKE', '%"resolved":false%')
+                ->where('created_at', '>=', $currentBudget->created_at)
+                ->get()
+                ->each(function ($notification) {
+                    $data = $notification->data;
+                    $data['resolved'] = true;
+                    $notification->update(['data' => $data]);
+                });
         }
 
         return $newExpense;
@@ -141,6 +162,16 @@ class LogExpense extends Component
 
         $currentBudget = WeeklyBudget::where('user_id', auth()->id())->latest()->first();
 
+        // NEW: same cycle-lock guard used everywhere else an expense gets
+        // deleted. In practice these entries were always created seconds
+        // earlier in this same form session, so this should never actually
+        // trip — but it closes the one delete path in the app that didn't
+        // have the check, for consistency and defense in depth.
+        if ($currentBudget && !app(BudgetCycleService::class)->isWithinCurrentCycle($currentBudget, auth()->user(), $expense->transaction_date)) {
+            session()->flash('error', 'This expense belongs to a previous budget cycle and can no longer be removed here.');
+            return;
+        }
+
         DB::transaction(function () use ($expense, $currentBudget) {
             if ($currentBudget) {
                 $currentBudget->remaining_allowance += $expense->amount;
@@ -151,7 +182,12 @@ class LogExpense extends Component
 
         $this->sessionLog = array_values(array_filter($this->sessionLog, fn($e) => $e['id'] !== $expenseId));
 
-        app(\App\Services\RiskDetectionService::class)->evaluateSpendingRisk(auth()->user());
+        $riskService = app(RiskDetectionService::class);
+        $riskService->evaluateSpendingRisk(auth()->user());
+        // NEW: if this expense had triggered a "big purchase" alert, that
+        // alert is now about a transaction that no longer exists — resolve
+        // it instead of leaving a stale flag behind.
+        $riskService->resolveLargeTransactionAlert(auth()->user(), $expenseId);
     }
 
     public function render()

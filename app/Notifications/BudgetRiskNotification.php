@@ -56,6 +56,11 @@ class BudgetRiskNotification extends Notification
             'anomaly_type'  => $this->riskLog->anomaly_type,
             'severity_tier' => $this->riskLog->severity_tier,
             'description'   => $this->riskLog->description,
+            // NEW: lets RiskDetectionService flip this to true when the
+            // underlying risk log gets resolved, so the notification
+            // center can show "Resolved" instead of a stale-looking
+            // warning that never goes away.
+            'resolved'      => false,
         ];
     }
 }

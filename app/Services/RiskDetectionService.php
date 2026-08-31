@@ -81,8 +81,10 @@ class RiskDetectionService
         $primaryRiskTriggered = false;
 
         // Trigger condition: Single-day spikes or unsustainable runway depletion
-        if (($projectedRunwayDaysLeft < $calendarDaysLeftInCycle && $currentDailyVelocity > $allowedDailyVelocity) || ($spentToday >= $allowedDailyVelocity * 2)) {
-            
+        $triggerCondition = ($projectedRunwayDaysLeft < $calendarDaysLeftInCycle && $currentDailyVelocity > $allowedDailyVelocity) || ($spentToday >= $allowedDailyVelocity * 2);
+
+        if ($triggerCondition) {
+
             $alreadyLoggedToday = RiskLog::where('user_id', $user->id)
                 ->where('anomaly_type', $anomalyType)
                 ->where('resolved', false)
@@ -90,7 +92,7 @@ class RiskDetectionService
                 ->exists();
 
             if ($alreadyLoggedToday) {
-                    return;
+                return;
             }
 
             // === RUNWAY DEFICIT MATRIX ENGINE ===
@@ -129,9 +131,37 @@ class RiskDetectionService
 
             // Mark primary risk as triggered so secondary pacing check is skipped
             $primaryRiskTriggered = true;
+        } else {
+            // The overspending condition that used to be true is no longer
+            // true — e.g. the student deleted or lowered the amount of the
+            // expense that caused it. Mark both the internal RiskLog rows
+            // AND their linked notifications as resolved instead of
+            // leaving them permanently "active" with no way to tell they
+            // were fixed.
+            $resolvedLogIds = RiskLog::where('user_id', $user->id)
+                ->where('anomaly_type', $anomalyType)
+                ->where('resolved', false)
+                ->whereDate('created_at', Carbon::today())
+                ->pluck('id');
+
+            if ($resolvedLogIds->isNotEmpty()) {
+                RiskLog::whereIn('id', $resolvedLogIds)->update(['resolved' => true]);
+
+                foreach ($resolvedLogIds as $logId) {
+                    DatabaseNotification::where('notifiable_id', $user->id)
+                        ->where('notifiable_type', 'App\Models\User')
+                        ->where('data', 'LIKE', '%"risk_log_id":' . $logId . '%')
+                        ->get()
+                        ->each(function ($notification) {
+                            $data = $notification->data;
+                            $data['resolved'] = true;
+                            $notification->update(['data' => $data]);
+                        });
+                }
+            }
         }
 
-        //4. NEW: Category concentration check — independent of velocity checks above
+        //4. Category concentration check — independent of velocity checks above
         $this->checkCategoryConcentration($user, $cycleStartDate, $cycleEndDate);
     }
 
@@ -164,45 +194,61 @@ class RiskDetectionService
             })
             ->sum('amount');
 
+        $categoryTotals = null;
+        $percentage = 0;
+
         // Skip early in the cycle — not enough data for a meaningful signal yet.
-        if ($totalSpent < 200) {
-            return;
+        if ($totalSpent >= 200) {
+            $categoryTotals = Expense::where('expenses.user_id', $user->id)
+                ->whereBetween('transaction_date', [$cycleStartDate, $cycleEndDate])
+                ->whereNull('savings_goal_id')
+                ->join('expense_categories', 'expenses.expense_category_id', '=', 'expense_categories.id')
+                ->where('expense_categories.name', 'NOT LIKE', '%Savings%')
+                ->select('expense_categories.name', DB::raw('SUM(expenses.amount) as total'))
+                ->groupBy('expense_categories.name')
+                ->orderByDesc('total')
+                ->first();
+
+            if ($categoryTotals) {
+                $percentage = round(($categoryTotals->total / $totalSpent) * 100);
+            }
         }
 
-        $categoryTotals = Expense::where('expenses.user_id', $user->id)
-            ->whereBetween('transaction_date', [$cycleStartDate, $cycleEndDate])
-            ->whereNull('savings_goal_id')
-            ->join('expense_categories', 'expenses.expense_category_id', '=', 'expense_categories.id')
-            ->where('expense_categories.name', 'NOT LIKE', '%Savings%')
-            ->select('expense_categories.name', DB::raw('SUM(expenses.amount) as total'))
-            ->groupBy('expense_categories.name')
-            ->orderByDesc('total')
-            ->first();
+        $conditionHolds = $categoryTotals && $percentage >= 50;
 
-        if (!$categoryTotals) {
-            return;
-        }
+        if ($conditionHolds) {
+            // Avoid re-notifying for the same category within the same cycle.
+            $alreadyNotified = DatabaseNotification::where('notifiable_id', $user->id)
+                ->where('notifiable_type', 'App\Models\User')
+                ->where('data->anomaly_type', 'category_concentration')
+                ->where('data->category', $categoryTotals->name)
+                ->where('data->resolved', false)
+                ->where('created_at', '>=', $cycleStartDate)
+                ->exists();
 
-        $percentage = round(($categoryTotals->total / $totalSpent) * 100);
-
-        if ($percentage < 50) {
-            return;
-        }
-
-        // Avoid re-notifying for the same category within the same cycle.
-        $alreadyNotified = DatabaseNotification::where('notifiable_id', $user->id)
-            ->where('notifiable_type', 'App\Models\User')
-            ->where('data->anomaly_type', 'category_concentration')
-            ->where('data->category', $categoryTotals->name)
-            ->where('created_at', '>=', $cycleStartDate)
-            ->exists();
-
-        if (!$alreadyNotified) {
-            $user->notify(new \App\Notifications\CategoryConcentrationWarning(
-                $categoryTotals->name,
-                $percentage,
-                (float) $categoryTotals->total
-            ));
+            if (!$alreadyNotified) {
+                $user->notify(new \App\Notifications\CategoryConcentrationWarning(
+                    $categoryTotals->name,
+                    $percentage,
+                    (float) $categoryTotals->total
+                ));
+            }
+        } else {
+            // NEW: the dominant category no longer accounts for 50%+ of
+            // spending this cycle (expense edited/deleted, or spending
+            // diversified since). Resolve any still-open concentration
+            // warnings instead of leaving them stuck "active" forever.
+            DatabaseNotification::where('notifiable_id', $user->id)
+                ->where('notifiable_type', 'App\Models\User')
+                ->where('data->anomaly_type', 'category_concentration')
+                ->where('data->resolved', false)
+                ->where('created_at', '>=', $cycleStartDate)
+                ->get()
+                ->each(function ($notification) {
+                    $data = $notification->data;
+                    $data['resolved'] = true;
+                    $notification->update(['data' => $data]);
+                });
         }
     }
 
@@ -227,9 +273,25 @@ class RiskDetectionService
         $percentage = round(($expense->amount / $totalAllowance) * 100);
 
         $user->notify(new \App\Notifications\LargeTransactionAlert(
+            $expense->id,
             $expense->item_name,
             (float) $expense->amount,
             $percentage
         ));
+    }
+
+    public function resolveLargeTransactionAlert($user, $expenseId)
+    {
+        DatabaseNotification::where('notifiable_id', $user->id)
+            ->where('notifiable_type', 'App\Models\User')
+            ->where('data->anomaly_type', 'large_transaction')
+            ->where('data->expense_id', $expenseId)
+            ->where('data->resolved', false)
+            ->get()
+            ->each(function ($notification) {
+                $data = $notification->data;
+                $data['resolved'] = true;
+                $notification->update(['data' => $data]);
+            });
     }
 }

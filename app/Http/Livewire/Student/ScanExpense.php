@@ -232,13 +232,10 @@ class ScanExpense extends Component
             return;
         }
 
-        RiskLog::where('user_id', auth()->id())->whereDate('created_at', Carbon::today())->delete();
-        DatabaseNotification::where('notifiable_id', auth()->id())
-            ->where('notifiable_type', 'App\Models\User')
-            ->where(function ($q) {
-                $q->where('data', 'LIKE', '%"anomaly_type":"low_allowance_threshold"%')
-                  ->orWhere('data', 'LIKE', '%risk_log_id%');
-            })->delete();
+        // NOTE: no longer blanket-deleting today's RiskLog rows or every
+        // risk/low-allowance notification here — see LogExpense.php's
+        // persistExpense() for the full rationale. RiskDetectionService
+        // manages risk log + notification lifecycle on its own now.
 
         try {
             DB::transaction(function () use ($currentBudget, $total) {
@@ -279,6 +276,7 @@ class ScanExpense extends Component
                 $alreadyNotified = DatabaseNotification::where('notifiable_id', auth()->id())
                     ->where('notifiable_type', 'App\Models\User')
                     ->where('data', 'LIKE', '%"anomaly_type":"low_allowance_threshold"%')
+                    ->where('data', 'LIKE', '%"resolved":false%')
                     ->where('created_at', '>=', $currentBudget->created_at)
                     ->exists();
 
@@ -290,6 +288,20 @@ class ScanExpense extends Component
                         $currentBudget->remaining_allowance
                     ));
                 }
+            } else {
+                // Balance recovered above threshold — resolve any
+                // still-open low allowance warnings from this cycle.
+                DatabaseNotification::where('notifiable_id', auth()->id())
+                    ->where('notifiable_type', 'App\Models\User')
+                    ->where('data', 'LIKE', '%"anomaly_type":"low_allowance_threshold"%')
+                    ->where('data', 'LIKE', '%"resolved":false%')
+                    ->where('created_at', '>=', $currentBudget->created_at)
+                    ->get()
+                    ->each(function ($notification) {
+                        $data = $notification->data;
+                        $data['resolved'] = true;
+                        $notification->update(['data' => $data]);
+                    });
             }
 
             session()->flash('success', count($this->items) . ' item(s) logged from your receipt!');

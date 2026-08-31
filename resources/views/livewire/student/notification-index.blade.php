@@ -26,6 +26,13 @@
             @php
             $data = $notification->data;
             $isUnread = is_null($notification->read_at);
+            // NEW: surfaces the 'resolved' flag RiskDetectionService now
+            // maintains on low_allowance_threshold, pacing/velocity,
+            // category_concentration, and large_transaction notifications.
+            // Notifications created before that flag existed simply won't
+            // have this key, so they fall through to "not resolved" (i.e.
+            // display unchanged) — that's expected, not a bug.
+            $isResolved = $data['resolved'] ?? false;
             $severity = $data['severity_tier'] ?? 'info';
             $type = $data['anomaly_type'] ?? 'default';
         
@@ -42,6 +49,14 @@
                 'large_transaction'       => ['bg' => 'bg-orange-100', 'text' => 'text-orange-700', 'path' => 'M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1'],
             ];
             $icon = $iconMap[$type] ?? $iconMap['default'];
+
+            // NEW: resolved notifications get their icon muted to slate,
+            // regardless of type — visually signals "this no longer
+            // applies" at a glance, distinct from the colorful "still
+            // active" icons above.
+            if ($isResolved) {
+                $icon = ['bg' => 'bg-slate-100', 'text' => 'text-slate-400', 'path' => $icon['path']];
+            }
         
             switch ($type) {
                 case 'goal_achieved':
@@ -67,9 +82,9 @@
                     $link = null;
             }
         @endphp
-        <div class="p-5 border-b border-slate-100 last:border-b-0 transition-colors flex items-start justify-between gap-4 {{ $isUnread ? 'bg-indigo-50/30' : 'hover:bg-slate-50/60' }}">
+        <div class="p-5 border-b border-slate-100 last:border-b-0 transition-colors flex items-start justify-between gap-4 {{ $isResolved ? 'opacity-60' : ($isUnread ? 'bg-indigo-50/30' : 'hover:bg-slate-50/60') }}">
             <div class="flex items-start gap-4">
-                <!-- Icon (now mapped by notification type, not just severity) -->
+                <!-- Icon (mapped by notification type, muted when resolved) -->
                 <div class="shrink-0 p-3 rounded-2xl mt-0.5 {{ $icon['bg'] }} {{ $icon['text'] }}">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="{{ $icon['path'] }}"/>
@@ -78,14 +93,22 @@
         
                 <!-- Content -->
                 <div class="space-y-1">
-                    <p class="text-sm font-medium text-slate-800 leading-relaxed">
+                    <p class="text-sm font-medium leading-relaxed {{ $isResolved ? 'text-slate-500' : 'text-slate-800' }}">
                         {{ $data['description'] ?? ($data['message'] ?? ($data['title'] ?? 'System notification received.')) }}
                     </p>
-                    <div class="flex items-center gap-3">
+                    <div class="flex items-center gap-3 flex-wrap">
                         <span class="text-xs font-semibold text-slate-400">
                             {{ $notification->created_at->diffForHumans() }}
                         </span>
-                        @if($link)
+                        @if($isResolved)
+                            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide bg-emerald-50 text-emerald-600 border border-emerald-100">
+                                <svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5"/>
+                                </svg>
+                                Resolved
+                            </span>
+                        @endif
+                        @if($link && !$isResolved)
                             <a href="{{ $link }}" class="text-xs font-semibold text-indigo-600 hover:text-indigo-700">View →</a>
                         @endif
                     </div>
