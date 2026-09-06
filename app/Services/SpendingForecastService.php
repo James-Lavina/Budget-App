@@ -199,7 +199,8 @@ class SpendingForecastService
 
         return Cache::remember($cacheKey, now()->addHour(), function () use ($raw, $metrics) {
             try {
-                $apiKey = env('GROQ_API_KEY');
+                $settings = \App\Models\IntegrationSetting::current();
+                $apiKey = $settings->groq_api_key ?: env('GROQ_API_KEY');
                 if (empty($apiKey)) {
                     throw new \Exception('GROQ API key missing.');
                 }
@@ -209,7 +210,7 @@ class SpendingForecastService
                         'Authorization' => 'Bearer ' . $apiKey,
                         'Content-Type'  => 'application/json'
                     ])->post('https://api.groq.com/openai/v1/chat/completions', [
-                        'model' => env('GROQ_MODEL', 'llama-3.3-70b-versatile'),
+                        'model' => $settings->groq_text_model,
                         'messages' => [
                             [
                                 'role' => 'system',

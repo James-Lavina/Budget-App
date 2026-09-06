@@ -43,10 +43,10 @@ class Login extends Component
 
             RateLimiter::clear($throttleKey);
 
-            if(auth()->user()->role === 'admin') {
+            if(in_array(auth()->user()->role, ['admin', 'super_admin'])) {
                 return redirect()->route('admin.dashboard');
             }
-
+            
             return redirect()->route('student.dashboard');
         }
 

@@ -6,6 +6,7 @@ use Livewire\Component;
 use App\Models\Expense;
 use App\Models\WeeklyBudget;
 use Illuminate\Support\Facades\DB;
+use App\Models\ExpenseCategory;
 
 class ExpenseCategoryWidget extends Component
 {
@@ -24,42 +25,39 @@ class ExpenseCategoryWidget extends Component
     public function loadCategoryBreakdown()
     {
         $userId = auth()->id();
-    
-        // Locate the active budget tracking row to bound our chart parameters
-        $activeBudget = WeeklyBudget::where('user_id', $userId)->latest()->first();
 
+        $activeBudget = WeeklyBudget::where('user_id', $userId)->latest()->first();
         if ($activeBudget) {
-            // Aggregate totals grouped by category name for the current cycle
-            // NOTE: Savings excluded — it's a separate bucket, not a spending
-            // category, consistent with the Dashboard's Weekly Spending panel.
             $rawExpenses = Expense::where('expenses.user_id', $userId)
                 ->where('transaction_date', '>=', $activeBudget->cycle_start_date)
                 ->join('expense_categories', 'expenses.expense_category_id', '=', 'expense_categories.id')
                 ->where('expense_categories.name', 'NOT LIKE', '%Savings%')
-                ->select('expense_categories.name', DB::raw('SUM(expenses.amount) as total_amount'))
-                ->groupBy('expense_categories.name')
+                ->select('expense_categories.name', 'expense_categories.color', DB::raw('SUM(expenses.amount) as total_amount'))
+                ->groupBy('expense_categories.name', 'expense_categories.color')
                 ->get();
 
             $this->totalSpent = $rawExpenses->sum('total_amount');
             $this->hasExpenses = $this->totalSpent > 0;
 
             if ($this->hasExpenses) {
-                // Map out array segments with computed percentages for our custom template legend
                 $this->categoriesData = $rawExpenses->map(function ($item) {
                     return [
-                        'name' => $item->name,
-                        'total' => floatval($item->total_amount),
-                        'percentage' => number_format(($item->total_amount / $this->totalSpent) * 100, 1)
+                        'name'       => $item->name,
+                        'total'      => floatval($item->total_amount),
+                        'percentage' => number_format(($item->total_amount / $this->totalSpent) * 100, 1),
+                        // NEW: same source of truth as the Dashboard chart.
+                        'color'      => ExpenseCategory::colorToHex($item->color),
                     ];
                 })->toArray();
 
-                // Format structure arrays perfectly to pass right down into our ChartJS instance
                 $chartLabels = array_column($this->categoriesData, 'name');
                 $chartValues = array_column($this->categoriesData, 'total');
+                $chartColors = array_column($this->categoriesData, 'color');
 
                 $this->dispatchBrowserEvent('updateCategoryChart', [
                     'labels' => $chartLabels,
-                    'values' => $chartValues
+                    'values' => $chartValues,
+                    'colors' => $chartColors,
                 ]);
             } else {
                 $this->categoriesData = [];

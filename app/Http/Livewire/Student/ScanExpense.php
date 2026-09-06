@@ -7,6 +7,7 @@ use App\Models\ExpenseCategory;
 use App\Models\Receipt;
 use App\Models\WeeklyBudget;
 use App\Models\RiskLog;
+use App\Models\RiskSetting;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
@@ -21,9 +22,7 @@ class ScanExpense extends Component
 
     public $step = 1;
     public $isProcessing = false;
-
     public $receiptImage;
-
     public $merchant_name;
     public $transaction_date;
     public $items = [];
@@ -54,9 +53,13 @@ class ScanExpense extends Component
     {
         $this->validate();
         $this->isProcessing = true;
+
         $currentYear = Carbon::today()->format('Y');
 
         try {
+            $settings = \App\Models\IntegrationSetting::current();
+            $apiKey = $settings->groq_api_key ?: env('GROQ_API_KEY');
+
             // Filter out 'Savings' category for AI category extraction
             $dbCategories = ExpenseCategory::whereRaw('LOWER(name) != ?', ['savings'])
                 ->pluck('name')
@@ -65,6 +68,7 @@ class ScanExpense extends Component
             if (empty($dbCategories)) {
                 throw new \Exception('Please seed your expense_categories table first.');
             }
+
             $categoryListString = implode(', ', array_map(fn ($cat) => "'$cat'", $dbCategories));
 
             $storedPath = $this->receiptImage->store('receipts', 'public');
@@ -111,10 +115,10 @@ class ScanExpense extends Component
             $lastFailureReason = null;
 
             for ($attempt = 1; $attempt <= $maxAttempts; $attempt++) {
-                $groqResponse = Http::withHeaders([
-                    'Authorization' => 'Bearer ' . env('GROQ_API_KEY'),
-                ])->timeout(45)->post('https://api.groq.com/openai/v1/chat/completions', [
-                    'model' => env('GROQ_VISION_MODEL', 'qwen/qwen3.6-27b'),
+                    $groqResponse = Http::withHeaders([
+                        'Authorization' => 'Bearer ' . $apiKey,
+                    ])->timeout(45)->post('https://api.groq.com/openai/v1/chat/completions', [
+                        'model' => $settings->groq_vision_model,
                     'messages' => [
                         ['role' => 'system', 'content' => $systemInstruction],
                         [
@@ -219,6 +223,7 @@ class ScanExpense extends Component
         $this->validate($this->verifyRules());
 
         $currentBudget = WeeklyBudget::where('user_id', auth()->id())->latest()->first();
+
         if (!$currentBudget) {
             session()->flash('error', 'No active budget found. Set up your allowance first.');
             return redirect()->route('student.budget-setup');
@@ -241,7 +246,7 @@ class ScanExpense extends Component
             DB::transaction(function () use ($currentBudget, $total) {
                 $formattedDateTime = $this->transaction_date . ' ' . Carbon::now()->format('H:i:s');
                 $firstExpenseId = null;
-            
+
                 foreach ($this->items as $item) {
                     $expense = Expense::create([
                         'user_id'             => auth()->id(),
@@ -252,7 +257,7 @@ class ScanExpense extends Component
                         'transaction_date'    => $formattedDateTime,
                         'tracking_type'       => 'ocr',
                     ]);
-            
+
                     // attach the receipt only to the first created expense
                     if ($firstExpenseId === null) {
                         $firstExpenseId = $expense->id;
@@ -265,43 +270,49 @@ class ScanExpense extends Component
                         }
                     }
                 }
-            
+
                 $currentBudget->decrement('remaining_allowance', $total);
             });
 
             app(\App\Services\RiskDetectionService::class)->evaluateSpendingRisk(auth()->user());
+            app(\App\Services\RiskDetectionService::class)->resolveNoExpenseLogsAlert(auth()->user());
 
-            $thresholdAmount = $currentBudget->total_allowance * 0.20;
-            if ($currentBudget->remaining_allowance <= $thresholdAmount) {
-                $alreadyNotified = DatabaseNotification::where('notifiable_id', auth()->id())
-                    ->where('notifiable_type', 'App\Models\User')
-                    ->where('data', 'LIKE', '%"anomaly_type":"low_allowance_threshold"%')
-                    ->where('data', 'LIKE', '%"resolved":false%')
-                    ->where('created_at', '>=', $currentBudget->created_at)
-                    ->exists();
+            // Low Remaining Budget Alert — threshold now driven by the admin's
+            // Risk Detection Rules settings instead of a hardcoded 0.20.
+            $riskSettings = RiskSetting::current();
+            if ($riskSettings->low_remaining_budget_enabled) {
+                $thresholdAmount = $currentBudget->total_allowance * ($riskSettings->low_remaining_budget_threshold / 100);
 
-                if (!$alreadyNotified) {
-                    $percentageLeft = round(($currentBudget->remaining_allowance / $currentBudget->total_allowance) * 100);
+                if ($currentBudget->remaining_allowance <= $thresholdAmount) {
+                    $alreadyNotified = DatabaseNotification::where('notifiable_id', auth()->id())
+                        ->where('notifiable_type', 'App\Models\User')
+                        ->where('data', 'LIKE', '%"anomaly_type":"low_allowance_threshold"%')
+                        ->where('data', 'LIKE', '%"resolved":false%')
+                        ->where('created_at', '>=', $currentBudget->created_at)
+                        ->exists();
 
-                    auth()->user()->notify(new \App\Notifications\LowAllowanceWarning(
-                        $percentageLeft,
-                        $currentBudget->remaining_allowance
-                    ));
+                    if (!$alreadyNotified) {
+                        $percentageLeft = round(($currentBudget->remaining_allowance / $currentBudget->total_allowance) * 100);
+                        auth()->user()->notify(new \App\Notifications\LowAllowanceWarning(
+                            $percentageLeft,
+                            $currentBudget->remaining_allowance
+                        ));
+                    }
+                } else {
+                    // Balance recovered above threshold — resolve any
+                    // still-open low allowance warnings from this cycle.
+                    DatabaseNotification::where('notifiable_id', auth()->id())
+                        ->where('notifiable_type', 'App\Models\User')
+                        ->where('data', 'LIKE', '%"anomaly_type":"low_allowance_threshold"%')
+                        ->where('data', 'LIKE', '%"resolved":false%')
+                        ->where('created_at', '>=', $currentBudget->created_at)
+                        ->get()
+                        ->each(function ($notification) {
+                            $data = $notification->data;
+                            $data['resolved'] = true;
+                            $notification->update(['data' => $data]);
+                        });
                 }
-            } else {
-                // Balance recovered above threshold — resolve any
-                // still-open low allowance warnings from this cycle.
-                DatabaseNotification::where('notifiable_id', auth()->id())
-                    ->where('notifiable_type', 'App\Models\User')
-                    ->where('data', 'LIKE', '%"anomaly_type":"low_allowance_threshold"%')
-                    ->where('data', 'LIKE', '%"resolved":false%')
-                    ->where('created_at', '>=', $currentBudget->created_at)
-                    ->get()
-                    ->each(function ($notification) {
-                        $data = $notification->data;
-                        $data['resolved'] = true;
-                        $notification->update(['data' => $data]);
-                    });
             }
 
             session()->flash('success', count($this->items) . ' item(s) logged from your receipt!');

@@ -12,6 +12,7 @@ use App\Services\RiskDetectionService;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Livewire\Component;
+use App\Models\ExpenseCategory;
 
 class Dashboard extends Component
 {
@@ -245,29 +246,19 @@ class Dashboard extends Component
             $dailyCategoryBreakdown[$dateKey] = [];
         }
 
-        $colorPalette = [
-            '#ff7052',
-            '#5b46f6',
-            '#4fd1c5',
-            '#ffc043',
-            '#f43f5e',
-            '#3b82f6',
-            '#10b981',
-            '#8b5cf6'
-        ];
-
-        $alphabeticalCategories = Expense::where('expenses.user_id', auth()->id())
-            ->whereBetween('transaction_date', [$startDate, $endDate])
-            ->join('expense_categories', 'expenses.expense_category_id', '=', 'expense_categories.id')
-            ->where('expense_categories.name', 'NOT LIKE', '%Savings%')
-            ->distinct()
-            ->orderBy('expense_categories.name', 'asc')
-            ->pluck('expense_categories.name')
-            ->toArray();
+        // Colors now come straight from each category's admin-configured color,
+        // converted to hex — no more alphabetical index-into-fixed-palette cycling.
+        $categoriesInCycle = Expense::where('expenses.user_id', auth()->id())
+        ->whereBetween('transaction_date', [$startDate, $endDate])
+        ->join('expense_categories', 'expenses.expense_category_id', '=', 'expense_categories.id')
+        ->where('expense_categories.name', 'NOT LIKE', '%Savings%')
+        ->distinct()
+        ->orderBy('expense_categories.name', 'asc')
+        ->pluck('expense_categories.color', 'expense_categories.name');
 
         $categoryColorMap = [];
-        foreach ($alphabeticalCategories as $index => $catName) {
-            $categoryColorMap[$catName] = $colorPalette[$index % count($colorPalette)];
+        foreach ($categoriesInCycle as $catName => $colorClass) {
+        $categoryColorMap[$catName] = ExpenseCategory::colorToHex($colorClass);
         }
 
         $categoryTotals = Expense::where('expenses.user_id', auth()->id())
@@ -322,8 +313,9 @@ class Dashboard extends Component
 
         $chartCategories = array_keys($categoryTotalsMap);
         $chartColors     = [];
+        $chartColors = [];
         foreach ($chartCategories as $cat) {
-            $chartColors[] = $categoryColorMap[$cat] ?? $colorPalette[0];
+            $chartColors[] = $categoryColorMap[$cat] ?? '#94a3b8';
         }
 
         $rolloverAmount = max(0, $this->currentBudget->remaining_allowance - $this->currentBudget->total_allowance);

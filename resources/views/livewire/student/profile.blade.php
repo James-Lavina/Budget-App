@@ -1,4 +1,4 @@
-<div class="min-h-screen py-8 px-4 sm:px-6 lg:px-8 font-sans bg-slate-50/50">
+<div class="min-h-screen py-8 px-4 sm:px-6 lg:px-8 font-sans">
     <div class="max-w-2xl mx-auto space-y-6">
 
         <!-- Header -->
@@ -73,6 +73,20 @@
                         </span>
                     @enderror
                 </div>
+            </div>
+
+            <!-- School -->
+            <div class="space-y-1.5">
+                <label for="school" class="block text-xs font-bold text-slate-700">
+                    School <span class="font-normal text-slate-400">(optional)</span>
+                </label>
+                <input id="school" type="text" wire:model.defer="school" placeholder="e.g., Saint Joseph College"
+                    class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-slate-900 font-medium text-sm placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-600/20 focus:border-indigo-600 transition-all">
+                @error('school')
+                    <span class="text-xs font-medium text-rose-600 flex items-center gap-1 mt-1">
+                        <span class="w-1.5 h-1.5 rounded-full bg-rose-600 inline-block shrink-0"></span> {{ $message }}
+                    </span>
+                @enderror
             </div>
 
             <!-- Section 2: Security & Password -->

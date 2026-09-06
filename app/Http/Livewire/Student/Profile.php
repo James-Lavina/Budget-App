@@ -11,6 +11,7 @@ class Profile extends Component
     public $name;
     public $email;
     public $email_confirmation;
+    public $school;
     public $current_password;
     public $new_password;
     public $new_password_confirmation;
@@ -21,6 +22,7 @@ class Profile extends Component
         $this->name = $user->name;
         $this->email = $user->email;
         $this->email_confirmation = $user->email;
+        $this->school = $user->school;
     }
 
     public function updateProfile()
@@ -39,6 +41,7 @@ class Profile extends Component
                 'confirmed',
                 Rule::unique('users', 'email')->ignore($user->id),
             ],
+            'school' => 'nullable|string|max:255',
 
             'current_password' => [
                 ($isChangingEmail || $isChangingPassword) ? 'required' : 'nullable',
@@ -63,6 +66,7 @@ class Profile extends Component
 
         $user->name = $this->name;
         $user->email = $this->email;
+        $user->school = $this->school;
         $user->save();
 
         $this->reset(['current_password', 'new_password', 'new_password_confirmation']);

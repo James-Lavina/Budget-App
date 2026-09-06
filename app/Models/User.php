@@ -21,8 +21,11 @@ class User extends Authenticatable
         'name',
         'email',
         'password',
-        'default_allowance',  
-        'default_reset_day',  
+        'school',
+        'status',
+        'role',
+        'default_allowance',
+        'default_reset_day',
     ];
 
     /**
@@ -84,5 +87,15 @@ class User extends Authenticatable
     public function activityLogs()
     {
         return $this->hasMany(ActivityLog::class);
+    }
+
+    public function latestWeeklyBudget()
+    {
+        return $this->hasOne(WeeklyBudget::class)->latestOfMany('created_at');
+    }
+
+    public function isSuperAdmin(): bool
+    {
+        return $this->role === 'super_admin';
     }
 }

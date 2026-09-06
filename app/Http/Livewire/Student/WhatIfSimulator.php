@@ -298,7 +298,9 @@ class WhatIfSimulator extends Component
         }
 
         try {
-            $apiKey = env('GROQ_API_KEY') ?? config('services.groq.key');
+            $settings = \App\Models\IntegrationSetting::current();
+            $apiKey = $settings->groq_api_key ?: (env('GROQ_API_KEY') ?? config('services.groq.key'));
+
             if (!empty($apiKey)) {
                 $prompt = "Analyze this student spending simulation scenario:\n" .
                 "- Item: {$item}\n" .
@@ -314,13 +316,13 @@ class WhatIfSimulator extends Component
                 $response = Http::withToken($apiKey)
                     ->timeout(7)
                     ->post('https://api.groq.com/openai/v1/chat/completions', [
-                        'model' => env('GROQ_MODEL', 'llama-3.3-70b-versatile'),
+                        'model' => $settings->groq_text_model,
                         'messages' => [
                             ['role' => 'system', 'content' => 'You are an encouraging and practical student budgeting assistant.'],
                             ['role' => 'user', 'content' => $prompt]
                         ],
-                        'temperature' => 0.5,
-                        'max_tokens' => 400
+                        'temperature' => $settings->groq_temperature,
+                        'max_tokens' => $settings->groq_max_tokens
                     ]);
 
                 if ($response->successful()) {

@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Expense;
 use App\Models\RiskLog;
+use App\Models\RiskSetting;
 use App\Models\WeeklyBudget;
 use App\Notifications\BudgetRiskNotification;
 use Carbon\Carbon;
@@ -84,7 +85,6 @@ class RiskDetectionService
         $triggerCondition = ($projectedRunwayDaysLeft < $calendarDaysLeftInCycle && $currentDailyVelocity > $allowedDailyVelocity) || ($spentToday >= $allowedDailyVelocity * 2);
 
         if ($triggerCondition) {
-
             $alreadyLoggedToday = RiskLog::where('user_id', $user->id)
                 ->where('anomaly_type', $anomalyType)
                 ->where('resolved', false)
@@ -97,6 +97,7 @@ class RiskDetectionService
 
             // === RUNWAY DEFICIT MATRIX ENGINE ===
             $runwayDeficitDays = $calendarDaysLeftInCycle - $projectedRunwayDaysLeft;
+
             if ($runwayDeficitDays >= 3.0 || $projectedRunwayDaysLeft <= 1.0) {
                 $severityTier = 'high';
             } elseif ($runwayDeficitDays >= 1.0) {
@@ -146,7 +147,6 @@ class RiskDetectionService
 
             if ($resolvedLogIds->isNotEmpty()) {
                 RiskLog::whereIn('id', $resolvedLogIds)->update(['resolved' => true]);
-
                 foreach ($resolvedLogIds as $logId) {
                     DatabaseNotification::where('notifiable_id', $user->id)
                         ->where('notifiable_type', 'App\Models\User')
@@ -161,8 +161,63 @@ class RiskDetectionService
             }
         }
 
+        // === Overspending Threshold (admin-configurable) ===
+        // A separate, simpler condition from the velocity/runway model above:
+        // flags a flat %-of-allowance breach regardless of pacing math.
+        $riskSettings = RiskSetting::current();
+        if ($riskSettings->overspending_enabled) {
+            $overspendPercent = $actualStartingPool > 0
+                ? ($totalSpentInCycle / $actualStartingPool) * 100
+                : 0;
+
+            if ($overspendPercent >= $riskSettings->overspending_threshold) {
+                $alreadyLoggedOverspend = RiskLog::where('user_id', $user->id)
+                    ->where('anomaly_type', 'overspending_threshold')
+                    ->where('resolved', false)
+                    ->whereDate('created_at', Carbon::today())
+                    ->exists();
+
+                if (!$alreadyLoggedOverspend) {
+                    $overspendRiskLog = RiskLog::create([
+                        'user_id'       => $user->id,
+                        'anomaly_type'  => 'overspending_threshold',
+                        'severity_tier' => 'high',
+                        'description'   => "Overspending Alert 🚨: You've used " . round($overspendPercent) . "% of your weekly allowance.",
+                        'resolved'      => false,
+                    ]);
+
+                    $user->notify(new BudgetRiskNotification($overspendRiskLog));
+                }
+            } else {
+                // No longer over threshold — resolve any still-open alert.
+                $resolvedOverspendIds = RiskLog::where('user_id', $user->id)
+                    ->where('anomaly_type', 'overspending_threshold')
+                    ->where('resolved', false)
+                    ->whereDate('created_at', Carbon::today())
+                    ->pluck('id');
+
+                if ($resolvedOverspendIds->isNotEmpty()) {
+                    RiskLog::whereIn('id', $resolvedOverspendIds)->update(['resolved' => true]);
+                    foreach ($resolvedOverspendIds as $logId) {
+                        DatabaseNotification::where('notifiable_id', $user->id)
+                            ->where('notifiable_type', 'App\Models\User')
+                            ->where('data', 'LIKE', '%"risk_log_id":' . $logId . '%')
+                            ->get()
+                            ->each(function ($notification) {
+                                $data = $notification->data;
+                                $data['resolved'] = true;
+                                $notification->update(['data' => $data]);
+                            });
+                    }
+                }
+            }
+        }
+
         //4. Category concentration check — independent of velocity checks above
         $this->checkCategoryConcentration($user, $cycleStartDate, $cycleEndDate);
+
+        //5. Rapid spending check — independent of the checks above
+        $this->checkRapidSpending($user);
     }
 
     /**
@@ -250,6 +305,105 @@ class RiskDetectionService
                     $notification->update(['data' => $data]);
                 });
         }
+    }
+
+    /**
+     * Rapid spending flag.
+     * Counts same-day transactions that individually clear a lower bar
+     * (15% of allowance) than the single "large transaction" alert (30%) —
+     * requiring 3 purchases each over 30% in one day would almost never be
+     * reachable for a weekly student budget, so this uses its own floor.
+     */
+    private function checkRapidSpending($user)
+    {
+        $settings = RiskSetting::current();
+        if (!$settings->rapid_spending_enabled) {
+            return;
+        }
+
+        $activeBudget = WeeklyBudget::where('user_id', $user->id)
+            ->orderBy('cycle_start_date', 'desc')
+            ->first();
+
+        if (!$activeBudget || $activeBudget->total_allowance <= 0) {
+            return;
+        }
+
+        $largeTxnFloor = $activeBudget->total_allowance * 0.15;
+
+        $largeTxnCountToday = Expense::where('user_id', $user->id)
+            ->whereDate('transaction_date', Carbon::today())
+            ->whereNull('savings_goal_id')
+            ->where('amount', '>=', $largeTxnFloor)
+            ->count();
+
+        $anomalyType = 'rapid_spending';
+
+        if ($largeTxnCountToday >= $settings->rapid_spending_count) {
+            $alreadyLoggedToday = RiskLog::where('user_id', $user->id)
+                ->where('anomaly_type', $anomalyType)
+                ->where('resolved', false)
+                ->whereDate('created_at', Carbon::today())
+                ->exists();
+
+            if ($alreadyLoggedToday) {
+                return;
+            }
+
+            $riskLog = RiskLog::create([
+                'user_id'       => $user->id,
+                'anomaly_type'  => $anomalyType,
+                'severity_tier' => 'medium',
+                'description'   => "Rapid Spending Detected ⚡: You've logged {$largeTxnCountToday} sizeable purchases today. Take a moment before your next one.",
+                'resolved'      => false,
+            ]);
+
+            $user->notify(new BudgetRiskNotification($riskLog));
+        } else {
+            // Count no longer qualifies (e.g. one of today's transactions
+            // was edited or deleted) — resolve any still-open alert instead
+            // of leaving a stale flag active.
+            $resolvedLogIds = RiskLog::where('user_id', $user->id)
+                ->where('anomaly_type', $anomalyType)
+                ->where('resolved', false)
+                ->whereDate('created_at', Carbon::today())
+                ->pluck('id');
+
+            if ($resolvedLogIds->isNotEmpty()) {
+                RiskLog::whereIn('id', $resolvedLogIds)->update(['resolved' => true]);
+                foreach ($resolvedLogIds as $logId) {
+                    DatabaseNotification::where('notifiable_id', $user->id)
+                        ->where('notifiable_type', 'App\Models\User')
+                        ->where('data', 'LIKE', '%"risk_log_id":' . $logId . '%')
+                        ->get()
+                        ->each(function ($notification) {
+                            $data = $notification->data;
+                            $data['resolved'] = true;
+                            $notification->update(['data' => $data]);
+                        });
+                }
+            }
+        }
+    }
+
+    /**
+     * Resolves any still-open "no expense logs" alert — called when the
+     * student actually logs a fresh expense, since the alert itself is
+     * created by a daily cron job (risk:check-log-gaps) rather than any
+     * user action, so nothing else clears it automatically.
+     */
+    public function resolveNoExpenseLogsAlert($user)
+    {
+        DatabaseNotification::where('notifiable_id', $user->id)
+            ->where('notifiable_type', 'App\Models\User')
+            ->where('data->anomaly_type', 'no_expense_logs')
+            ->where('data->resolved', false)
+            ->get()
+            ->each(function ($notification) {
+                $data = $notification->data;
+                $data['resolved'] = true;
+                $notification->update(['data' => $data]);
+            });
     }
 
     /**

@@ -1,25 +1,97 @@
+<?php
+    $appSettings = \App\Models\AppSetting::current();
+
+    $primary = $appSettings->primary_color ?: '#4f39fa';
+
+    if (!function_exists('bw_shade')) {
+        function bw_shade(string $hex, float $pct, bool $lighten): string
+        {
+            $hex = ltrim($hex, '#');
+            if (strlen($hex) === 3) {
+                $hex = $hex[0].$hex[0].$hex[1].$hex[1].$hex[2].$hex[2];
+            }
+            $r = hexdec(substr($hex, 0, 2));
+            $g = hexdec(substr($hex, 2, 2));
+            $b = hexdec(substr($hex, 4, 2));
+            $mix = $lighten ? 255 : 0;
+            $r = (int) round($r + ($mix - $r) * $pct);
+            $g = (int) round($g + ($mix - $g) * $pct);
+            $b = (int) round($b + ($mix - $b) * $pct);
+            return sprintf('#%02x%02x%02x', $r, $g, $b);
+        }
+    }
+
+    $primaryDark   = bw_shade($primary, 0.15, false);
+    $primaryDarker = bw_shade($primary, 0.28, false); // gradient end / darkest stop
+    $primaryLight  = bw_shade($primary, 0.92, true);
+
+    // Inline + recolor the hero illustration — see welcome.blade.php for why
+    // <img src="*.svg"> can't be recolored with CSS. Theme hex for this export
+    // is #4F46E5; skin tones / navy line-art / neutral grays are left alone.
+    $heroSvgMarkup = null;
+    $heroSvgPath = public_path('images/undraw_budgeting_klon.svg');
+    if (is_file($heroSvgPath)) {
+        $svg = file_get_contents($heroSvgPath);
+        $heroThemeHexCandidates = ['#4F46E5', '#4f46e5'];
+        $svg = str_replace($heroThemeHexCandidates, $primary, $svg);
+        $svg = preg_replace('/<svg([^>]*)>/', '<svg$1 preserveAspectRatio="xMidYMid meet" style="width:100%;height:100%;">', $svg, 1);
+        $heroSvgMarkup = $svg;
+    }
+?>
+
 <div class="min-h-screen bg-slate-100/80 flex items-center justify-center p-3.5 sm:p-6 lg:p-8 font-sans antialiased text-slate-800">
-  
+
+    <style>
+        :root {
+            --brand: {{ $primary }};
+            --brand-dark: {{ $primaryDark }};
+            --brand-darker: {{ $primaryDarker }};
+            --brand-light: {{ $primaryLight }};
+        }
+        .brand-gradient { background-image: linear-gradient(135deg, var(--brand), var(--brand), var(--brand-darker)); }
+        .brand-icon-text { color: var(--brand); }
+        .brand-bg { background-color: var(--brand); }
+        .brand-btn { background-color: var(--brand); }
+        .brand-btn:hover { background-color: var(--brand-dark); }
+        .brand-text { color: var(--brand); }
+        .brand-link { color: var(--brand); }
+        .brand-link:hover { color: var(--brand-dark); }
+        .brand-shadow { box-shadow: 0 10px 25px -5px color-mix(in srgb, var(--brand) 30%, transparent); }
+        .brand-glow-1 { background-color: color-mix(in srgb, var(--brand) 22%, transparent); }
+        .brand-glow-2 { background-color: color-mix(in srgb, var(--brand-darker) 18%, transparent); }
+        .brand-focus:focus {
+            border-color: var(--brand) !important;
+            outline: none;
+            box-shadow: 0 0 0 4px color-mix(in srgb, var(--brand) 18%, transparent);
+        }
+    </style>
+
     <!-- Split Card Container -->
     <div class="max-w-5xl w-full bg-white rounded-[2rem] sm:rounded-[2.5rem] shadow-2xl shadow-indigo-950/10 border border-slate-100 grid grid-cols-1 lg:grid-cols-12 overflow-hidden">
-       
+
         <!-- LEFT COLUMN: Brand Hero Side -->
-        <div class="lg:col-span-6 bg-gradient-to-br from-indigo-600 via-indigo-600 to-indigo-700 p-6 sm:p-10 text-white flex flex-col justify-between space-y-6 sm:space-y-8 relative overflow-hidden">
-           
+        <div class="lg:col-span-6 brand-gradient p-6 sm:p-10 text-white flex flex-col justify-between space-y-6 sm:space-y-8 relative overflow-hidden">
+
             <!-- Ambient Glow Effects -->
-            <div class="absolute -top-12 -right-12 w-64 h-64 bg-indigo-400/20 rounded-full blur-3xl pointer-events-none"></div>
-            <div class="absolute -bottom-12 -left-12 w-64 h-64 bg-purple-500/20 rounded-full blur-3xl pointer-events-none"></div>
-            
+            <div class="absolute -top-12 -right-12 w-64 h-64 brand-glow-1 rounded-full blur-3xl pointer-events-none"></div>
+            <div class="absolute -bottom-12 -left-12 w-64 h-64 brand-glow-2 rounded-full blur-3xl pointer-events-none"></div>
+
             <div class="space-y-5 sm:space-y-6 relative z-10">
                 <!-- Brand Header -->
-                <div class="flex items-center gap-3">
-                    <div class="h-10 w-10 bg-white text-indigo-600 rounded-2xl flex items-center justify-center shadow-md font-black">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a1 1 0 11-2 0 1 1 0 012 0z" />
-                        </svg>
-                    </div>
-                    <span class="text-xl font-bold tracking-tight text-white">
-                        <a href="/" class="hover:opacity-90 transition-opacity">SampleName</a>
+                <div class="flex items-center gap-3 min-w-0">
+                    @if($appSettings->logo_path)
+                        <img src="{{ \Illuminate\Support\Facades\Storage::url($appSettings->logo_path) }}"
+                             alt="{{ $appSettings->application_name }}"
+                             class="h-10 w-10 rounded-2xl object-cover shadow-md shrink-0">
+                    @else
+                        <div class="h-10 w-10 bg-white brand-icon-text rounded-2xl flex items-center justify-center shadow-md font-black shrink-0">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a1 1 0 11-2 0 1 1 0 012 0z" />
+                            </svg>
+                        </div>
+                    @endif
+                    <span class="text-xl font-bold tracking-tight text-white truncate">
+                        <a href="/" class="hover:opacity-90 transition-opacity">{{ $appSettings->application_name }}</a>
                     </span>
                 </div>
 
@@ -33,19 +105,25 @@
                     <h1 class="text-2xl sm:text-3xl lg:text-4xl font-extrabold tracking-tight leading-tight text-white">
                         Financial confidence starts with one small habit.
                     </h1>
-                    <p class="text-xs sm:text-sm text-indigo-100 font-normal leading-relaxed">
-                        SampleName turns your weekly allowance into clear, encouraging next steps.
+                    <p class="text-xs sm:text-sm text-white/85 font-normal leading-relaxed">
+                        {{ $appSettings->application_name }} turns your weekly allowance into clear, encouraging next steps.
                     </p>
                 </div>
 
                 <!-- Mascot & Safe-To-Spend Card -->
                 <div class="relative bg-white/95 rounded-3xl p-5 sm:p-6 shadow-xl border border-white/20 flex flex-col items-center justify-center min-h-[180px] sm:min-h-[220px]">
-                    <img
-                        src="{{ asset('images/undraw_budgeting_klon.svg') }}"
-                        alt="Student illustration"
-                        class="w-32 h-32 sm:w-40 sm:h-40 object-contain drop-shadow-sm"
-                    >
-                   
+                    @if($heroSvgMarkup)
+                        <div class="w-32 h-32 sm:w-40 sm:h-40 drop-shadow-sm">
+                            {!! $heroSvgMarkup !!}
+                        </div>
+                    @else
+                        <img
+                            src="{{ asset('images/undraw_budgeting_klon.svg') }}"
+                            alt="Student illustration"
+                            class="w-32 h-32 sm:w-40 sm:h-40 object-contain drop-shadow-sm"
+                        >
+                    @endif
+
                     <!-- Floating Badge -->
                     <div class="absolute bottom-3 right-3 bg-white border border-slate-100 rounded-2xl p-2.5 shadow-lg flex flex-col text-left">
                         <span class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Today's safe-to-spend</span>
@@ -55,7 +133,7 @@
             </div>
 
             <!-- Footer Features -->
-            <div class="flex items-center gap-6 text-xs font-semibold text-indigo-100/90 pt-4 relative z-10 border-t border-white/10">
+            <div class="flex items-center gap-6 text-xs font-semibold text-white/90 pt-4 relative z-10 border-t border-white/10">
                 <div class="flex items-center gap-1.5">
                     <svg class="w-4 h-4 text-emerald-400 shrink-0" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5"/></svg>
                     <span>Built for students</span>
@@ -66,11 +144,11 @@
                 </div>
             </div>
         </div>
- 
+
         <!-- RIGHT COLUMN: Login Form Side -->
         <div class="lg:col-span-6 p-6 sm:p-10 lg:p-12 flex flex-col justify-center bg-white">
             <div class="max-w-md w-full mx-auto space-y-6">
-               
+
                 <!-- Form Header -->
                 <div class="space-y-1">
                     <h2 class="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
@@ -96,7 +174,7 @@
 
                 <!-- Login Form -->
                 <form wire:submit.prevent="loginUser" class="space-y-4 sm:space-y-5">
-                   
+
                     <!-- Email Field -->
                     <div class="space-y-1.5">
                         <label for="email" class="block text-xs font-bold text-slate-700">
@@ -104,8 +182,8 @@
                         </label>
                         <div>
                             <input id="email" type="email" wire:model.lazy="email" placeholder="you@school.edu"
-                                class="block w-full rounded-2xl px-4 py-3 bg-slate-50 border placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-2 sm:text-sm transition-all duration-200
-                                @error('email') border-rose-300 text-rose-900 placeholder-rose-300 focus:border-rose-500 focus:ring-rose-500/20 bg-rose-50/30 @else border-slate-200 focus:border-indigo-600 focus:ring-indigo-600/20 text-slate-900 @enderror">
+                                class="block w-full rounded-2xl px-4 py-3 bg-slate-50 border placeholder-slate-400 focus:bg-white focus:outline-none sm:text-sm transition-all duration-200
+                                @error('email') border-rose-300 text-rose-900 placeholder-rose-300 focus:border-rose-500 focus:ring-2 focus:ring-rose-500/20 bg-rose-50/30 @else border-slate-200 brand-focus text-slate-900 @enderror">
                         </div>
                         @error('email')
                             <span class="text-xs text-rose-600 mt-1 font-medium flex items-center gap-1">
@@ -121,7 +199,7 @@
                                 Password
                             </label>
                             @if (Route::has('password.request'))
-                                <a href="{{ route('password.request') }}" class="text-xs font-bold text-indigo-600 hover:text-indigo-700 transition-colors">
+                                <a href="{{ route('password.request') }}" class="text-xs font-bold brand-link transition-colors">
                                     Forgot password?
                                 </a>
                             @endif
@@ -132,18 +210,18 @@
                                 type="password"
                                 wire:model.lazy="password"
                                 placeholder="Enter your password"
-                                class="block w-full rounded-2xl px-4 py-3 pr-12 bg-slate-50 border placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-2 sm:text-sm transition-all duration-200
+                                class="block w-full rounded-2xl px-4 py-3 pr-12 bg-slate-50 border placeholder-slate-400 focus:bg-white focus:outline-none sm:text-sm transition-all duration-200
                                 @error('password')
-                                    border-rose-300 text-rose-900 placeholder-rose-300 focus:border-rose-500 focus:ring-rose-500/20 bg-rose-50/30
+                                    border-rose-300 text-rose-900 placeholder-rose-300 focus:border-rose-500 focus:ring-2 focus:ring-rose-500/20 bg-rose-50/30
                                 @else
-                                    border-slate-200 focus:border-indigo-600 focus:ring-indigo-600/20 text-slate-900
+                                    border-slate-200 brand-focus text-slate-900
                                 @enderror"
                             >
-                        
+
                             <button
                                 type="button"
                                 onclick="togglePassword()"
-                                class="absolute inset-y-0 right-0 flex items-center px-4 text-slate-400 hover:text-indigo-600 transition-colors"
+                                class="absolute inset-y-0 right-0 flex items-center px-4 text-slate-400 hover:brand-text transition-colors"
                                 aria-label="Show password"
                             >
                                 <svg id="eye-open" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
@@ -151,7 +229,7 @@
                                         d="M2.25 12s3.75-6 9.75-6 9.75 6 9.75 6-3.75 6-9.75 6-9.75-6-9.75-6z" />
                                     <circle cx="12" cy="12" r="2.5" />
                                 </svg>
-                        
+
                                 <svg id="eye-closed" class="w-5 h-5 hidden" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round"
                                         d="M3 3l18 18M10.58 10.58a2 2 0 102.83 2.83M9.88 4.24A10.2 10.2 0 0112 4c6 0 10 8 10 8a18.2 18.2 0 01-3.17 4.33M6.61 6.61C3.93 8.63 2 12 2 12s4 8 10 8a9.83 9.83 0 004.39-1.03" />
@@ -165,22 +243,13 @@
                         @enderror
                     </div>
 
-                    <!-- Remember Me Option -->
-                    {{-- <div class="flex items-center justify-between pt-1">
-                        <label class="flex items-center gap-2.5 cursor-pointer select-none">
-                            <input type="checkbox" wire:model="remember"
-                                class="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 transition-colors">
-                            <span class="text-xs font-semibold text-slate-600">Remember me on this device</span>
-                        </label>
-                    </div> --}}
-
                     <!-- Submit Button -->
                     <div class="pt-2">
                         <button type="submit"
                                 {{ $lockoutSeconds > 0 ? 'disabled' : '' }}
                                 wire:loading.attr="disabled"
-                                class="w-full inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-2xl text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 active:scale-[0.99] transition-all duration-200 shadow-lg shadow-indigo-600/25 disabled:opacity-50 disabled:cursor-not-allowed">
-                           
+                                class="w-full inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-2xl text-sm font-bold text-white brand-btn active:scale-[0.99] transition-all duration-200 brand-shadow disabled:opacity-50 disabled:cursor-not-allowed">
+
                             @if($lockoutSeconds > 0)
                                 <span>Too many attempts. Try again in {{ $lockoutSeconds }}s</span>
                             @else
@@ -202,8 +271,8 @@
 
                 <!-- Footer Link -->
                 <p class="text-center text-xs text-slate-500 pt-2">
-                    New to SampleName?
-                    <a href="{{ route('register') }}" class="font-bold text-indigo-600 hover:text-indigo-700 transition-colors">
+                    New to {{ $appSettings->application_name }}?
+                    <a href="{{ route('register') }}" class="font-bold brand-link transition-colors">
                         Sign up
                     </a>
                 </p>

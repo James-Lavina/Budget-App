@@ -1,6 +1,14 @@
 <?php
 
+use App\Http\Livewire\Admin\ActivityLogIndex;
 use App\Http\Livewire\Admin\Dashboard as adminDashboard;
+use App\Http\Livewire\Admin\ExpenseCategories;
+use App\Http\Livewire\Admin\OcrAiSettings;
+use App\Http\Livewire\Admin\Reports;
+use App\Http\Livewire\Admin\RiskRules;
+use App\Http\Livewire\Admin\UserManagement;
+use App\Http\Livewire\Admin\Settings as adminSettings;
+use App\Http\Livewire\Admin\AdminManagement;
 use App\Http\Livewire\Auth\Login;
 use App\Http\Livewire\Auth\Register;
 use App\Http\Livewire\Student\AddBudgetFunds;
@@ -39,7 +47,7 @@ Route::middleware(['guest'])->group(function() {
 });
 
 // Authenticated Routes
-Route::middleware(['auth'])->group(function() {
+Route::middleware(['auth', 'maintenance.check'])->group(function() {
     // Student Routes
     Route::name('student.')
         ->group(function() {
@@ -103,7 +111,26 @@ Route::middleware(['auth'])->group(function() {
         ->prefix('admin')
         ->name('admin.')
         ->group(function() {
+            // Dashboard
             Route::get('/dashboard', adminDashboard::class)->name('dashboard');
+            // User management
+            Route::get('/users', UserManagement::class)->name('users');
+            // Expense Categories
+            Route::get('/categories', ExpenseCategories::class)->name('categories');
+            // Risk Detection Rules
+            Route::get('/risk-rules', RiskRules::class)->name('risk-rules');
+            // OCR AI Settings
+            Route::get('/ocr-ai-settings', OcrAiSettings::class)->name('ocr-ai-settings');
+            // Reports
+            Route::get('/reports', Reports::class)->name('reports');
+            // Activity log
+            Route::get('/activity-logs', ActivityLogIndex::class)->name('activity-logs');
+            // Settings
+            Route::get('/settings', adminSettings::class)->name('settings');
+            // Admin accounts
+            Route::middleware(['super_admin'])->group(function () {
+                Route::get('/admin-accounts', AdminManagement::class)->name('accounts');
+            });
     });
     // Global Routes
     Route::post('/', function() {

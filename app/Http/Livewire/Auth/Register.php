@@ -12,6 +12,7 @@ class Register extends Component
 {
     public $name;
     public $email;
+    public $school;
     public $password;
     public $password_confirmation;
     public $lockoutSeconds = 0;
@@ -32,34 +33,35 @@ class Register extends Component
 
     public function registerUser() {
         $throttleKey = 'register|' . request()->ip();
-    
+
         if (RateLimiter::tooManyAttempts($throttleKey, 3)) {
             $this->lockoutSeconds = RateLimiter::availableIn($throttleKey);
-    
+
             $this->addError('email', "Too many registration attempts from this network. Please try again in {$this->lockoutSeconds} seconds.");
             return;
         }
-    
+
         RateLimiter::hit($throttleKey, 60);
-    
+
         $this->validate([
             'name' => 'required|string|max:255',
             'email' =>  'required|email|max:255|unique:users',
+            'school' => 'nullable|string|max:255',
             'password' => 'required|string|confirmed|min:8'
         ]);
-    
+
         $user = User::create([
             'name' => $this->name,
             'email'  => $this->email,
+            'school' => $this->school,
             'password' => Hash::make($this->password),
             'role' => 'student',
         ]);
-    
+
         Auth::login($user);
-    
+
         RateLimiter::clear($throttleKey);
-        
+
         return redirect()->route('student.dashboard');
     }
-
 }

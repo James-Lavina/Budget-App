@@ -16,8 +16,12 @@ class isAdmin
      */
     public function handle(Request $request, Closure $next)
     {
-        // Check if user is logged in and has the 'admin' role
-        if(auth()->check() && auth()->user()->role === 'admin') {
+        // Check if user is logged in and has the 'admin' or 'super_admin' role.
+        // super_admin must pass this same gate to keep access to every
+        // existing admin page (Dashboard, User Management, etc.) — the
+        // stricter 'super_admin' middleware only adds an EXTRA gate on
+        // top of this one for the admin-accounts page specifically.
+        if(auth()->check() && in_array(auth()->user()->role, ['admin', 'super_admin'])) {
             return $next($request);
         }
 

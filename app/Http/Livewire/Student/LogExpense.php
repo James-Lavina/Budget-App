@@ -6,6 +6,7 @@ use App\Models\Expense;
 use App\Models\ExpenseCategory;
 use App\Models\WeeklyBudget;
 use App\Models\RiskLog;
+use App\Models\RiskSetting;
 use App\Notifications\LowAllowanceWarning;
 use App\Services\BudgetCycleService;
 use App\Services\RiskDetectionService;
@@ -72,7 +73,6 @@ class LogExpense extends Component
         // their notifications on its own.
 
         $newExpense = null;
-
         DB::transaction(function() use ($currentBudget, &$newExpense) {
             $newExpense = Expense::create([
                 'user_id' => auth()->id(),
@@ -91,36 +91,42 @@ class LogExpense extends Component
         $riskService = app(RiskDetectionService::class);
         $riskService->evaluateSpendingRisk(auth()->user());
         $riskService->checkLargeTransaction(auth()->user(), $newExpense, $currentBudget->total_allowance);
+        $riskService->resolveNoExpenseLogsAlert(auth()->user());
 
-        $thresholdAmount = $currentBudget->total_allowance * 0.20;
+        // Low Remaining Budget Alert — threshold now driven by the admin's
+        // Risk Detection Rules settings instead of a hardcoded 0.20.
+        $riskSettings = RiskSetting::current();
+        if ($riskSettings->low_remaining_budget_enabled) {
+            $thresholdAmount = $currentBudget->total_allowance * ($riskSettings->low_remaining_budget_threshold / 100);
 
-        if ($currentBudget->remaining_allowance <= $thresholdAmount) {
-            $alreadyNotified = DatabaseNotification::where('notifiable_id', auth()->id())
-                ->where('notifiable_type', 'App\Models\User')
-                ->where('data', 'LIKE', '%"anomaly_type":"low_allowance_threshold"%')
-                ->where('data', 'LIKE', '%"resolved":false%')
-                ->where('created_at', '>=', $currentBudget->created_at)
-                ->exists();
+            if ($currentBudget->remaining_allowance <= $thresholdAmount) {
+                $alreadyNotified = DatabaseNotification::where('notifiable_id', auth()->id())
+                    ->where('notifiable_type', 'App\Models\User')
+                    ->where('data', 'LIKE', '%"anomaly_type":"low_allowance_threshold"%')
+                    ->where('data', 'LIKE', '%"resolved":false%')
+                    ->where('created_at', '>=', $currentBudget->created_at)
+                    ->exists();
 
-            if (!$alreadyNotified) {
-                $percentageLeft = round(($currentBudget->remaining_allowance / $currentBudget->total_allowance) * 100);
-                auth()->user()->notify(new LowAllowanceWarning($percentageLeft, $currentBudget->remaining_allowance));
+                if (!$alreadyNotified) {
+                    $percentageLeft = round(($currentBudget->remaining_allowance / $currentBudget->total_allowance) * 100);
+                    auth()->user()->notify(new LowAllowanceWarning($percentageLeft, $currentBudget->remaining_allowance));
+                }
+            } else {
+                // Balance recovered above threshold — resolve any still-open
+                // low allowance warnings from this cycle instead of leaving
+                // them stuck "active" forever.
+                DatabaseNotification::where('notifiable_id', auth()->id())
+                    ->where('notifiable_type', 'App\Models\User')
+                    ->where('data', 'LIKE', '%"anomaly_type":"low_allowance_threshold"%')
+                    ->where('data', 'LIKE', '%"resolved":false%')
+                    ->where('created_at', '>=', $currentBudget->created_at)
+                    ->get()
+                    ->each(function ($notification) {
+                        $data = $notification->data;
+                        $data['resolved'] = true;
+                        $notification->update(['data' => $data]);
+                    });
             }
-        } else {
-            // Balance recovered above threshold — resolve any still-open
-            // low allowance warnings from this cycle instead of leaving
-            // them stuck "active" forever.
-            DatabaseNotification::where('notifiable_id', auth()->id())
-                ->where('notifiable_type', 'App\Models\User')
-                ->where('data', 'LIKE', '%"anomaly_type":"low_allowance_threshold"%')
-                ->where('data', 'LIKE', '%"resolved":false%')
-                ->where('created_at', '>=', $currentBudget->created_at)
-                ->get()
-                ->each(function ($notification) {
-                    $data = $notification->data;
-                    $data['resolved'] = true;
-                    $notification->update(['data' => $data]);
-                });
         }
 
         return $newExpense;
@@ -137,9 +143,9 @@ class LogExpense extends Component
     public function storeAndAddAnother() {
         $expense = $this->persistExpense();
         if (!$expense) return;
-    
+
         $category = ExpenseCategory::find($expense->expense_category_id);
-    
+
         $this->sessionLog[] = [
             'id' => $expense->id,
             'item_name' => $expense->item_name,
@@ -147,11 +153,11 @@ class LogExpense extends Component
             'category_name' => $category->name ?? 'Uncategorized',
             'category_icon' => $category->icon ?? 'default',
         ];
-    
+
         // Reset only item-specific fields; keep category & date for the next entry
         $this->reset(['item_name', 'amount', 'merchant_name']);
         $this->resetErrorBag();
-    
+
         $this->dispatchBrowserEvent('expense-added');
     }
 
@@ -184,6 +190,7 @@ class LogExpense extends Component
 
         $riskService = app(RiskDetectionService::class);
         $riskService->evaluateSpendingRisk(auth()->user());
+
         // NEW: if this expense had triggered a "big purchase" alert, that
         // alert is now about a transaction that no longer exists — resolve
         // it instead of leaving a stale flag behind.

@@ -5,6 +5,7 @@ namespace App\Http\Livewire\Student;
 use App\Models\SavingsGoal;
 use App\Models\WeeklyBudget;
 use App\Models\RiskLog;
+use App\Models\RiskSetting;
 use App\Models\Expense;
 use App\Models\ExpenseCategory;
 use Carbon\Carbon;
@@ -67,11 +68,14 @@ class GoalsManager extends Component
     public function storeGoal()
     {
         $this->validate();
+
         $initialSaved = $this->already_saved ? floatval($this->already_saved) : 0.00;
         $targetAmount = floatval($this->target_amount);
+
         if ($initialSaved > $targetAmount) {
             $initialSaved = $targetAmount;
         }
+
         $status = ($initialSaved >= $targetAmount && $targetAmount > 0) ? 'achieved' : 'active';
 
         $goal = SavingsGoal::create([
@@ -85,8 +89,8 @@ class GoalsManager extends Component
 
         // A newly created goal lands on page 1 of the Active tab.
         $this->resetPage();
-
         $this->closeCreateModal();
+
         session()->flash('success', 'Savings milestone established successfully!');
     }
 
@@ -119,7 +123,7 @@ class GoalsManager extends Component
                 'numeric',
                 'min:0.01',
                 'max:' . $currentBudget->remaining_allowance,
-                'max:' . $remainingNeeded,                 
+                'max:' . $remainingNeeded,                
             ]
         ], [
             'fund_amount.max' => 'Transfer halted! The amount exceeds either your remaining budget (₱' . number_format($currentBudget->remaining_allowance, 2) . ') or what is left to finish this goal (₱' . number_format($remainingNeeded, 2) . ').'
@@ -193,34 +197,39 @@ class GoalsManager extends Component
 
         app(\App\Services\RiskDetectionService::class)->evaluateSpendingRisk(auth()->user());
 
-        $thresholdAmount = $currentBudget->total_allowance * 0.20;
-        if ($currentBudget->remaining_allowance <= $thresholdAmount) {
-            $alreadyNotified = DatabaseNotification::where('notifiable_id', auth()->id())
-                ->where('notifiable_type', 'App\Models\User')
-                ->where('data', 'LIKE', '%"anomaly_type":"low_allowance_threshold"%')
-                ->where('data', 'LIKE', '%"resolved":false%')
-                ->where('created_at', '>=', $currentBudget->created_at)
-                ->exists();
+        // Low Remaining Budget Alert — threshold now driven by the admin's
+        // Risk Detection Rules settings instead of a hardcoded 0.20.
+        $riskSettings = RiskSetting::current();
+        if ($riskSettings->low_remaining_budget_enabled) {
+            $thresholdAmount = $currentBudget->total_allowance * ($riskSettings->low_remaining_budget_threshold / 100);
 
-            if (!$alreadyNotified) {
-               $percentageLeft = round(($currentBudget->remaining_allowance / $currentBudget->total_allowance) * 100);
+            if ($currentBudget->remaining_allowance <= $thresholdAmount) {
+                $alreadyNotified = DatabaseNotification::where('notifiable_id', auth()->id())
+                    ->where('notifiable_type', 'App\Models\User')
+                    ->where('data', 'LIKE', '%"anomaly_type":"low_allowance_threshold"%')
+                    ->where('data', 'LIKE', '%"resolved":false%')
+                    ->where('created_at', '>=', $currentBudget->created_at)
+                    ->exists();
 
-                DatabaseNotification::create([
-                    'id' => Str::uuid(),
-                    'type' => 'App\Notifications\LowAllowanceWarning',
-                    'notifiable_type' => 'App\Models\User',
-                    'notifiable_id' => auth()->id(),
-                    'data' => [
-                        'anomaly_type' => 'low_allowance_threshold',
-                        'severity_tier' => 'medium',
-                        'description' => "Great job saving! 🎯 Heads up: you have ₱" . number_format($currentBudget->remaining_allowance, 2) . " left for food and daily expenses this week.",
-                        // NEW: matches the flag added to LowAllowanceWarning's
-                        // toArray() so this manually-created notification is
-                        // eligible for the same dedupe/resolve logic.
-                        'resolved' => false,
-                    ],
-                    'read_at' => null,
-                ]);
+                if (!$alreadyNotified) {
+                   $percentageLeft = round(($currentBudget->remaining_allowance / $currentBudget->total_allowance) * 100);
+                    DatabaseNotification::create([
+                        'id' => Str::uuid(),
+                        'type' => 'App\Notifications\LowAllowanceWarning',
+                        'notifiable_type' => 'App\Models\User',
+                        'notifiable_id' => auth()->id(),
+                        'data' => [
+                            'anomaly_type' => 'low_allowance_threshold',
+                            'severity_tier' => 'medium',
+                            'description' => "Great job saving! 🎯 Heads up: you have ₱" . number_format($currentBudget->remaining_allowance, 2) . " left for food and daily expenses this week.",
+                            // NEW: matches the flag added to LowAllowanceWarning's
+                            // toArray() so this manually-created notification is
+                            // eligible for the same dedupe/resolve logic.
+                            'resolved' => false,
+                        ],
+                        'read_at' => null,
+                    ]);
+                }
             }
         }
 
@@ -295,6 +304,7 @@ class GoalsManager extends Component
 
         $goal->update(['status' => 'abandoned']);
         $this->confirmingAbandonId = null;
+
         session()->flash('success', 'Goal marked as archived.');
     }
 
@@ -305,6 +315,7 @@ class GoalsManager extends Component
             ->firstOrFail();
 
         $goal->update(['status' => 'active']);
+
         session()->flash('success', 'Savings goal successfully restored to your active dashboard!');
     }
 
@@ -327,6 +338,7 @@ class GoalsManager extends Component
         });
 
         $this->confirmingDeleteId = null;
+
         session()->flash('success', 'Savings milestone and its associated transaction logs were completely cleared.');
     }
 
