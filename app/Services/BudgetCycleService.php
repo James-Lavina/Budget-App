@@ -42,21 +42,34 @@ class BudgetCycleService
             }
         }
 
-        // Independent, inclusive count: cycle start through eval date, inclusive.
-        // This intentionally overlaps by one day with $daysRemaining below —
-        // "today" counts as both an elapsed day (you may have spent already)
-        // and a remaining day (you can still spend the rest of it).
-        $daysElapsed = max(1, min(7, (int) $startDate->diffInDays($evalDate) + 1));
-
-        // Today always counts as a remaining day you can still spend in.
+        $daysElapsed   = max(1, min(7, (int) $startDate->diffInDays($evalDate) + 1));
         $daysRemaining = min(7, max(1, (int) $evalDate->diffInDays($nextResetDate)));
 
         $spentTodayDate = $isFastForwarded ? $evalDate->copy()->addDay() : $evalDate;
 
+        // NEW: single source of truth for "true starting pool this cycle" —
+        // total_allowance alone excludes rollover, but remaining_allowance + totalSpent
+        // reconstructs baseline + rollover. Excludes savings transfers and the
+        // Savings category itself, matching the filtering SpendingForecastService
+        // and the Dashboard chart both already apply independently.
+        $totalSpentInCycle = Expense::where('user_id', $user->id)
+            ->whereBetween('transaction_date', [$startDate, $endDate])
+            ->whereNull('savings_goal_id')
+            ->whereDoesntHave('category', function ($query) {
+                $query->where('name', 'LIKE', '%Savings%');
+            })
+            ->sum('amount');
+
+        $effectiveTotalAllowance = max(
+            (float) $budget->total_allowance,
+            (float) $budget->remaining_allowance + $totalSpentInCycle
+        );
+
         return compact(
             'today', 'startDate', 'endDate', 'nextResetDate',
             'evalDate', 'isFastForwarded', 'daysRemaining', 'daysElapsed',
-            'spentTodayDate', 'targetResetDay'
+            'spentTodayDate', 'targetResetDay',
+            'totalSpentInCycle', 'effectiveTotalAllowance'
         );
     }
 

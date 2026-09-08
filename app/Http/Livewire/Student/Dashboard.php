@@ -216,7 +216,13 @@ class Dashboard extends Component
 
         $dailyVelocity       = $totalSpent / $daysElapsed;
         $futureDaysRemaining = $cycle['daysRemaining'];
-        $projectedRemaining  = max(0, $this->currentBudget->remaining_allowance - ($dailyVelocity * $futureDaysRemaining));
+        // Same last-day guard as SpendingForecastService — daysElapsed hits 7 on
+        // the cycle's final calendar day, at which point remaining_allowance IS
+        // the final number, not something to keep projecting a velocity against.
+        $isFinalDay          = $daysElapsed >= 7;
+        $projectedRemaining  = $isFinalDay
+            ? (float) $this->currentBudget->remaining_allowance
+            : max(0, $this->currentBudget->remaining_allowance - ($dailyVelocity * $futureDaysRemaining));
         $projectedDaysLeft   = $dailyVelocity > 0 ? ($this->currentBudget->remaining_allowance / $dailyVelocity) : $this->daysRemaining;
 
         $remainingDailyRate = $futureDaysRemaining > 0
@@ -230,7 +236,7 @@ class Dashboard extends Component
         $isDailyQuotaHit = $isQuotaHitRaw && !$hasSavingsToday;
         $isCriticalState = $isDepleted || $isPaceCritical;
 
-        $totalAllowance      = max(1, $this->currentBudget->total_allowance);
+        $totalAllowance      = max(1, $cycle['effectiveTotalAllowance']);
         $remainingPercentage = round(($this->currentBudget->remaining_allowance / $totalAllowance) * 100);
 
         $daysOfWeek = [];
@@ -339,6 +345,7 @@ class Dashboard extends Component
             'isSavingsLocked'        => $isSavingsLocked,
             'isDailyQuotaHit'        => $isDailyQuotaHit,
             'isCriticalState'        => $isCriticalState,
+            'isFinalDay'             => $isFinalDay,
             'remainingPercentage'    => $remainingPercentage,
             'daysOfWeek'             => $daysOfWeek,
             'categoryColorMap'       => $categoryColorMap,

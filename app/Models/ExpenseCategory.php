@@ -14,16 +14,18 @@ class ExpenseCategory extends Model
     // Mirrors App\Http\Livewire\Admin\ExpenseCategories::PALETTE — the hex
     // equivalents of each Tailwind 500-shade swatch the admin picks from.
     public const COLOR_HEX_MAP = [
-        'bg-amber-50 text-amber-600'     => '#f59e0b',
-        'bg-blue-50 text-blue-600'       => '#3b82f6',
-        'bg-emerald-50 text-emerald-600' => '#10b981',
-        'bg-cyan-50 text-cyan-600'       => '#06b6d4',
-        'bg-purple-50 text-purple-600'   => '#a855f7',
-        'bg-pink-50 text-pink-600'       => '#ec4899',
-        'bg-indigo-50 text-indigo-600'   => '#6366f1',
-        'bg-rose-50 text-rose-600'       => '#f43f5e',
-        'bg-orange-50 text-orange-600'   => '#f97316',
-        'bg-slate-100 text-slate-600'    => '#94a3b8',
+        'bg-amber-50 text-amber-700'     => '#d97706',
+        'bg-orange-50 text-orange-700'   => '#ea580c',
+        'bg-rose-50 text-rose-700'       => '#e11d48',
+        'bg-pink-50 text-pink-700'       => '#db2777',
+        'bg-fuchsia-50 text-fuchsia-700' => '#c026d3',
+        'bg-purple-50 text-purple-700'   => '#9333ea',
+        'bg-indigo-50 text-indigo-700'   => '#4f46e5',
+        'bg-blue-50 text-blue-700'       => '#2563eb',
+        'bg-cyan-50 text-cyan-700'       => '#0891b2',
+        'bg-emerald-50 text-emerald-700' => '#059669',
+        'bg-lime-50 text-lime-700'       => '#65a30d',
+        'bg-slate-100 text-slate-700'    => '#64748b',
     ];
 
     /**

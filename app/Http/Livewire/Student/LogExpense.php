@@ -2,17 +2,18 @@
 
 namespace App\Http\Livewire\Student;
 
+use App\Models\ActivityLog;
 use App\Models\Expense;
 use App\Models\ExpenseCategory;
-use App\Models\WeeklyBudget;
 use App\Models\RiskLog;
 use App\Models\RiskSetting;
+use App\Models\WeeklyBudget;
 use App\Notifications\LowAllowanceWarning;
 use App\Services\BudgetCycleService;
 use App\Services\RiskDetectionService;
 use Carbon\Carbon;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Notifications\DatabaseNotification;
+use Illuminate\Support\Facades\DB;
 use Livewire\Component;
 
 class LogExpense extends Component
@@ -86,6 +87,16 @@ class LogExpense extends Component
 
             $currentBudget->remaining_allowance -= $this->amount;
             $currentBudget->save();
+
+            // NEW: audit trail for manual entries — previously only edits/deletes
+            // were logged, leaving the most common student action invisible to admins.
+            ActivityLog::create([
+                'user_id'    => auth()->id(),
+                'event_type' => 'expense_logged',
+                'ip_address' => request()->ip(),
+                'user_agent' => request()->userAgent(),
+                'details'    => "Logged \"{$newExpense->item_name}\" (₱" . number_format($newExpense->amount, 2) . ")",
+            ]);
         });
 
         $riskService = app(RiskDetectionService::class);

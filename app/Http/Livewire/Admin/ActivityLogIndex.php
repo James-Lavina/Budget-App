@@ -28,6 +28,10 @@ class ActivityLogIndex extends Component
     public function labelFor(string $eventType): string
     {
         switch ($eventType) {
+            case 'expense_logged':
+                return 'Logged Expense';
+            case 'expense_scanned':
+                return 'Scanned Receipt';
             case 'expense_deleted':
                 return 'Deleted Expense';
             case 'expense_bulk_deleted':

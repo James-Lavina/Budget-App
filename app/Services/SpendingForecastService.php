@@ -95,7 +95,7 @@ class SpendingForecastService
             'remainingAllowance' => $remainingAllowance,
         ]);
 
-        $effectiveTotalAllowance = max($baseAllowance, $remainingAllowance + $totalSpent);
+        $effectiveTotalAllowance = $cycle['effectiveTotalAllowance'];
 
         for ($i = 0; $i < 7; $i++) {
             $dayIndex = $i + 1;
@@ -115,14 +115,22 @@ class SpendingForecastService
             }
         }
 
-        $futureProjectedSpent = $dailyVelocity * $daysRemainingCount;
+        // On the literal last calendar day of the cycle, there's no "rest of the
+        // week" left to project a velocity into — daysRemaining is floored at 1
+        // by BudgetCycleService even on Sunday itself, so without this check the
+        // forecast would keep extrapolating "the rest of today" indefinitely.
+        // remaining_allowance IS the final number at this point.
+        $isFinalDay = $daysElapsed >= 7;
+
+        $futureProjectedSpent = $isFinalDay ? 0.00 : ($dailyVelocity * $daysRemainingCount);
+
         $rawPredictedRemaining    = $remainingAllowance - $futureProjectedSpent;
         $predictedRemainingBudget = max(0, $rawPredictedRemaining);
         $projectedDeficit         = $rawPredictedRemaining < 0 ? abs($rawPredictedRemaining) : 0;
         $predictedEndOfWeekSpent  = $totalSpent + $futureProjectedSpent;
 
-        $isCriticalState = ($remainingAllowance <= 0) || ($predictedEndOfWeekSpent > $effectiveTotalAllowance);
-        $isFasterPacing  = !$isCriticalState && ($spentToday > $todayStartingQuota);
+        $isCriticalState = ($remainingAllowance <= 0) || (!$isFinalDay && $predictedEndOfWeekSpent > $effectiveTotalAllowance);
+        $isFasterPacing  = !$isFinalDay && !$isCriticalState && ($spentToday > $todayStartingQuota);
 
         // NOTE: Risk logging/notifications are no longer created here.
         // RiskDetectionService is the single source of truth for that — see
@@ -143,9 +151,10 @@ class SpendingForecastService
             'predicted_end_spent' => number_format($predictedEndOfWeekSpent, 2),
             'is_critical'         => $isCriticalState,
             'is_faster'           => $isFasterPacing,
+            'is_final_day'        => $isFinalDay,
             'days_left_in_week'   => $daysRemainingCount,
             'active_risks_count'  => $riskLogsCountThisWeek,
-            'reset_day'           => $targetResetDay, // used for dynamic "Sunday" text
+            'reset_day'           => $targetResetDay,
         ];
 
         return [

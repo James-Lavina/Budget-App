@@ -151,9 +151,9 @@
                         <div class="flex flex-wrap gap-2">
                             @foreach($palette as $key => $preset)
                                 <button type="button" wire:click="$set('create_color', '{{ $key }}')" title="{{ $preset['label'] }}"
-                                    class="h-9 w-9 rounded-full {{ $preset['swatch'] }} flex items-center justify-center transition-all {{ $create_color === $key ? 'ring-2 ring-offset-2 ring-indigo-600' : '' }}">
+                                    class="h-11 w-11 rounded-full {{ $preset['swatch'] }} flex items-center justify-center transition-all {{ $create_color === $key ? 'ring-[3px] ring-offset-2 ring-slate-900' : '' }}">
                                     @if($create_color === $key)
-                                        <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5"/></svg>
+                                        <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5"/></svg>
                                     @endif
                                 </button>
                             @endforeach

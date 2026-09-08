@@ -75,7 +75,7 @@
                     <div class="flex items-center gap-1.5 text-[10px] sm:text-[11px] font-medium text-slate-400 truncate">
                         <span>Spent today: ₱{{ number_format($spentToday, 2) }}</span>
                         <span>·</span>
-                        <span>{{ $daysRemaining }} {{ Str::plural('day', $daysRemaining) }} left</span>
+                        <span>{{ $isFinalDay ? 'Last day' : $daysRemaining . ' ' . Str::plural('day', $daysRemaining) . ' left' }}</span>
                     </div>
                     {{-- NEW: one-line explanation connecting this number to
                          "Remaining Budget" above it, so it's clear this is a
@@ -135,6 +135,8 @@
                             Daily budget met. Total remaining: <span class="font-bold">₱{{ number_format($currentBudget->remaining_allowance, 2) }}</span> (<span class="font-bold">₱{{ number_format($remainingDailyRate, 2) }}/day</span> for the next {{ $futureDaysRemaining }} {{ Str::plural('day', $futureDaysRemaining) }}).
                         @elseif($hasNoSpendingYet)
                             You haven't logged anything yet this cycle. You've got <span class="font-bold">₱{{ number_format($currentBudget->remaining_allowance, 2) }}</span> for the next {{ $daysRemaining }} {{ Str::plural('day', $daysRemaining) }} — about <span class="font-bold">₱{{ number_format($safeToSpend, 2) }}/day</span> if you spend it evenly.
+                        @elseif($isFinalDay)
+                        Final day. You have <span class="font-bold">₱{{ number_format($projectedRemaining, 2) }}</span> left before your {{ $currentBudget->reset_day }} reset.
                         @else
                             On track to finish the week with ~<span class="font-bold">₱{{ number_format($projectedRemaining, 2) }}</span> remaining.
                         @endif

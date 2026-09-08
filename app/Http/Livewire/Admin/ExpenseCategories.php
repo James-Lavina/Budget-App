@@ -12,16 +12,18 @@ class ExpenseCategories extends Component
 {
     // Color palette unchanged from before.
     public const PALETTE = [
-        'amber'   => ['label' => 'Amber',   'value' => 'bg-amber-50 text-amber-600',     'swatch' => 'bg-amber-500'],
-        'blue'    => ['label' => 'Blue',    'value' => 'bg-blue-50 text-blue-600',       'swatch' => 'bg-blue-500'],
-        'emerald' => ['label' => 'Emerald', 'value' => 'bg-emerald-50 text-emerald-600', 'swatch' => 'bg-emerald-500'],
-        'cyan'    => ['label' => 'Cyan',    'value' => 'bg-cyan-50 text-cyan-600',       'swatch' => 'bg-cyan-500'],
-        'purple'  => ['label' => 'Purple',  'value' => 'bg-purple-50 text-purple-600',   'swatch' => 'bg-purple-500'],
-        'pink'    => ['label' => 'Pink',    'value' => 'bg-pink-50 text-pink-600',       'swatch' => 'bg-pink-500'],
-        'indigo'  => ['label' => 'Indigo',  'value' => 'bg-indigo-50 text-indigo-600',   'swatch' => 'bg-indigo-500'],
-        'rose'    => ['label' => 'Rose',    'value' => 'bg-rose-50 text-rose-600',       'swatch' => 'bg-rose-500'],
-        'orange'  => ['label' => 'Orange',  'value' => 'bg-orange-50 text-orange-600',   'swatch' => 'bg-orange-500'],
-        'slate'   => ['label' => 'Slate',   'value' => 'bg-slate-100 text-slate-600',    'swatch' => 'bg-slate-400'],
+        'amber'   => ['label' => 'Amber',   'value' => 'bg-amber-50 text-amber-700',     'swatch' => 'bg-amber-600'],
+        'orange'  => ['label' => 'Orange',  'value' => 'bg-orange-50 text-orange-700',   'swatch' => 'bg-orange-600'],
+        'rose'    => ['label' => 'Rose',    'value' => 'bg-rose-50 text-rose-700',       'swatch' => 'bg-rose-600'],
+        'pink'    => ['label' => 'Pink',    'value' => 'bg-pink-50 text-pink-700',       'swatch' => 'bg-pink-600'],
+        'fuchsia' => ['label' => 'Fuchsia', 'value' => 'bg-fuchsia-50 text-fuchsia-700', 'swatch' => 'bg-fuchsia-600'], // NEW — fills the gap between pink and purple
+        'purple'  => ['label' => 'Purple',  'value' => 'bg-purple-50 text-purple-700',   'swatch' => 'bg-purple-600'],
+        'indigo'  => ['label' => 'Indigo',  'value' => 'bg-indigo-50 text-indigo-700',   'swatch' => 'bg-indigo-600'],
+        'blue'    => ['label' => 'Blue',    'value' => 'bg-blue-50 text-blue-700',       'swatch' => 'bg-blue-600'],
+        'cyan'    => ['label' => 'Cyan',    'value' => 'bg-cyan-50 text-cyan-700',       'swatch' => 'bg-cyan-600'],
+        'emerald' => ['label' => 'Emerald', 'value' => 'bg-emerald-50 text-emerald-700', 'swatch' => 'bg-emerald-600'],
+        'lime'    => ['label' => 'Lime',    'value' => 'bg-lime-50 text-lime-700',       'swatch' => 'bg-lime-600'], // NEW — fills the gap between amber and emerald
+        'slate'   => ['label' => 'Slate',   'value' => 'bg-slate-100 text-slate-700',    'swatch' => 'bg-slate-500'],
     ];
 
     // Quick-pick shortcuts shown as buttons before the admin ever needs to

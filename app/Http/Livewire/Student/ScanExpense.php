@@ -2,17 +2,18 @@
 
 namespace App\Http\Livewire\Student;
 
+use App\Models\ActivityLog;
 use App\Models\Expense;
 use App\Models\ExpenseCategory;
 use App\Models\Receipt;
-use App\Models\WeeklyBudget;
 use App\Models\RiskLog;
 use App\Models\RiskSetting;
+use App\Models\WeeklyBudget;
 use Carbon\Carbon;
+use Illuminate\Notifications\DatabaseNotification;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
-use Illuminate\Notifications\DatabaseNotification;
 use Livewire\Component;
 use Livewire\WithFileUploads;
 
@@ -269,9 +270,24 @@ class ScanExpense extends Component
                             ]);
                         }
                     }
+
                 }
 
                 $currentBudget->decrement('remaining_allowance', $total);
+
+                 // NEW: one summarized log per receipt scan, same pattern as
+                // AllExpenses::bulkDelete()'s expense_bulk_deleted — avoids
+                // flooding the log with one row per line item on a single receipt.
+                $itemNames = collect($this->items)->pluck('item_name')->take(5)->implode(', ');
+                ActivityLog::create([
+                    'user_id'    => auth()->id(),
+                    'event_type' => 'expense_scanned',
+                    'ip_address' => request()->ip(),
+                    'user_agent' => request()->userAgent(),
+                    'details'    => "Scanned receipt" . ($this->merchant_name ? " from \"{$this->merchant_name}\"" : '') .
+                                    " — " . count($this->items) . " item(s), ₱" . number_format($total, 2) . " total: {$itemNames}" .
+                                    (count($this->items) > 5 ? '...' : ''),
+                ]);
             });
 
             app(\App\Services\RiskDetectionService::class)->evaluateSpendingRisk(auth()->user());

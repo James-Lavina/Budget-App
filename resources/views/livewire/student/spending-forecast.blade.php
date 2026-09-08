@@ -3,14 +3,13 @@
     $chartActual    = $forecastResult['chart']['actual'] ?? [];
     $chartPredicted = $forecastResult['chart']['predicted'] ?? [];
     $chartAllowance = $forecastResult['chart']['allowance'] ?? 1000;
-
     $metrics        = $forecastResult['metrics'] ?? [];
     $isCritical     = $metrics['is_critical'] ?? false;
     $isFaster       = $metrics['is_faster'] ?? false;
+    $isFinalDay     = $metrics['is_final_day'] ?? false;  
     $daysLeft       = $metrics['days_left_in_week'] ?? 0;
     $dailyVelocity  = $metrics['daily_velocity'] ?? '0.00';
     $resetDayLabel  = $metrics['reset_day'] ?? 'Sunday';
-
     $isOffline      = !($aiInsight['is_online'] ?? false);
 @endphp
 
@@ -91,7 +90,7 @@
                         </svg>
                     </div>
                     <h3 class="text-base font-bold text-slate-900">
-                        {{ $daysLeft === 0 ? 'Week Complete' : $daysLeft . ' Day' . ($daysLeft > 1 ? 's' : '') . ' Left' }}
+                        {{ $isFinalDay ? 'Final Day' : $daysLeft . ' Day' . ($daysLeft > 1 ? 's' : '') . ' Left' }}
                     </h3>
                     <p class="text-xs text-slate-500 font-medium mt-0.5">Resets {{ $resetDayLabel }}</p>
                 </div>
@@ -142,14 +141,14 @@
                 <div class="md:col-span-2 bg-indigo-600 text-white rounded-3xl p-7 flex flex-col justify-between shadow-lg shadow-indigo-600/10 min-h-[220px]">
                     <div class="space-y-1">
                         <span class="text-xs font-bold text-indigo-200 block uppercase tracking-wider">
-                            {{ $daysLeft === 0 ? 'Final Balance Left' : 'Estimated Money Left' }}
+                            {{ $isFinalDay ? 'Final Balance' : 'Estimated Money Left' }}
                         </span>
                         <div class="text-4xl font-black tracking-tight font-mono my-1">
                             ₱{{ $metrics['predicted_remaining'] ?? '0' }}
                         </div>
                     </div>
                     <div class="text-xs text-indigo-200 font-medium">
-                        {{ $daysLeft === 0 ? 'Cycle complete for this week' : 'by ' . $resetDayLabel . ' evening' }}
+                        {{ $isFinalDay ? 'Cycle complete — resets ' . $resetDayLabel : 'by ' . $resetDayLabel . ' evening' }}
                     </div>
                 </div>
 
