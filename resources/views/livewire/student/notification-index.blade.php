@@ -55,6 +55,7 @@
                     'rapid_spending'          => ['bg' => 'bg-orange-100', 'text' => 'text-orange-700', 'path' => 'M13 10V3L4 14h7v7l9-11h-7z'],
                     // NEW: Risk Detection Rules — Consecutive No Expense Logs
                     'no_expense_logs'         => ['bg' => 'bg-slate-100', 'text' => 'text-slate-500', 'path' => 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z'],
+                    'daily_safe_to_spend' => ['bg' => 'bg-amber-100', 'text' => 'text-amber-600', 'path' => 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z'],
                 ];
 
                 $icon = $iconMap[$type] ?? $iconMap['default'];
@@ -91,6 +92,9 @@
                         break;
                     case 'no_expense_logs':
                         $link = route('student.expenses.create');
+                        break;
+                    case 'daily_safe_to_spend':
+                        $link = route('student.dashboard');
                         break;
                     default:
                         $link = null;

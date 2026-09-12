@@ -7,12 +7,20 @@ use App\Models\RiskLog;
 use App\Models\RiskSetting;
 use App\Models\WeeklyBudget;
 use App\Notifications\BudgetRiskNotification;
+use App\Services\BudgetCycleService;
 use Carbon\Carbon;
 use Illuminate\Notifications\DatabaseNotification;
 use Illuminate\Support\Facades\DB;
 
 class RiskDetectionService
 {
+    private BudgetCycleService $cycleService;
+
+    public function __construct(BudgetCycleService $cycleService)
+    {
+        $this->cycleService = $cycleService;
+    }
+
     /**
     * Analyzes spending speed and writes anomalies straight to the risk_logs table.
     * Evaluates financial balance longevity against physical calendar constraints.
@@ -30,9 +38,24 @@ class RiskDetectionService
             return;
         }
 
-        // Maintain strict, non-overlapping 7-day cycle windows
-        $cycleStartDate = Carbon::parse($activeBudget->cycle_start_date)->startOfDay();
-        $cycleEndDate = $cycleStartDate->copy()->addDays(6)->endOfDay();
+        // Single source of truth for cycle dates/day-counts — same service
+        // Dashboard/Forecast/Simulator use. Also makes this respect the
+        // /test/fast-forward flow via $cycle['evalDate'], instead of the
+        // previous hand-rolled Carbon::now()/addDays(6) math which could
+        // silently drift from what the student sees elsewhere in the app.
+        $cycle = $this->cycleService->resolve($activeBudget, $user);
+        $cycleStartDate = $cycle['startDate'];
+        $cycleEndDate   = $cycle['endDate'];
+        // FIX: use spentTodayDate, NOT evalDate directly. When a cycle is
+        // fast-forwarded (isFastForwarded=true), BudgetCycleService defines
+        // "today" for spending purposes as evalDate+1 day — this is the same
+        // field Dashboard/Forecast/Simulator all use for their "spent today"
+        // figures. Using evalDate directly here (as an earlier version of
+        // this file did) made RiskDetectionService disagree with what the
+        // UI displays: it would count the last seeded day's expenses as
+        // "today" while the Dashboard correctly showed ₱0 spent today.
+        $spentTodayDate = $cycle['spentTodayDate'];
+        $daysElapsed    = $cycle['daysElapsed'];
 
         // 1. Calculate historical metrics for the current cycle
         // Filter out savings goal allocations so transfers are not flagged as spending velocity
@@ -49,9 +72,22 @@ class RiskDetectionService
             return;
         }
 
-        // Standardized calendar day calculation
-        $daysElapsed = max(1, $cycleStartDate->diffInDays(Carbon::now()->startOfDay()) + 1);
+        // Used ONLY for the runway/pace-check comparison below — this
+        // intentionally excludes today (it answers "how many days AFTER
+        // today are left to compare against projected runway"). Kept as
+        // its own variable, separate from $cycle['daysRemaining'], because
+        // that one is inclusive-of-today (see $daysRemainingIncludingToday
+        // below) and floored at 1, not 0.5 — different semantics needed here.
         $calendarDaysLeftInCycle = max(0.5, 7 - $daysElapsed);
+
+        // FIX: per-day quota math (Daily Safe-to-Spend below) needs "today"
+        // included in the divisor. $cycle['daysRemaining'] from
+        // BudgetCycleService is already inclusive-of-today and floored at 1
+        // (min(7, max(1, ...))), which is exactly the semantics that was
+        // missing before — reusing $calendarDaysLeftInCycle there inflated
+        // the quota (up to 2x on the last day of the cycle), which is why
+        // the Daily Safe-to-Spend Warning almost never fired.
+        $daysRemainingIncludingToday = $cycle['daysRemaining'];
 
         // 2. Base Linear Velocities evaluated against the full available pool
         $allowedDailyVelocity = $actualStartingPool / 7;
@@ -59,7 +95,7 @@ class RiskDetectionService
 
         // 3. Calculate "Today-Only" Velocity excluding savings allocations
         $spentToday = Expense::where('user_id', $user->id)
-            ->whereDate('transaction_date', Carbon::today())
+            ->whereDate('transaction_date', $spentTodayDate)
             ->whereNull('savings_goal_id')
             ->sum('amount');
 
@@ -86,15 +122,12 @@ class RiskDetectionService
 
         if ($triggerCondition) {
             $alreadyLoggedToday = RiskLog::where('user_id', $user->id)
-                ->where('anomaly_type', $anomalyType)
-                ->where('resolved', false)
-                ->whereDate('created_at', Carbon::today())
-                ->exists();
+            ->where('anomaly_type', $anomalyType)
+            ->where('resolved', false)
+            ->whereDate('created_at', Carbon::today())
+            ->exists();
 
-            if ($alreadyLoggedToday) {
-                return;
-            }
-
+        if (!$alreadyLoggedToday) {
             // === RUNWAY DEFICIT MATRIX ENGINE ===
             $runwayDeficitDays = $calendarDaysLeftInCycle - $projectedRunwayDaysLeft;
 
@@ -130,8 +163,8 @@ class RiskDetectionService
 
             $user->notify(new BudgetRiskNotification($riskLog));
 
-            // Mark primary risk as triggered so secondary pacing check is skipped
             $primaryRiskTriggered = true;
+        }
         } else {
             // The overspending condition that used to be true is no longer
             // true — e.g. the student deleted or lowered the amount of the
@@ -213,11 +246,72 @@ class RiskDetectionService
             }
         }
 
+        // === Daily Safe-to-Spend Warning (admin-configurable) ===
+        // A per-day check, independent of the weekly pacing/velocity model above:
+        // flags when TODAY's remaining safe-to-spend quota drops below a flat
+        // percentage, regardless of whether the weekly pace itself looks fine.
+        // Scoped by whereDate('created_at', today) — same pattern as Overspending
+        // Threshold and Rapid Spending — so it self-resets every calendar day
+        // without any separate cron/reset logic needed.
+        if ($riskSettings->daily_safe_to_spend_enabled) {
+            // FIX: uses $daysRemainingIncludingToday (not $calendarDaysLeftInCycle)
+            // so today's quota is spread across the correct number of days.
+            $todayStartingQuota = ($trueRemainingAllowance + $spentToday) / $daysRemainingIncludingToday;
+            $safeToSpendToday = max(0.00, $todayStartingQuota - $spentToday);
+            $remainingQuotaPercent = $todayStartingQuota > 0
+                ? ($safeToSpendToday / $todayStartingQuota) * 100
+                : 0;
+
+            if ($remainingQuotaPercent <= $riskSettings->daily_safe_to_spend_threshold) {
+                $alreadyLoggedSafeSpend = RiskLog::where('user_id', $user->id)
+                    ->where('anomaly_type', 'daily_safe_to_spend')
+                    ->where('resolved', false)
+                    ->whereDate('created_at', Carbon::today())
+                    ->exists();
+
+                if (!$alreadyLoggedSafeSpend) {
+                    $percentUsedToday = 100 - $remainingQuotaPercent;
+                    $safeSpendLog = RiskLog::create([
+                        'user_id'       => $user->id,
+                        'anomaly_type'  => 'daily_safe_to_spend',
+                        'severity_tier' => 'medium',
+                        'description'   => "Daily Limit Warning ⏳: You've used " . round($percentUsedToday) . "% of today's safe-to-spend quota — only ₱" . number_format($safeToSpendToday, 2) . " left for today.",
+                        'resolved'      => false,
+                    ]);
+                    $user->notify(new BudgetRiskNotification($safeSpendLog));
+                }
+            } else {
+                // Quota recovered above threshold (e.g. a same-day expense was
+                // edited or deleted) — resolve any still-open alert instead of
+                // leaving a stale flag active for the rest of the day.
+                $resolvedSafeSpendIds = RiskLog::where('user_id', $user->id)
+                    ->where('anomaly_type', 'daily_safe_to_spend')
+                    ->where('resolved', false)
+                    ->whereDate('created_at', Carbon::today())
+                    ->pluck('id');
+
+                if ($resolvedSafeSpendIds->isNotEmpty()) {
+                    RiskLog::whereIn('id', $resolvedSafeSpendIds)->update(['resolved' => true]);
+                    foreach ($resolvedSafeSpendIds as $logId) {
+                        DatabaseNotification::where('notifiable_id', $user->id)
+                            ->where('notifiable_type', 'App\Models\User')
+                            ->where('data', 'LIKE', '%"risk_log_id":' . $logId . '%')
+                            ->get()
+                            ->each(function ($notification) {
+                                $data = $notification->data;
+                                $data['resolved'] = true;
+                                $notification->update(['data' => $data]);
+                            });
+                    }
+                }
+            }
+        }
+
         //4. Category concentration check — independent of velocity checks above
         $this->checkCategoryConcentration($user, $cycleStartDate, $cycleEndDate);
 
         //5. Rapid spending check — independent of the checks above
-        $this->checkRapidSpending($user);
+        $this->checkRapidSpending($user, $spentTodayDate);
     }
 
     /**
@@ -314,7 +408,7 @@ class RiskDetectionService
      * requiring 3 purchases each over 30% in one day would almost never be
      * reachable for a weekly student budget, so this uses its own floor.
      */
-    private function checkRapidSpending($user)
+    private function checkRapidSpending($user, $spentTodayDate)
     {
         $settings = RiskSetting::current();
         if (!$settings->rapid_spending_enabled) {
@@ -332,7 +426,7 @@ class RiskDetectionService
         $largeTxnFloor = $activeBudget->total_allowance * 0.15;
 
         $largeTxnCountToday = Expense::where('user_id', $user->id)
-            ->whereDate('transaction_date', Carbon::today())
+            ->whereDate('transaction_date', $spentTodayDate)
             ->whereNull('savings_goal_id')
             ->where('amount', '>=', $largeTxnFloor)
             ->count();

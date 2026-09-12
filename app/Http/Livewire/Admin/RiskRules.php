@@ -96,15 +96,20 @@ class RiskRules extends Component
 
         $s->update($newValues);
 
-        ActivityLog::create([
-            'user_id'    => auth()->id(),
-            'event_type' => 'risk_rules_updated',
-            'ip_address' => request()->ip(),
-            'user_agent' => request()->userAgent(),
-            'details'    => !empty($changes)
-                ? 'Updated risk detection rules: ' . implode(', ', $changes)
-                : 'Saved risk detection rules — no field changes detected',
-        ]);
+        // CHANGED: only write an ActivityLog row when something actually
+        // changed. A no-op Save click (admin opened the screen, touched
+        // nothing, clicked Save) no longer produces an audit entry at all —
+        // previously this always logged, just switching the message to
+        // "no field changes detected".
+        if (!empty($changes)) {
+            ActivityLog::create([
+                'user_id'    => auth()->id(),
+                'event_type' => 'risk_rules_updated',
+                'ip_address' => request()->ip(),
+                'user_agent' => request()->userAgent(),
+                'details'    => 'Updated risk detection rules: ' . implode(', ', $changes),
+            ]);
+        }
 
         session()->flash('success', 'Risk detection rules updated.');
     }

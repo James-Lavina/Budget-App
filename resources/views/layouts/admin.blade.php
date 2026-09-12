@@ -128,7 +128,13 @@
             <div class="pt-4 border-t border-slate-100 mt-4">
                 <form method="POST" action="{{ route('logout') }}">
                     @csrf
-                    <button type="submit" title="Logout" class="w-full flex items-center gap-3 px-4 py-2.5 rounded-2xl font-semibold text-sm text-rose-600 hover:bg-rose-50 transition-all">
+                    {{-- FIX: added data-sidebar-nav-item — this button was
+                         missing the attribute the collapse JS uses to apply
+                         lg:justify-center + lg:px-0. Every other sidebar
+                         item has it, so when collapsed, this was the only
+                         icon left un-centered (still carrying its original
+                         px-4 + default left-justified flex layout). --}}
+                    <button type="submit" title="Logout" data-sidebar-nav-item class="w-full flex items-center gap-3 px-4 py-2.5 rounded-2xl font-semibold text-sm text-rose-600 hover:bg-rose-50 transition-all">
                         <x-heroicon-o-logout class="w-5 h-5 shrink-0" />
                         <span data-sidebar-label>Logout</span>
                     </button>

@@ -12,7 +12,7 @@ use Illuminate\Notifications\DatabaseNotification;
 
 class CheckExpenseLogGaps extends Command
 {
-    protected $signature = 'risk:check-log-gaps';
+    protected $signature = 'risk:check-log-gaps {--date= : Simulate "today" as this Y-m-d date, for testing}';
     protected $description = 'Daily check: alerts students who have not logged an expense for N consecutive days (per Risk Detection Rules).';
 
     public function handle()
@@ -24,6 +24,11 @@ class CheckExpenseLogGaps extends Command
             return 0;
         }
 
+        if ($this->option('date')) {
+            Carbon::setTestNow($this->option('date'));
+            $this->warn('Simulating "today" as ' . Carbon::today()->format('Y-m-d') . ' for this run.');
+        }
+
         $threshold = $settings->no_expense_logs_days;
         $today = Carbon::today();
 
@@ -32,8 +37,6 @@ class CheckExpenseLogGaps extends Command
         foreach ($students as $user) {
             $lastExpenseDate = Expense::where('user_id', $user->id)->max('transaction_date');
 
-            // No expenses logged at all yet — anchor to account creation
-            // instead of skipping, so brand-new inactive accounts still surface.
             $anchorDate = $lastExpenseDate
                 ? Carbon::parse($lastExpenseDate)->startOfDay()
                 : Carbon::parse($user->created_at)->startOfDay();
@@ -54,6 +57,10 @@ class CheckExpenseLogGaps extends Command
                 $user->notify(new NoExpenseLogsWarning($daysSinceLastLog));
                 $this->info("Alerted {$user->email} — {$daysSinceLastLog} days since last log.");
             }
+        }
+
+        if ($this->option('date')) {
+            Carbon::setTestNow(); // reset so you don't leave it faked for anything else in this process
         }
 
         return 0;

@@ -2,10 +2,10 @@
 
 namespace App\Http\Livewire\Admin;
 
+use App\Models\ActivityLog;
 use App\Models\IntegrationSetting;
 use Illuminate\Support\Facades\Http;
 use Livewire\Component;
-use App\Models\ActivityLog;
 
 class OcrAiSettings extends Component
 {
@@ -15,8 +15,15 @@ class OcrAiSettings extends Component
     public $groq_temperature;
     public $groq_max_tokens;
 
-    public $testStatus = null; // 'success' | 'error' | null
-    public $testMessage = '';
+    // CHANGED: split into two independent pairs — one per model — instead
+    // of a single shared $testStatus/$testMessage. Each model now has its
+    // own "Test" button and result, since a passing text-model test used
+    // to mask a broken vision model (or vice versa).
+    public $visionTestStatus = null; // 'success' | 'error' | null
+    public $visionTestMessage = '';
+
+    public $textTestStatus = null; // 'success' | 'error' | null
+    public $textTestMessage = '';
 
     protected $rules = [
         'groq_api_key'      => 'nullable|string',
@@ -41,7 +48,6 @@ class OcrAiSettings extends Component
         $this->validate();
 
         $s = IntegrationSetting::current();
-
         $changes = [];
 
         // Never log the key value itself — only whether it was changed/cleared/set.
@@ -54,15 +60,19 @@ class OcrAiSettings extends Component
                 $changes[] = 'API key: changed';
             }
         }
+
         if ($s->groq_vision_model !== $this->groq_vision_model) {
             $changes[] = "Vision Model: \"{$s->groq_vision_model}\" → \"{$this->groq_vision_model}\"";
         }
+
         if ($s->groq_text_model !== $this->groq_text_model) {
             $changes[] = "Text Model: \"{$s->groq_text_model}\" → \"{$this->groq_text_model}\"";
         }
+
         if ((float) $s->groq_temperature !== (float) $this->groq_temperature) {
             $changes[] = "Temperature: {$s->groq_temperature} → {$this->groq_temperature}";
         }
+
         if ((int) $s->groq_max_tokens !== (int) $this->groq_max_tokens) {
             $changes[] = "Max Tokens: {$s->groq_max_tokens} → {$this->groq_max_tokens}";
         }
@@ -74,36 +84,90 @@ class OcrAiSettings extends Component
 
         IntegrationSetting::flush();
 
-        ActivityLog::create([
-            'user_id'    => auth()->id(),
-            'event_type' => 'ocr_ai_settings_updated',
-            'ip_address' => request()->ip(),
-            'user_agent' => request()->userAgent(),
-            'details'    => !empty($changes)
-                ? 'Updated OCR & AI settings: ' . implode(', ', $changes)
-                : 'Saved OCR & AI settings — no field changes detected',
-        ]);
+        // Only write an ActivityLog row when something actually changed —
+        // a no-op Save click produces no audit entry at all.
+        if (!empty($changes)) {
+            ActivityLog::create([
+                'user_id'    => auth()->id(),
+                'event_type' => 'ocr_ai_settings_updated',
+                'ip_address' => request()->ip(),
+                'user_agent' => request()->userAgent(),
+                'details'    => 'Updated OCR & AI settings: ' . implode(', ', $changes),
+            ]);
+        }
 
-        $this->testStatus = null;
+        $this->visionTestStatus = null;
+        $this->textTestStatus = null;
         session()->flash('success', 'AI settings saved successfully.');
     }
 
-    public function testConnection()
+    /**
+     * Tests only the Vision Model (Receipt Scanner) — independent of the
+     * Text Model test below. Uses whatever is currently typed into the
+     * field, not necessarily the saved value, so an admin can validate a
+     * model name before committing to Save.
+     */
+    public function testVisionConnection()
     {
-        $this->testStatus = null;
-        $this->testMessage = '';
+        $this->visionTestStatus = null;
+        $this->visionTestMessage = '';
 
         if (empty($this->groq_api_key)) {
-            $this->testStatus = 'error';
-            $this->testMessage = 'Enter an API key first.';
+            $this->visionTestStatus = 'error';
+            $this->visionTestMessage = 'Enter an API key first.';
             return;
+        }
+
+        $result = $this->pingModel($this->groq_vision_model);
+
+        $this->visionTestStatus = $result['ok'] ? 'success' : 'error';
+        $this->visionTestMessage = $result['ok']
+            ? 'Connected — ' . $this->groq_vision_model . ' responded successfully.'
+            : $result['message'];
+    }
+
+    /**
+     * Tests only the Text Model (AI Coach) — independent of the Vision
+     * Model test above.
+     */
+    public function testTextConnection()
+    {
+        $this->textTestStatus = null;
+        $this->textTestMessage = '';
+
+        if (empty($this->groq_api_key)) {
+            $this->textTestStatus = 'error';
+            $this->textTestMessage = 'Enter an API key first.';
+            return;
+        }
+
+        $result = $this->pingModel($this->groq_text_model);
+
+        $this->textTestStatus = $result['ok'] ? 'success' : 'error';
+        $this->textTestMessage = $result['ok']
+            ? 'Connected — ' . $this->groq_text_model . ' responded successfully.'
+            : $result['message'];
+    }
+
+    /**
+     * Sends a minimal text-only chat completion to the given model to
+     * verify the API key + model name are valid and reachable. Shared by
+     * both testVisionConnection() and testTextConnection() — Groq's vision
+     * models are multimodal chat models and accept plain text-only
+     * messages fine, so there's no need to upload a real image just to
+     * test connectivity.
+     */
+    private function pingModel(string $model): array
+    {
+        if (empty($model)) {
+            return ['ok' => false, 'message' => 'No model name entered.'];
         }
 
         try {
             $response = Http::withToken($this->groq_api_key)
                 ->timeout(10)
                 ->post('https://api.groq.com/openai/v1/chat/completions', [
-                    'model' => $this->groq_text_model,
+                    'model' => $model,
                     'messages' => [
                         ['role' => 'user', 'content' => 'Reply with the single word: OK'],
                     ],
@@ -111,15 +175,15 @@ class OcrAiSettings extends Component
                 ]);
 
             if ($response->successful()) {
-                $this->testStatus = 'success';
-                $this->testMessage = 'Connected — ' . $this->groq_text_model . ' responded successfully.';
-            } else {
-                $this->testStatus = 'error';
-                $this->testMessage = 'Groq returned HTTP ' . $response->status() . '. Check your API key or model name.';
+                return ['ok' => true, 'message' => 'OK'];
             }
+
+            return [
+                'ok' => false,
+                'message' => 'Groq returned HTTP ' . $response->status() . '. Check the model name.',
+            ];
         } catch (\Exception $e) {
-            $this->testStatus = 'error';
-            $this->testMessage = 'Connection failed: ' . $e->getMessage();
+            return ['ok' => false, 'message' => 'Connection failed: ' . $e->getMessage()];
         }
     }
 

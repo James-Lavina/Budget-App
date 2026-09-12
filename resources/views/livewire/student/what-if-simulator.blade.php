@@ -99,7 +99,12 @@
             
                 <!-- Input: Cost -->
                 <div class="space-y-1.5">
-                    <label for="purchaseAmount" class="block text-xs font-bold text-slate-700">Estimated Cost (₱)</label>
+                    <div class="flex items-center justify-between">
+                        <label for="purchaseAmount" class="block text-xs font-bold text-slate-700">Estimated Cost (₱)</label>
+                        <span class="text-[10px] font-semibold text-slate-400">
+                            Max ₱{{ number_format($purchaseCeiling, 0) }}
+                        </span>
+                    </div>
                     <div class="relative">
                         <span class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-800 font-extrabold text-sm">₱</span>
                         <input
@@ -108,9 +113,23 @@
                             inputmode="decimal"
                             wire:model.lazy="purchaseAmount"
                             placeholder="0.00"
+                            max="{{ $purchaseCeiling }}"
                             onblur="formatPurchaseAmount(this)"
                             class="w-full pl-9 pr-4 py-2.5 bg-slate-50 border border-slate-200/80 rounded-2xl text-slate-900 font-extrabold text-sm placeholder-slate-400 focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all font-mono outline-none">
                     </div>
+                    @error('purchaseAmount')
+                        <span class="text-[11px] font-semibold text-rose-500 block mt-1">{{ $message }}</span>
+                    @enderror
+
+                    {{-- NEW: soft warning nudge before the user hits the hard validation error --}}
+                    @if($purchaseAmount && is_numeric($purchaseAmount) && floatval($purchaseAmount) > ($purchaseCeiling * 0.8) && floatval($purchaseAmount) <= $purchaseCeiling)
+                        <p class="text-[10px] font-semibold text-amber-600 flex items-center gap-1 mt-1">
+                            <svg class="w-3 h-3 shrink-0" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"/>
+                            </svg>
+                            Approaching the simulation limit of ₱{{ number_format($purchaseCeiling, 0) }}.
+                        </p>
+                    @endif
                 </div>
             </div>
 
@@ -287,11 +306,11 @@
                     data: {
                         labels: ['Weekly Allowance'],
                         datasets: [
-                            { label: 'Already Spent', data: [{{ $chartSpent }}], backgroundColor: '#94a3b8', borderRadius: 6 },
-                            { label: 'Savings Set Aside', data: [{{ $chartSavings }}], backgroundColor: '#06b6d4', borderRadius: 6 },
-                            { label: 'This Purchase', data: [{{ $chartSimulated }}], backgroundColor: '#6366f1', borderRadius: 6 },
-                            { label: 'Money Left', data: [{{ $chartRemaining }}], backgroundColor: '#10b981', borderRadius: 6 },
-                            { label: 'Overdraft / Deficit', data: [{{ $chartDeficit }}], backgroundColor: '#f43f5e', borderRadius: 6 }
+                            { label: 'Already Spent',       data: [{{ $chartSpent }}],     backgroundColor: '#64748b', borderRadius: 6 }, // slate-500
+                            { label: 'Savings Set Aside',   data: [{{ $chartSavings }}],   backgroundColor: '#0891b2', borderRadius: 6 }, // cyan-600
+                            { label: 'This Purchase',       data: [{{ $chartSimulated }}], backgroundColor: '#7c3aed', borderRadius: 6 }, // violet-600
+                            { label: 'Money Left',          data: [{{ $chartRemaining }}], backgroundColor: '#16a34a', borderRadius: 6 }, // green-600
+                            { label: 'Overdraft / Deficit', data: [{{ $chartDeficit }}],   backgroundColor: '#dc2626', borderRadius: 6 }  // red-600
                         ]
                     },
                     options: {
@@ -302,7 +321,7 @@
                             legend: {
                                 display: true,
                                 position: 'bottom',
-                                labels: { boxWidth: 10, boxHeight: 10, font: { size: 10, weight: '700' } }
+                                labels: { boxWidth: 14, boxHeight: 14, font: { size: 12, weight: '700' } }
                             },
                             tooltip: {
                                 padding: 10,

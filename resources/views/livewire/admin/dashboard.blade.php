@@ -31,7 +31,7 @@
     {{-- Header --}}
     <div>
         <h1 class="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">Dashboard</h1>
-        <p class="text-sm text-slate-500 font-medium mt-1">Overview of BudgetWise system activity.</p>
+        <p class="text-sm text-slate-500 font-medium mt-1">Overview of {{ \App\Models\AppSetting::current()->application_name }} system activity.</p>
     </div>
 
     {{-- STAT CARDS --}}

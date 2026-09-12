@@ -2,7 +2,7 @@
 
     <div>
         <h1 class="text-2xl font-extrabold text-slate-900 tracking-tight">Reports</h1>
-        <p class="text-sm text-slate-500 mt-1">Generate administrative reports from BudgetWise activity data.</p>
+        <p class="text-sm text-slate-500 mt-1">Generate administrative reports from {{ \App\Models\AppSetting::current()->application_name }} activity data.</p>
     </div>
 
     <div class="bg-white rounded-3xl border border-slate-100 shadow-sm p-6 space-y-6">

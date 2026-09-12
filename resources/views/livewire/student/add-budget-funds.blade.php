@@ -21,9 +21,14 @@
     <!-- Top Up Form -->
     <form wire:submit.prevent="addFunds" class="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm space-y-5">
         <div>
-            <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
-                Amount to Add (PHP)
-            </label>
+            <div class="flex items-center justify-between mb-2">
+                <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider">
+                    Amount to Add (PHP)
+                </label>
+                <span class="text-[10px] font-semibold text-slate-400">
+                    Max ₱{{ number_format($fundsCeiling, 0) }} per addition
+                </span>
+            </div>
             <div class="relative rounded-xl shadow-xs">
                 <div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400 font-extrabold font-mono text-base">
                     ₱
@@ -34,6 +39,7 @@
                 inputmode="decimal"
                 wire:model.defer="amount"
                 placeholder="0.00"
+                max="{{ $fundsCeiling }}"
                 onblur="formatBudgetAmount(this)"
                 class="block w-full pl-8 pr-4 py-3 border border-slate-200 rounded-2xl text-slate-900 font-mono font-bold text-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all">
             </div>

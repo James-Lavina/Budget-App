@@ -5,7 +5,7 @@
         {{-- Header --}}
         <div>
             <h1 class="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">User Management</h1>
-            <p class="text-sm text-slate-500 font-medium mt-1">Manage registered users and review their budget behavior.</p>
+            <p class="text-sm text-slate-500 font-medium mt-1">Manage {{ \App\Models\AppSetting::current()->application_name }} registered users and review their budget behavior.</p>
         </div>
 
         @if (session()->has('success'))

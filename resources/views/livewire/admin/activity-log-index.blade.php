@@ -2,7 +2,7 @@
 
     <div>
         <h1 class="text-2xl font-extrabold text-slate-900 tracking-tight">Activity Logs</h1>
-        <p class="text-sm text-slate-500 mt-1">Review important actions performed within the BudgetWise system.</p>
+        <p class="text-sm text-slate-500 mt-1">Review important actions performed within the {{ \App\Models\AppSetting::current()->application_name }} system.</p>
     </div>
 
     <div class="bg-white rounded-3xl border border-slate-100 shadow-sm p-6 space-y-5">

@@ -25,8 +25,12 @@
                 </label>
             </div>
             <div class="flex items-center gap-4 mt-4">
-                <input type="range" min="1" max="100" wire:model.defer="overspending_threshold" class="flex-1 accent-[var(--brand-primary)]">
-                <input type="number" wire:model.defer="overspending_threshold" class="w-20 px-2 py-1.5 border border-slate-200 rounded-lg text-sm font-bold text-[var(--brand-primary)]">
+                <input type="range" min="1" max="100" wire:model.defer="overspending_threshold"
+                    oninput="this.nextElementSibling.value = this.value"
+                    class="flex-1 accent-[var(--brand-primary)]">
+                <input type="number" min="1" max="100" wire:model.defer="overspending_threshold"
+                    oninput="this.previousElementSibling.value = this.value"
+                    class="w-20 px-2 py-1.5 border border-slate-200 rounded-lg text-sm font-bold text-[var(--brand-primary)]">
             </div>
             @error('overspending_threshold') <span class="text-[11px] text-rose-600 font-semibold">{{ $message }}</span> @enderror
         </div>
@@ -44,8 +48,12 @@
                 </label>
             </div>
             <div class="flex items-center gap-4 mt-4">
-                <input type="range" min="1" max="100" wire:model.defer="daily_safe_to_spend_threshold" class="flex-1 accent-[var(--brand-primary)]">
-                <input type="number" wire:model.defer="daily_safe_to_spend_threshold" class="w-20 px-2 py-1.5 border border-slate-200 rounded-lg text-sm font-bold text-[var(--brand-primary)]">
+                <input type="range" min="1" max="100" wire:model.defer="daily_safe_to_spend_threshold"
+                    oninput="this.nextElementSibling.value = this.value"
+                    class="flex-1 accent-[var(--brand-primary)]">
+                <input type="number" min="1" max="100" wire:model.defer="daily_safe_to_spend_threshold"
+                    oninput="this.previousElementSibling.value = this.value"
+                    class="w-20 px-2 py-1.5 border border-slate-200 rounded-lg text-sm font-bold text-[var(--brand-primary)]">
             </div>
         </div>
 
@@ -62,8 +70,12 @@
                 </label>
             </div>
             <div class="flex items-center gap-4 mt-4">
-                <input type="range" min="2" max="20" wire:model.defer="rapid_spending_count" class="flex-1 accent-[var(--brand-primary)]">
-                <input type="number" wire:model.defer="rapid_spending_count" class="w-20 px-2 py-1.5 border border-slate-200 rounded-lg text-sm font-bold text-[var(--brand-primary)]">
+                <input type="range" min="2" max="20" wire:model.defer="rapid_spending_count"
+                    oninput="this.nextElementSibling.value = this.value"
+                    class="flex-1 accent-[var(--brand-primary)]">
+                <input type="number" min="2" max="20" wire:model.defer="rapid_spending_count"
+                    oninput="this.previousElementSibling.value = this.value"
+                    class="w-20 px-2 py-1.5 border border-slate-200 rounded-lg text-sm font-bold text-[var(--brand-primary)]">
             </div>
         </div>
 
@@ -80,8 +92,12 @@
                 </label>
             </div>
             <div class="flex items-center gap-4 mt-4">
-                <input type="range" min="1" max="60" wire:model.defer="no_expense_logs_days" class="flex-1 accent-[var(--brand-primary)]">
-                <input type="number" wire:model.defer="no_expense_logs_days" class="w-20 px-2 py-1.5 border border-slate-200 rounded-lg text-sm font-bold text-[var(--brand-primary)]">
+                <input type="range" min="1" max="60" wire:model.defer="no_expense_logs_days"
+                    oninput="this.nextElementSibling.value = this.value"
+                    class="flex-1 accent-[var(--brand-primary)]">
+                <input type="number" min="1" max="60" wire:model.defer="no_expense_logs_days"
+                    oninput="this.previousElementSibling.value = this.value"
+                    class="w-20 px-2 py-1.5 border border-slate-200 rounded-lg text-sm font-bold text-[var(--brand-primary)]">
             </div>
         </div>
 
@@ -98,8 +114,12 @@
                 </label>
             </div>
             <div class="flex items-center gap-4 mt-4">
-                <input type="range" min="1" max="100" wire:model.defer="low_remaining_budget_threshold" class="flex-1 accent-[var(--brand-primary)]">
-                <input type="number" wire:model.defer="low_remaining_budget_threshold" class="w-20 px-2 py-1.5 border border-slate-200 rounded-lg text-sm font-bold text-[var(--brand-primary)]">
+                <input type="range" min="1" max="100" wire:model.defer="low_remaining_budget_threshold"
+                    oninput="this.nextElementSibling.value = this.value"
+                    class="flex-1 accent-[var(--brand-primary)]">
+                <input type="number" min="1" max="100" wire:model.defer="low_remaining_budget_threshold"
+                    oninput="this.previousElementSibling.value = this.value"
+                    class="w-20 px-2 py-1.5 border border-slate-200 rounded-lg text-sm font-bold text-[var(--brand-primary)]">
             </div>
         </div>
 

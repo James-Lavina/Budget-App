@@ -3,6 +3,7 @@
 namespace App\Http\Livewire\Student;
 
 use App\Models\ActivityLog;
+use App\Models\AppSetting;
 use App\Models\Expense;
 use App\Models\SavingsGoal;
 use App\Models\WeeklyBudget;
@@ -255,16 +256,16 @@ class Dashboard extends Component
         // Colors now come straight from each category's admin-configured color,
         // converted to hex — no more alphabetical index-into-fixed-palette cycling.
         $categoriesInCycle = Expense::where('expenses.user_id', auth()->id())
-        ->whereBetween('transaction_date', [$startDate, $endDate])
-        ->join('expense_categories', 'expenses.expense_category_id', '=', 'expense_categories.id')
-        ->where('expense_categories.name', 'NOT LIKE', '%Savings%')
-        ->distinct()
-        ->orderBy('expense_categories.name', 'asc')
-        ->pluck('expense_categories.color', 'expense_categories.name');
+            ->whereBetween('transaction_date', [$startDate, $endDate])
+            ->join('expense_categories', 'expenses.expense_category_id', '=', 'expense_categories.id')
+            ->where('expense_categories.name', 'NOT LIKE', '%Savings%')
+            ->distinct()
+            ->orderBy('expense_categories.name', 'asc')
+            ->pluck('expense_categories.color', 'expense_categories.name');
 
         $categoryColorMap = [];
         foreach ($categoriesInCycle as $catName => $colorClass) {
-        $categoryColorMap[$catName] = ExpenseCategory::colorToHex($colorClass);
+            $categoryColorMap[$catName] = ExpenseCategory::colorToHex($colorClass);
         }
 
         $categoryTotals = Expense::where('expenses.user_id', auth()->id())
@@ -293,19 +294,19 @@ class Dashboard extends Component
             ->whereBetween('transaction_date', [$startDate, $endDate])
             ->get();
 
-            foreach ($cycleExpenses as $exp) {
-                $expDateKey = Carbon::parse($exp->transaction_date)->format('Y-m-d');
-                $catName = $exp->category->name ?? 'Uncategorized';
-            
-                if (stripos($catName, 'savings') !== false) {
-                    continue;
-                }
-            
-                if (array_key_exists($expDateKey, $dailyTotals)) {
-                    $dailyTotals[$expDateKey] += (float) $exp->amount;
-                    $dailyCategoryBreakdown[$expDateKey][$catName] = ($dailyCategoryBreakdown[$expDateKey][$catName] ?? 0) + (float) $exp->amount;
-                }
+        foreach ($cycleExpenses as $exp) {
+            $expDateKey = Carbon::parse($exp->transaction_date)->format('Y-m-d');
+            $catName = $exp->category->name ?? 'Uncategorized';
+
+            if (stripos($catName, 'savings') !== false) {
+                continue;
             }
+
+            if (array_key_exists($expDateKey, $dailyTotals)) {
+                $dailyTotals[$expDateKey] += (float) $exp->amount;
+                $dailyCategoryBreakdown[$expDateKey][$catName] = ($dailyCategoryBreakdown[$expDateKey][$catName] ?? 0) + (float) $exp->amount;
+            }
+        }
 
         $highestSpent = max(array_values($dailyTotals));
         $maxDaily     = max(100, $highestSpent * 1.35);
@@ -317,16 +318,20 @@ class Dashboard extends Component
             ->take(5)
             ->get();
 
+        $appSettings = AppSetting::current();
+
         $chartCategories = array_keys($categoryTotalsMap);
         $chartColors     = [];
-        $chartColors = [];
         foreach ($chartCategories as $cat) {
-            $chartColors[] = $categoryColorMap[$cat] ?? '#94a3b8';
+            // Falls back to the admin's brand color instead of a hardcoded
+            // hex, so uncategorized/legacy-color chart bars stay on-brand.
+            $chartColors[] = $categoryColorMap[$cat] ?? $appSettings->primary_color;
         }
 
         $rolloverAmount = max(0, $this->currentBudget->remaining_allowance - $this->currentBudget->total_allowance);
 
         return view('livewire.student.dashboard', [
+            'appSettings'            => $appSettings,
             'recentExpenses'         => $recentExpenses,
             'cycleStart'             => $startDate,
             'cycleEnd'               => $endDate,

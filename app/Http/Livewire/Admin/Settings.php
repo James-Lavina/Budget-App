@@ -82,14 +82,16 @@ class Settings extends Component
         $this->validate();
 
         $s = AppSetting::current();
-
         $changes = [];
+
         if ($s->application_name !== $this->application_name) {
             $changes[] = "Application Name: \"{$s->application_name}\" → \"{$this->application_name}\"";
         }
+
         if ($s->primary_color !== $this->primary_color) {
             $changes[] = "Primary Color: {$s->primary_color} → {$this->primary_color}";
         }
+
         if ((bool) $s->email_notifications_enabled !== (bool) $this->email_notifications_enabled) {
             $changes[] = 'Email Notifications: ' . ($s->email_notifications_enabled ? 'On' : 'Off') . ' → ' . ($this->email_notifications_enabled ? 'On' : 'Off');
         }
@@ -97,6 +99,7 @@ class Settings extends Component
         $maintenanceWasEnabled = (bool) $s->maintenance_mode_enabled;
         $maintenanceWillBeEnabled = (bool) $this->maintenance_mode_enabled;
         $maintenanceChanged = $maintenanceWasEnabled !== $maintenanceWillBeEnabled;
+
         if ($maintenanceChanged) {
             $changes[] = 'Maintenance Mode: ' . ($maintenanceWasEnabled ? 'On' : 'Off') . ' → ' . ($maintenanceWillBeEnabled ? 'On' : 'Off');
         }
@@ -108,30 +111,32 @@ class Settings extends Component
             'maintenance_mode_enabled'    => $this->maintenance_mode_enabled,
         ];
 
-        $logoChanged = false;
         if ($this->logo) {
             if ($s->logo_path) {
                 Storage::disk('public')->delete($s->logo_path);
             }
             $data['logo_path'] = $this->logo->store('branding', 'public');
-            $logoChanged = true;
             $changes[] = 'Application logo replaced';
         }
 
         $s->update($data);
         AppSetting::flush();
 
-        ActivityLog::create([
-            'user_id'    => auth()->id(),
-            'event_type' => $maintenanceChanged
-                ? ($maintenanceWillBeEnabled ? 'maintenance_mode_enabled' : 'maintenance_mode_disabled')
-                : 'app_settings_updated',
-            'ip_address' => request()->ip(),
-            'user_agent' => request()->userAgent(),
-            'details'    => !empty($changes)
-                ? 'Updated application settings: ' . implode(', ', $changes)
-                : 'Saved application settings — no field changes detected',
-        ]);
+        // CHANGED: only write an ActivityLog row when something actually
+        // changed (including a logo replacement). A no-op Save click no
+        // longer produces an audit entry at all — previously this always
+        // logged, just switching the message to "no field changes detected".
+        if (!empty($changes)) {
+            ActivityLog::create([
+                'user_id'    => auth()->id(),
+                'event_type' => $maintenanceChanged
+                    ? ($maintenanceWillBeEnabled ? 'maintenance_mode_enabled' : 'maintenance_mode_disabled')
+                    : 'app_settings_updated',
+                'ip_address' => request()->ip(),
+                'user_agent' => request()->userAgent(),
+                'details'    => 'Updated application settings: ' . implode(', ', $changes),
+            ]);
+        }
 
         $this->logo = null;
         $this->existing_logo_path = $s->fresh()->logo_path;

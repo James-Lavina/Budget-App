@@ -2,7 +2,7 @@
 
     <div>
         <h1 class="text-2xl font-extrabold text-slate-900 tracking-tight">Settings</h1>
-        <p class="text-sm text-slate-500 mt-1">Configure general BudgetWise application preferences.</p>
+        <p class="text-sm text-slate-500 mt-1">Configure general {{ \App\Models\AppSetting::current()->application_name }} application preferences.</p>
     </div>
 
     @if (session()->has('success'))
