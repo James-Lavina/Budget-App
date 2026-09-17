@@ -19,6 +19,7 @@ class Dashboard extends Component
 {
     public $safeToSpend = 0.00;
     public $spentToday = 0.00;
+    public $dailyQuota = 0.00;
     public $currentBudget;
     public $daysRemaining = 7;
     public $confirmingDeleteId = null;
@@ -84,7 +85,13 @@ class Dashboard extends Component
                 ]);
 
                 $severity = $amountSpent > $oldTotalAllowance ? 'high' : 'low';
-                $user->notify(new WeeklyBudgetReview($amountSpent, $unspentSavings, $severity));
+
+                try {
+                    $user->notify(new WeeklyBudgetReview($amountSpent, $unspentSavings, $severity));
+                } catch (\Throwable $e) {
+                    \Log::warning('Email notification failed (possibly offline): ' . $e->getMessage());
+                }
+
                 session()->flash('message', 'Weekly budget reset successfully! ₱' . number_format($unspentSavings, 2) . ' rolled over to your new cycle.');
             });
 
@@ -103,6 +110,7 @@ class Dashboard extends Component
         if ($cycle['today']->gte($cycle['nextResetDate'])) {
             $this->daysRemaining = 0;
             $this->safeToSpend = 0.00;
+            $this->dailyQuota = 0.00;
             return;
         }
 
@@ -116,8 +124,10 @@ class Dashboard extends Component
         $this->spentToday = $spentToday;
 
         $startingBudgetForRemainingDays = $this->currentBudget->remaining_allowance + $spentToday;
-        $todayStartingQuota = $startingBudgetForRemainingDays / $this->daysRemaining;
-        $this->safeToSpend = max(0.00, $todayStartingQuota - $spentToday);
+        $dailyQuota = $startingBudgetForRemainingDays / $this->daysRemaining;
+
+        $this->dailyQuota = $dailyQuota;
+        $this->safeToSpend = max(0.00, $dailyQuota - $spentToday);
     }
 
     public function deleteExpense($expenseId)
@@ -235,10 +245,33 @@ class Dashboard extends Component
         $isQuotaHitRaw  = !$isDepleted && !$isPaceCritical && ($this->safeToSpend <= 0);
         $isSavingsLocked = $isQuotaHitRaw && $hasSavingsToday;
         $isDailyQuotaHit = $isQuotaHitRaw && !$hasSavingsToday;
-        $isCriticalState = $isDepleted || $isPaceCritical;
 
         $totalAllowance      = max(1, $cycle['effectiveTotalAllowance']);
         $remainingPercentage = round(($this->currentBudget->remaining_allowance / $totalAllowance) * 100);
+
+        // Single ranked state — drives both the forecast banner AND the
+        // Daily Safe-to-Spend card icon, so the two can never disagree.
+        // (if/elseif instead of match() — this project targets PHP 7.x via Laravel 8)
+        if ($isDepleted) {
+            $dashboardState = 'depleted';
+        } elseif ($isPaceCritical) {
+            $dashboardState = 'pace_critical';
+        } elseif ($isSavingsLocked) {
+            $dashboardState = 'savings_locked';
+        } elseif ($isDailyQuotaHit) {
+            $dashboardState = 'quota_hit';
+        } elseif ($hasNoSpendingYet) {
+            $dashboardState = 'fresh_start';
+        } else {
+            $dashboardState = 'on_track';
+        }
+
+        // Week range for header pill, e.g. "Sep 14 – 20"
+        if ($startDate->isSameMonth($endDate)) {
+            $weekRangeLabel = $startDate->format('M j') . ' – ' . $endDate->format('j');
+        } else {
+            $weekRangeLabel = $startDate->format('M j') . ' – ' . $endDate->format('M j');
+        }
 
         $daysOfWeek = [];
         $dailyTotals = [];
@@ -328,7 +361,12 @@ class Dashboard extends Component
             $chartColors[] = $categoryColorMap[$cat] ?? $appSettings->primary_color;
         }
 
-        $rolloverAmount = max(0, $this->currentBudget->remaining_allowance - $this->currentBudget->total_allowance);
+        // Rollover must be measured against the true starting pool
+        // (effectiveTotalAllowance, i.e. $totalAllowance above), the same
+        // number already driving "Total Available This Week" — otherwise
+        // this footer drifts from that headline by whatever has been spent
+        // or saved so far this cycle.
+        $rolloverAmount = max(0, $totalAllowance - $this->currentBudget->total_allowance);
 
         return view('livewire.student.dashboard', [
             'appSettings'            => $appSettings,
@@ -349,9 +387,11 @@ class Dashboard extends Component
             'isPaceCritical'         => $isPaceCritical,
             'isSavingsLocked'        => $isSavingsLocked,
             'isDailyQuotaHit'        => $isDailyQuotaHit,
-            'isCriticalState'        => $isCriticalState,
             'isFinalDay'             => $isFinalDay,
             'remainingPercentage'    => $remainingPercentage,
+            'weeklyAllowanceDisplay' => $totalAllowance,
+            'dashboardState'         => $dashboardState,
+            'weekRangeLabel'         => $weekRangeLabel,
             'daysOfWeek'             => $daysOfWeek,
             'categoryColorMap'       => $categoryColorMap,
             'categoryTotalsMap'      => $categoryTotalsMap,

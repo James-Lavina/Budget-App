@@ -44,7 +44,7 @@
         </div>
 
         <div class="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
-            <div class="h-full rounded-full transition-all duration-500 {{ $goal->status === 'achieved' ? 'bg-emerald-500' : ($isOverdue ? 'bg-rose-500' : 'bg-indigo-600') }}" style="width: {{ $percentage }}%"></div>
+            <div class="h-full rounded-full transition-all duration-500 {{ $goal->status === 'achieved' ? 'bg-emerald-500' : ($isOverdue ? 'bg-rose-500' : 'bg-[var(--brand)]') }}" style="width: {{ $percentage }}%"></div>
         </div>
         <div class="text-[10px] font-bold text-slate-400 text-right uppercase tracking-wider">{{ $percentage }}% Completed</div>
     </div>
@@ -52,7 +52,7 @@
     @if($type === 'manager')
         <div class="pt-2 border-t border-slate-100 flex items-center justify-between gap-1.5">
             @if($goal->status === 'active')
-                <button type="button" wire:click="openFundingModal({{ $goal->id }})" class="flex-1 py-1.5 px-3 bg-indigo-50 hover:bg-indigo-100/80 text-indigo-700 font-bold text-[11px] rounded-lg transition-colors text-center">Add Savings</button>
+                <button type="button" wire:click="openFundingModal({{ $goal->id }})" class="flex-1 py-1.5 px-3 bg-[rgba(var(--brand-rgb),0.08)] hover:bg-[rgba(var(--brand-rgb),0.14)] text-[var(--brand)] font-bold text-[11px] rounded-lg transition-colors text-center">Add Savings</button>
                 <button type="button" wire:click="abandonGoal({{ $goal->id }})" class="py-1.5 px-2.5 border border-slate-200 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all text-center"><svg class="w-3.5 h-3.5 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-14v4M1 7h22"></path></svg></button>
             
             @elseif($goal->status === 'abandoned')
@@ -67,5 +67,12 @@
                 <button type="button" wire:click="deleteGoal({{ $goal->id }})" class="w-full py-1.5 px-3 bg-slate-50 hover:bg-rose-50 text-slate-400 hover:text-rose-600 font-bold text-[11px] rounded-lg transition-colors flex items-center justify-center gap-1"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-14v4M1 7h22"></path></svg>Delete Permanently</button>
             @endif
         </div>
+    @elseif($type === 'dashboard' && $goal->status === 'active')
+        <div class="pt-2 border-t border-slate-100">
+            <button type="button" wire:click="openFundingModal({{ $goal->id }})" class="w-full py-1.5 px-3 bg-[rgba(var(--brand-rgb),0.08)] hover:bg-[rgba(var(--brand-rgb),0.14)] text-[var(--brand)] font-bold text-[11px] rounded-lg transition-colors text-center">
+                + Add Savings
+            </button>
+        </div>
     @endif
+    
 </div>

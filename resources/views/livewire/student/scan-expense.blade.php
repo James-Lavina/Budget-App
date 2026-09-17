@@ -1,7 +1,6 @@
 <div class="min-h-screen py-10 px-4 sm:px-6 lg:px-8 font-sans">
     <div class="max-w-2xl mx-auto space-y-6">
-
-        <!-- Error Toast Notification -->
+        {{-- Error Toast Notification --}}
         @if (session()->has('error'))
             <div class="p-4 bg-rose-50 border border-rose-100 rounded-2xl text-rose-800 text-xs font-bold flex items-center gap-2">
                 <svg class="w-4 h-4 text-rose-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -11,10 +10,10 @@
             </div>
         @endif
 
-        <!-- STEP 1: UPLOAD RECEIPT -->
+        {{-- STEP 1: UPLOAD RECEIPT --}}
         @if($step === 1)
             <div class="space-y-6">
-                <!-- Header -->
+                {{-- Header --}}
                 <div class="flex items-center justify-between gap-4">
                     <div>
                         <h1 class="text-3xl font-black text-slate-900 tracking-tight">Receipt Scanner</h1>
@@ -29,22 +28,51 @@
                     </div>
                 </div>
 
-                <!-- Upload Card -->
+                {{-- Upload Card --}}
                 <div class="relative">
                     <div class="bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-slate-100 space-y-6">
                         <form wire:submit.prevent="processReceipt" class="space-y-6">
-
-                            <!-- Drag and Drop Dropzone -->
+                            {{-- Drag and Drop Dropzone --}}
                             <div class="relative border-2 border-dashed {{ $receiptImage ? 'border-indigo-500 bg-indigo-50/20' : 'border-slate-200 hover:border-indigo-400 bg-slate-50/50' }} rounded-3xl p-8 flex flex-col items-center justify-center text-center min-h-[220px] transition-all cursor-pointer">
                                 <input type="file" id="receipt_upload" wire:model="receiptImage" accept="image/*" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer {{ $isProcessing ? 'pointer-events-none' : '' }}">
 
                                 @if ($receiptImage)
-                                    <div class="space-y-3 w-full max-w-xs z-10">
-                                        <img src="{{ $receiptImage->temporaryUrl() }}" class="rounded-2xl max-h-48 mx-auto object-cover shadow-sm border border-slate-200">
-                                        <button type="button" wire:click="$set('receiptImage', null)" class="text-xs font-bold text-rose-600 hover:text-rose-700 transition-colors">
-                                            Remove Image
-                                        </button>
-                                    </div>
+                                    @php
+                                        // NEW: temporaryUrl() throws League\Flysystem\FileNotFoundException
+                                        // if the underlying livewire-tmp file has expired, been cleaned up,
+                                        // or was invalidated by an APP_KEY rotation — and it throws during
+                                        // Blade compilation, bypassing any try/catch in the component. Guard
+                                        // it locally so a stale reference degrades to a recovery prompt
+                                        // instead of a hard 500 on every subsequent render.
+                                        $previewUrl = null;
+                                        $previewExpired = false;
+                                        try {
+                                            $previewUrl = $receiptImage->temporaryUrl();
+                                        } catch (\Throwable $e) {
+                                            $previewExpired = true;
+                                        }
+                                    @endphp
+
+                                    @if ($previewUrl)
+                                        <div class="space-y-3 w-full max-w-xs z-10">
+                                            <img src="{{ $previewUrl }}" class="rounded-2xl max-h-48 mx-auto object-cover shadow-sm border border-slate-200">
+                                            <button type="button" wire:click="clearReceiptImage" class="text-xs font-bold text-rose-600 hover:text-rose-700 transition-colors">
+                                                Remove Image
+                                            </button>
+                                        </div>
+                                    @else
+                                        <div class="space-y-3 w-full max-w-xs z-10">
+                                            <div class="w-12 h-12 bg-rose-50 rounded-2xl flex items-center justify-center mx-auto text-rose-500">
+                                                <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"/>
+                                                </svg>
+                                            </div>
+                                            <p class="text-xs font-bold text-slate-800">Your upload expired or couldn't be previewed.</p>
+                                            <button type="button" wire:click="clearReceiptImage" class="text-xs font-bold text-indigo-600 hover:text-indigo-700 transition-colors">
+                                                Re-select image
+                                            </button>
+                                        </div>
+                                    @endif
                                 @else
                                     <div class="space-y-3">
                                         <div class="w-12 h-12 bg-indigo-50 rounded-2xl flex items-center justify-center mx-auto text-indigo-600">
@@ -59,24 +87,22 @@
                                     </div>
                                 @endif
 
-                                <!-- Loading Overlay: file uploading -->
+                                {{-- Loading Overlay: file uploading --}}
                                 <div wire:loading.flex wire:target="receiptImage" class="absolute inset-0 bg-white/95 rounded-3xl flex-col justify-center items-center backdrop-blur-sm z-20">
                                     <div class="animate-spin rounded-full h-8 w-8 border-2 border-indigo-600 border-t-transparent mb-2"></div>
                                     <span class="text-xs font-extrabold text-slate-700">Preparing File...</span>
                                 </div>
                             </div>
-
                             @error('receiptImage')
                                 <span class="text-[11px] font-semibold text-rose-500 block mt-1">{{ $message }}</span>
                             @enderror
 
-                            <!-- Footer Actions -->
+                            {{-- Footer Actions --}}
                             <div class="flex items-center justify-end gap-3 pt-2">
                                 <a href="{{ route('student.dashboard') }}"
                                    class="px-5 py-2.5 rounded-full text-xs font-bold text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition-all">
                                    Cancel
                                 </a>
-
                                 @if ($receiptImage)
                                     <button type="submit" wire:loading.attr="disabled" wire:target="processReceipt"
                                         class="px-8 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-full font-bold text-xs shadow-lg shadow-indigo-200 transition-all transform active:scale-95 disabled:opacity-50 flex items-center gap-2">
@@ -88,7 +114,7 @@
                         </form>
                     </div>
 
-                    <!-- Full-card Loading Overlay: OCR + AI processing -->
+                    {{-- Full-card Loading Overlay: OCR + AI processing --}}
                     <div wire:loading.flex wire:target="processReceipt"
                          class="absolute inset-0 bg-white/95 rounded-3xl flex-col justify-center items-center backdrop-blur-sm z-30">
                         <div class="animate-spin rounded-full h-10 w-10 border-2 border-indigo-600 border-t-transparent mb-3"></div>
@@ -99,10 +125,10 @@
             </div>
         @endif
 
-        <!-- STEP 2: VERIFY EXTRACTED DATA -->
+        {{-- STEP 2: VERIFY EXTRACTED DATA --}}
         @if($step === 2)
             <div class="space-y-6">
-                <!-- Header -->
+                {{-- Header --}}
                 <div class="flex items-center justify-between gap-4">
                     <div>
                         <h1 class="text-3xl font-black text-slate-900 tracking-tight">Verify Extracted Data</h1>
@@ -117,10 +143,9 @@
                     </div>
                 </div>
 
-                <!-- Expense Form Card -->
+                {{-- Expense Form Card --}}
                 <form wire:submit.prevent="saveVerifiedExpense" class="bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-slate-100 space-y-6">
-
-                    <!-- Row 1: Store/Merchant & Date -->
+                    {{-- Row 1: Store/Merchant & Date --}}
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div class="space-y-1.5">
                             <label class="block text-xs font-bold text-slate-700">
@@ -132,7 +157,6 @@
                                 <span class="text-[11px] font-semibold text-rose-500 block mt-1">{{ $message }}</span>
                             @enderror
                         </div>
-
                         <div class="space-y-1.5">
                             <label class="block text-xs font-bold text-slate-700">Date</label>
                             <input type="date" wire:model.defer="transaction_date"
@@ -143,7 +167,7 @@
                         </div>
                     </div>
 
-                    <!-- Row 2: Items -->
+                    {{-- Row 2: Items --}}
                     <div class="space-y-3 pt-1">
                         <div class="flex items-center justify-between">
                             <label class="block text-xs font-bold text-slate-700">Items ({{ count($items) }})</label>
@@ -151,7 +175,6 @@
                                 + Add Item
                             </button>
                         </div>
-
                         @error('items')
                             <span class="text-[11px] font-semibold text-rose-500 block">{{ $message }}</span>
                         @enderror
@@ -199,13 +222,12 @@
                         </div>
                     </div>
 
-                    <!-- Footer Action Buttons -->
+                    {{-- Footer Action Buttons --}}
                     <div class="flex items-center justify-between gap-3 pt-4 border-t border-slate-100">
                         <button type="button" wire:click="$set('step', 1)"
                            class="px-5 py-2.5 rounded-full text-xs font-bold text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition-all">
                            Back
                         </button>
-
                         <button type="submit" wire:loading.attr="disabled" wire:target="saveVerifiedExpense"
                             class="px-8 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-full font-bold text-xs shadow-lg shadow-indigo-200 transition-all transform active:scale-95 disabled:opacity-50 flex items-center gap-2">
                             <span wire:loading.remove wire:target="saveVerifiedExpense">Finalize Entry</span>
@@ -215,6 +237,5 @@
                 </form>
             </div>
         @endif
-
     </div>
 </div>

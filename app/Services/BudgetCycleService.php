@@ -47,7 +47,7 @@ class BudgetCycleService
 
         $spentTodayDate = $isFastForwarded ? $evalDate->copy()->addDay() : $evalDate;
 
-        // NEW: single source of truth for "true starting pool this cycle" —
+        // Single source of truth for "true starting pool this cycle" —
         // total_allowance alone excludes rollover, but remaining_allowance + totalSpent
         // reconstructs baseline + rollover. Excludes savings transfers and the
         // Savings category itself, matching the filtering SpendingForecastService
@@ -60,16 +60,28 @@ class BudgetCycleService
             })
             ->sum('amount');
 
+        // Savings-goal contributions ALSO draw down remaining_allowance the same
+        // way regular spending does (see GoalsManager::addFunds), so they must be
+        // added back too when reconstructing the cycle's true starting pool —
+        // otherwise effectiveTotalAllowance silently undercounts by whatever was
+        // saved this cycle, and every downstream figure derived from it (Total
+        // Available This Week, % used, forecast ceiling, simulator ceiling) drifts
+        // low by that same amount.
+        $totalSavedInCycle = Expense::where('user_id', $user->id)
+            ->whereBetween('transaction_date', [$startDate, $endDate])
+            ->whereNotNull('savings_goal_id')
+            ->sum('amount');
+
         $effectiveTotalAllowance = max(
             (float) $budget->total_allowance,
-            (float) $budget->remaining_allowance + $totalSpentInCycle
+            (float) $budget->remaining_allowance + $totalSpentInCycle + $totalSavedInCycle
         );
 
         return compact(
             'today', 'startDate', 'endDate', 'nextResetDate',
             'evalDate', 'isFastForwarded', 'daysRemaining', 'daysElapsed',
             'spentTodayDate', 'targetResetDay',
-            'totalSpentInCycle', 'effectiveTotalAllowance'
+            'totalSpentInCycle', 'totalSavedInCycle', 'effectiveTotalAllowance'
         );
     }
 

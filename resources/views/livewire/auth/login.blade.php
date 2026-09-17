@@ -22,12 +22,9 @@
     }
 
     $primaryDark   = bw_shade($primary, 0.15, false);
-    $primaryDarker = bw_shade($primary, 0.28, false); // gradient end / darkest stop
+    $primaryDarker = bw_shade($primary, 0.28, false);
     $primaryLight  = bw_shade($primary, 0.92, true);
 
-    // Inline + recolor the hero illustration — see welcome.blade.php for why
-    // <img src="*.svg"> can't be recolored with CSS. Theme hex for this export
-    // is #4F46E5; skin tones / navy line-art / neutral grays are left alone.
     $heroSvgMarkup = null;
     $heroSvgPath = public_path('images/undraw_budgeting_klon.svg');
     if (is_file($heroSvgPath)) {
@@ -39,7 +36,7 @@
     }
 ?>
 
-<div class="min-h-screen bg-slate-100/80 flex items-center justify-center p-3.5 sm:p-6 lg:p-8 font-sans antialiased text-slate-800">
+<div class="min-h-screen bg-slate-100/80 flex items-start sm:items-center justify-center p-2 sm:p-4 lg:p-6 font-sans antialiased text-slate-800 overflow-y-auto">
 
     <style>
         :root {
@@ -49,7 +46,6 @@
             --brand-light: {{ $primaryLight }};
         }
         .brand-gradient { background-image: linear-gradient(135deg, var(--brand), var(--brand), var(--brand-darker)); }
-        .brand-icon-text { color: var(--brand); }
         .brand-bg { background-color: var(--brand); }
         .brand-btn { background-color: var(--brand); }
         .brand-btn:hover { background-color: var(--brand-dark); }
@@ -67,122 +63,122 @@
     </style>
 
     <!-- Split Card Container -->
-    <div class="max-w-5xl w-full bg-white rounded-[2rem] sm:rounded-[2.5rem] shadow-2xl shadow-indigo-950/10 border border-slate-100 grid grid-cols-1 lg:grid-cols-12 overflow-hidden">
+    <div class="max-w-5xl w-full bg-white rounded-[1.75rem] sm:rounded-[2rem] shadow-2xl shadow-indigo-950/10 border border-slate-100 grid grid-cols-1 lg:grid-cols-12 lg:overflow-hidden lg:max-h-[92vh]">
 
         <!-- LEFT COLUMN: Brand Hero Side -->
-        <div class="lg:col-span-6 brand-gradient p-6 sm:p-10 text-white flex flex-col justify-between space-y-6 sm:space-y-8 relative overflow-hidden">
+        <div class="lg:col-span-6 brand-gradient p-5 sm:p-7 text-white flex flex-col justify-between space-y-4 sm:space-y-5 relative overflow-hidden">
 
             <!-- Ambient Glow Effects -->
             <div class="absolute -top-12 -right-12 w-64 h-64 brand-glow-1 rounded-full blur-3xl pointer-events-none"></div>
             <div class="absolute -bottom-12 -left-12 w-64 h-64 brand-glow-2 rounded-full blur-3xl pointer-events-none"></div>
 
-            <div class="space-y-5 sm:space-y-6 relative z-10">
-                <!-- Brand Header -->
+            <div class="space-y-3.5 sm:space-y-4 relative z-10">
+                <!-- Brand Header — same icon/logo treatment as the admin sidebar -->
                 <div class="flex items-center gap-3 min-w-0">
-                    @if($appSettings->logo_path)
-                        <img src="{{ \Illuminate\Support\Facades\Storage::url($appSettings->logo_path) }}"
-                             alt="{{ $appSettings->application_name }}"
-                             class="h-10 w-10 rounded-2xl object-cover shadow-md shrink-0">
-                    @else
-                        <div class="h-10 w-10 bg-white brand-icon-text rounded-2xl flex items-center justify-center shadow-md font-black shrink-0">
-                            <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a1 1 0 11-2 0 1 1 0 012 0z" />
+                    <div class="h-9 w-9 rounded-xl flex items-center justify-center text-white shadow-md shrink-0 overflow-hidden brand-bg">
+                        @if($appSettings->logo_path)
+                            <img src="{{ \Illuminate\Support\Facades\Storage::url($appSettings->logo_path) }}"
+                                alt="{{ $appSettings->application_name }}"
+                                class="h-full w-full object-cover">
+                        @else
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M21 12V7H5a2 2 0 010-4h14v4M3 5v14a2 2 0 002 2h16v-5M18 12a2 2 0 100 4 2 2 0 000-4z"/>
                             </svg>
-                        </div>
-                    @endif
-                    <span class="text-xl font-bold tracking-tight text-white truncate">
+                        @endif
+                    </div>
+                    <span class="text-lg font-bold tracking-tight text-white truncate">
                         <a href="/" class="hover:opacity-90 transition-opacity">{{ $appSettings->application_name }}</a>
                     </span>
                 </div>
 
                 <!-- Pill Tag -->
-                <div class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/10 backdrop-blur-md border border-white/20 text-white/90 text-xs font-semibold">
+                <div class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/10 backdrop-blur-md border border-white/20 text-white/90 text-[11px] font-semibold">
                     <span>✨ Simple spending for students</span>
                 </div>
 
                 <!-- Main Left Title & Subtitle -->
-                <div class="space-y-2 sm:space-y-3">
-                    <h1 class="text-2xl sm:text-3xl lg:text-4xl font-extrabold tracking-tight leading-tight text-white">
+                <div class="space-y-1.5">
+                    <h1 class="text-xl sm:text-2xl lg:text-3xl font-extrabold tracking-tight leading-tight text-white">
                         Financial confidence starts with one small habit.
                     </h1>
-                    <p class="text-xs sm:text-sm text-white/85 font-normal leading-relaxed">
+                    <p class="text-xs text-white/85 font-normal leading-relaxed">
                         {{ $appSettings->application_name }} turns your weekly allowance into clear, encouraging next steps.
                     </p>
                 </div>
 
                 <!-- Mascot & Safe-To-Spend Card -->
-                <div class="relative bg-white/95 rounded-3xl p-5 sm:p-6 shadow-xl border border-white/20 flex flex-col items-center justify-center min-h-[180px] sm:min-h-[220px]">
+                <div class="relative bg-white/95 rounded-2xl p-4 sm:p-5 shadow-xl border border-white/20 flex flex-col items-center justify-center min-h-[130px] sm:min-h-[150px]">
                     @if($heroSvgMarkup)
-                        <div class="w-32 h-32 sm:w-40 sm:h-40 drop-shadow-sm">
+                        <div class="w-20 h-20 sm:w-24 sm:h-24 drop-shadow-sm">
                             {!! $heroSvgMarkup !!}
                         </div>
                     @else
                         <img
                             src="{{ asset('images/undraw_budgeting_klon.svg') }}"
                             alt="Student illustration"
-                            class="w-32 h-32 sm:w-40 sm:h-40 object-contain drop-shadow-sm"
+                            class="w-20 h-20 sm:w-24 sm:h-24 object-contain drop-shadow-sm"
                         >
                     @endif
 
                     <!-- Floating Badge -->
-                    <div class="absolute bottom-3 right-3 bg-white border border-slate-100 rounded-2xl p-2.5 shadow-lg flex flex-col text-left">
-                        <span class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Today's safe-to-spend</span>
-                        <span class="text-xs sm:text-sm font-black text-emerald-600">₱280</span>
+                    <div class="absolute bottom-2 right-2 bg-white border border-slate-100 rounded-xl p-2 shadow-lg flex flex-col text-left">
+                        <span class="text-[9px] text-slate-400 font-bold uppercase tracking-wider">Today's safe-to-spend</span>
+                        <span class="text-xs font-black text-emerald-600">₱280</span>
                     </div>
                 </div>
             </div>
 
             <!-- Footer Features -->
-            <div class="flex items-center gap-6 text-xs font-semibold text-white/90 pt-4 relative z-10 border-t border-white/10">
+            <div class="flex items-center gap-5 text-[11px] font-semibold text-white/90 pt-3 relative z-10 border-t border-white/10">
                 <div class="flex items-center gap-1.5">
-                    <svg class="w-4 h-4 text-emerald-400 shrink-0" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5"/></svg>
+                    <svg class="w-3.5 h-3.5 text-emerald-400 shrink-0" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5"/></svg>
                     <span>Built for students</span>
                 </div>
                 <div class="flex items-center gap-1.5">
-                    <svg class="w-4 h-4 text-emerald-400 shrink-0" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5"/></svg>
+                    <svg class="w-3.5 h-3.5 text-emerald-400 shrink-0" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5"/></svg>
                     <span>Free to start</span>
                 </div>
             </div>
         </div>
 
         <!-- RIGHT COLUMN: Login Form Side -->
-        <div class="lg:col-span-6 p-6 sm:p-10 lg:p-12 flex flex-col justify-center bg-white">
-            <div class="max-w-md w-full mx-auto space-y-6">
+        <div class="lg:col-span-6 p-5 sm:p-7 lg:p-8 flex flex-col justify-center bg-white">
+            <div class="max-w-md w-full mx-auto space-y-4">
 
                 <!-- Form Header -->
-                <div class="space-y-1">
-                    <h2 class="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
+                <div class="space-y-0.5">
+                    <h2 class="text-xl sm:text-2xl font-extrabold text-slate-900 tracking-tight">
                         Welcome Back
                     </h2>
-                    <p class="text-xs sm:text-sm text-slate-500 font-medium">
+                    <p class="text-xs text-slate-500 font-medium">
                         Pick up where you left off — your budget is waiting.
                     </p>
                 </div>
 
                 <!-- Livewire Global Authentication Error Banner -->
                 @error('auth_failed')
-                    <div class="p-4 bg-rose-50 border-l-4 border-rose-500 text-sm text-rose-800 rounded-r-2xl flex items-start gap-3 shadow-sm">
-                        <svg class="h-5 w-5 text-rose-500 shrink-0 mt-0.5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                    <div class="p-3 bg-rose-50 border-l-4 border-rose-500 text-sm text-rose-800 rounded-r-xl flex items-start gap-2.5 shadow-sm">
+                        <svg class="h-4 w-4 text-rose-500 shrink-0 mt-0.5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
                             <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.28 7.22a.75.75 0 00-1.06 1.06L8.94 10l-1.72 1.72a.75.75 0 101.06 1.06L10 11.06l1.72 1.72a.75.75 0 101.06-1.06L11.06 10l1.72-1.72a.75.75 0 00-1.06-1.06L10 8.94 8.28 7.22z" clip-rule="evenodd" />
                         </svg>
                         <div>
-                            <span class="font-bold block text-xs sm:text-sm">Couldn't sign you in</span>
+                            <span class="font-bold block text-xs">Couldn't sign you in</span>
                             <span class="text-rose-700/90 text-xs block mt-0.5">{{ $message }}</span>
                         </div>
                     </div>
                 @enderror
 
                 <!-- Login Form -->
-                <form wire:submit.prevent="loginUser" class="space-y-4 sm:space-y-5">
+                <form wire:submit.prevent="loginUser" class="space-y-3">
 
                     <!-- Email Field -->
-                    <div class="space-y-1.5">
+                    <div class="space-y-1">
                         <label for="email" class="block text-xs font-bold text-slate-700">
                             Email address
                         </label>
                         <div>
                             <input id="email" type="email" wire:model.lazy="email" placeholder="you@school.edu"
-                                class="block w-full rounded-2xl px-4 py-3 bg-slate-50 border placeholder-slate-400 focus:bg-white focus:outline-none sm:text-sm transition-all duration-200
+                                class="block w-full rounded-xl px-4 py-2.5 bg-slate-50 border placeholder-slate-400 focus:bg-white focus:outline-none sm:text-sm transition-all duration-200
                                 @error('email') border-rose-300 text-rose-900 placeholder-rose-300 focus:border-rose-500 focus:ring-2 focus:ring-rose-500/20 bg-rose-50/30 @else border-slate-200 brand-focus text-slate-900 @enderror">
                         </div>
                         @error('email')
@@ -193,7 +189,7 @@
                     </div>
 
                     <!-- Password Field -->
-                    <div class="space-y-1.5">
+                    <div class="space-y-1">
                         <div class="flex items-center justify-between">
                             <label for="password" class="block text-xs font-bold text-slate-700">
                                 Password
@@ -210,7 +206,7 @@
                                 type="password"
                                 wire:model.lazy="password"
                                 placeholder="Enter your password"
-                                class="block w-full rounded-2xl px-4 py-3 pr-12 bg-slate-50 border placeholder-slate-400 focus:bg-white focus:outline-none sm:text-sm transition-all duration-200
+                                class="block w-full rounded-xl px-4 py-2.5 pr-12 bg-slate-50 border placeholder-slate-400 focus:bg-white focus:outline-none sm:text-sm transition-all duration-200
                                 @error('password')
                                     border-rose-300 text-rose-900 placeholder-rose-300 focus:border-rose-500 focus:ring-2 focus:ring-rose-500/20 bg-rose-50/30
                                 @else
@@ -244,11 +240,11 @@
                     </div>
 
                     <!-- Submit Button -->
-                    <div class="pt-2">
+                    <div class="pt-1.5">
                         <button type="submit"
                                 {{ $lockoutSeconds > 0 ? 'disabled' : '' }}
                                 wire:loading.attr="disabled"
-                                class="w-full inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-2xl text-sm font-bold text-white brand-btn active:scale-[0.99] transition-all duration-200 brand-shadow disabled:opacity-50 disabled:cursor-not-allowed">
+                                class="w-full inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl text-sm font-bold text-white brand-btn active:scale-[0.99] transition-all duration-200 brand-shadow disabled:opacity-50 disabled:cursor-not-allowed">
 
                             @if($lockoutSeconds > 0)
                                 <span>Too many attempts. Try again in {{ $lockoutSeconds }}s</span>
@@ -270,7 +266,7 @@
                 </form>
 
                 <!-- Footer Link -->
-                <p class="text-center text-xs text-slate-500 pt-2">
+                <p class="text-center text-xs text-slate-500 pt-1">
                     New to {{ $appSettings->application_name }}?
                     <a href="{{ route('register') }}" class="font-bold brand-link transition-colors">
                         Sign up

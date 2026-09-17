@@ -161,8 +161,13 @@ class RiskDetectionService
                 'resolved'      => false,
             ]);
 
-            $user->notify(new BudgetRiskNotification($riskLog));
-
+            try {
+                $user->notify(new BudgetRiskNotification($riskLog));
+            } catch (\Throwable $e) {
+                \Log::warning('Email notification failed (possibly offline): ' . $e->getMessage());
+            }
+            
+            // Mark primary risk as triggered so secondary pacing check is skipped
             $primaryRiskTriggered = true;
         }
         } else {
@@ -210,17 +215,22 @@ class RiskDetectionService
                     ->whereDate('created_at', Carbon::today())
                     ->exists();
 
-                if (!$alreadyLoggedOverspend) {
-                    $overspendRiskLog = RiskLog::create([
-                        'user_id'       => $user->id,
-                        'anomaly_type'  => 'overspending_threshold',
-                        'severity_tier' => 'high',
-                        'description'   => "Overspending Alert 🚨: You've used " . round($overspendPercent) . "% of your weekly allowance.",
-                        'resolved'      => false,
-                    ]);
+                    if (!$alreadyLoggedOverspend) {
+                        $overspendRiskLog = RiskLog::create([
+                            'user_id'       => $user->id,
+                            'anomaly_type'  => 'overspending_threshold',
+                            'severity_tier' => 'high',
+                            'description'   => "Overspending Alert 🚨: You've used " . round($overspendPercent) . "% of your weekly allowance.",
+                            'resolved'      => false,
+                        ]);
+                    
+                        try {
+                            $user->notify(new BudgetRiskNotification($overspendRiskLog));
+                        } catch (\Throwable $e) {
+                            \Log::warning('Email notification failed (possibly offline): ' . $e->getMessage());
+                        }
 
-                    $user->notify(new BudgetRiskNotification($overspendRiskLog));
-                }
+                    }
             } else {
                 // No longer over threshold — resolve any still-open alert.
                 $resolvedOverspendIds = RiskLog::where('user_id', $user->id)
@@ -278,7 +288,12 @@ class RiskDetectionService
                         'description'   => "Daily Limit Warning ⏳: You've used " . round($percentUsedToday) . "% of today's safe-to-spend quota — only ₱" . number_format($safeToSpendToday, 2) . " left for today.",
                         'resolved'      => false,
                     ]);
-                    $user->notify(new BudgetRiskNotification($safeSpendLog));
+
+                    try {
+                        $user->notify(new BudgetRiskNotification($safeSpendLog));
+                    } catch (\Throwable $e) {
+                        \Log::warning('Email notification failed (possibly offline): ' . $e->getMessage());
+                    }
                 }
             } else {
                 // Quota recovered above threshold (e.g. a same-day expense was
@@ -376,11 +391,15 @@ class RiskDetectionService
                 ->exists();
 
             if (!$alreadyNotified) {
-                $user->notify(new \App\Notifications\CategoryConcentrationWarning(
-                    $categoryTotals->name,
-                    $percentage,
-                    (float) $categoryTotals->total
-                ));
+                try {
+                    $user->notify(new \App\Notifications\CategoryConcentrationWarning(
+                        $categoryTotals->name,
+                        $percentage,
+                        (float) $categoryTotals->total
+                    ));
+                } catch (\Throwable $e) {
+                    \Log::warning('Email notification failed (possibly offline): ' . $e->getMessage());
+                }
             }
         } else {
             // NEW: the dominant category no longer accounts for 50%+ of
@@ -452,7 +471,11 @@ class RiskDetectionService
                 'resolved'      => false,
             ]);
 
-            $user->notify(new BudgetRiskNotification($riskLog));
+            try {
+                $user->notify(new BudgetRiskNotification($riskLog));
+            } catch (\Throwable $e) {
+                \Log::warning('Email notification failed (possibly offline): ' . $e->getMessage());
+            }
         } else {
             // Count no longer qualifies (e.g. one of today's transactions
             // was edited or deleted) — resolve any still-open alert instead
@@ -520,12 +543,16 @@ class RiskDetectionService
 
         $percentage = round(($expense->amount / $totalAllowance) * 100);
 
-        $user->notify(new \App\Notifications\LargeTransactionAlert(
-            $expense->id,
-            $expense->item_name,
-            (float) $expense->amount,
-            $percentage
-        ));
+        try {
+            $user->notify(new \App\Notifications\LargeTransactionAlert(
+                $expense->id,
+                $expense->item_name,
+                (float) $expense->amount,
+                $percentage
+            ));
+        } catch (\Throwable $e) {
+            \Log::warning('Email notification failed (possibly offline): ' . $e->getMessage());
+        }
     }
 
     public function resolveLargeTransactionAlert($user, $expenseId)

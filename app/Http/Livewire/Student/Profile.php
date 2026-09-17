@@ -10,7 +10,6 @@ class Profile extends Component
 {
     public $name;
     public $email;
-    public $email_confirmation;
     public $school;
     public $current_password;
     public $new_password;
@@ -21,14 +20,12 @@ class Profile extends Component
         $user = auth()->user();
         $this->name = $user->name;
         $this->email = $user->email;
-        $this->email_confirmation = $user->email;
         $this->school = $user->school;
     }
 
     public function updateProfile()
     {
         $user = auth()->user();
-
         $isChangingEmail = ($this->email !== $user->email);
         $isChangingPassword = !empty($this->new_password);
 
@@ -38,11 +35,9 @@ class Profile extends Component
                 'required',
                 'email',
                 'max:255',
-                'confirmed',
                 Rule::unique('users', 'email')->ignore($user->id),
             ],
             'school' => 'nullable|string|max:255',
-
             'current_password' => [
                 ($isChangingEmail || $isChangingPassword) ? 'required' : 'nullable',
                 'string'
@@ -50,7 +45,6 @@ class Profile extends Component
             'new_password' => 'nullable|min:8|confirmed',
         ], [
             'current_password.required' => 'You must enter your current password to authorize changes to your security profile.',
-            'email.confirmed' => 'The email confirmation field does not match your new email address.'
         ]);
 
         if ($isChangingEmail || $isChangingPassword) {

@@ -27,7 +27,13 @@ class BudgetRiskNotification extends Notification
      */
     public function via($notifiable)
     {
-        return ['database', 'mail'];
+        $channels = ['database'];
+
+        if (\App\Models\AppSetting::current()->email_notifications_enabled) {
+            $channels[] = 'mail';
+        }
+
+        return $channels;
     }
 
     /**

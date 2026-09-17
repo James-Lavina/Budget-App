@@ -14,7 +14,7 @@
             </svg>
         </div>
         <h1 class="text-xl font-black text-slate-900">We'll be right back</h1>
-        <p class="text-sm text-slate-500 font-medium">BudgetWise is undergoing scheduled maintenance. Please check back shortly.</p>
+        <p class="text-sm text-slate-500 font-medium">{{ \App\Models\AppSetting::current()->application_name }} is undergoing scheduled maintenance. Please check back shortly.</p>
 
         @auth
             <form method="POST" action="{{ route('logout') }}" class="pt-2">

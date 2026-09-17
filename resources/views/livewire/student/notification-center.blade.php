@@ -1,9 +1,8 @@
 <div class="relative" data-notif-widget>
-    <button type="button" data-notif-bell class="relative p-2 text-gray-600 hover:text-indigo-600 focus:outline-none">
+    <button type="button" data-notif-bell class="relative p-2 text-gray-600 hover:text-[var(--brand)] focus:outline-none">
         <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path>
         </svg>
-
         {{-- NEW: uses totalUnreadCount (all unread), not $notifications->count()
              — the list itself is now capped to 6 most recent, so the old
              count would have silently frozen at 6 once a user had more than
@@ -16,14 +15,12 @@
     </button>
 
     <div data-notif-dropdown class="hidden absolute right-0 mt-2 w-80 bg-white rounded-lg shadow-xl border border-gray-100 py-2 z-50">
-
         <div class="flex items-center justify-between px-4 py-2 border-b border-gray-100">
             <h3 class="text-sm font-semibold text-gray-700">Notifications</h3>
             @if($totalUnreadCount > 0)
-                <button wire:click="markAllAsRead" class="text-xs text-indigo-600 hover:underline">Mark all read</button>
+                <button wire:click="markAllAsRead" class="text-xs text-[var(--brand)] hover:opacity-80 transition-opacity">Mark all read</button>
             @endif
         </div>
-
         <div class="max-h-64 overflow-y-auto">
             @forelse($notifications as $notification)
                 @php
@@ -55,7 +52,7 @@
                     </div>
                     <p class="text-xs mb-2 {{ $isResolved ? 'text-gray-400' : 'text-gray-600' }}">{{ $notification->data['description'] ?? 'No details provided.' }}</p>
                     <div class="flex items-center gap-3">
-                        <button wire:click="markAsRead('{{ $notification->id }}')" class="text-xs text-gray-400 hover:text-indigo-600 transition-colors">
+                        <button wire:click="markAsRead('{{ $notification->id }}')" class="text-xs text-gray-400 hover:text-[var(--brand)] transition-colors">
                             ✓ Mark as read
                         </button>
                         {{-- NEW: dismiss() already existed on the component
@@ -71,13 +68,12 @@
                 </div>
             @endforelse
         </div>
-
         {{-- NEW: link out to the full Notification Center, since this
              dropdown now intentionally only shows the 6 most recent
              unread — anything older or already read/resolved lives on
              the full page, not here. --}}
         <div class="px-4 pt-2 border-t border-gray-100">
-            <a href="{{ route('student.notifications') }}" class="block text-center text-xs font-semibold text-indigo-600 hover:text-indigo-700 py-1.5">
+            <a href="{{ route('student.notifications') }}" class="block text-center text-xs font-semibold text-[var(--brand)] hover:opacity-80 py-1.5 transition-opacity">
                 View all notifications →
             </a>
         </div>
@@ -87,23 +83,18 @@
 <script>
     if (!window.__notifDropdownDelegationBound) {
         window.__notifDropdownDelegationBound = true;
-
         document.addEventListener('click', function (event) {
             const bell = event.target.closest('[data-notif-bell]');
-
             if (bell) {
                 event.stopPropagation();
                 const widget = bell.closest('[data-notif-widget]');
                 const dropdown = widget.querySelector('[data-notif-dropdown]');
-
                 document.querySelectorAll('[data-notif-dropdown]').forEach(function (el) {
                     if (el !== dropdown) el.classList.add('hidden');
                 });
-
                 dropdown.classList.toggle('hidden');
                 return;
             }
-
             if (!event.target.closest('[data-notif-dropdown]')) {
                 document.querySelectorAll('[data-notif-dropdown]').forEach(function (el) {
                     el.classList.add('hidden');

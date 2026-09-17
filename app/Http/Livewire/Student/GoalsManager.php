@@ -106,9 +106,7 @@ class GoalsManager extends Component
             ->where('user_id', auth()->id())
             ->firstOrFail();
 
-        $currentBudget = WeeklyBudget::where('user_id', auth()->id())
-            ->latest()
-            ->first();
+        $currentBudget = WeeklyBudget::where('user_id', auth()->id())->latest()->first();
 
         if (!$currentBudget) {
             session()->flash('error', 'No active budget cycle found to draw funds from.');
@@ -123,124 +121,20 @@ class GoalsManager extends Component
                 'numeric',
                 'min:0.01',
                 'max:' . $currentBudget->remaining_allowance,
-                'max:' . $remainingNeeded,                
+                'max:' . $remainingNeeded,
             ]
         ], [
             'fund_amount.max' => 'Transfer halted! The amount exceeds either your remaining budget (₱' . number_format($currentBudget->remaining_allowance, 2) . ') or what is left to finish this goal (₱' . number_format($remainingNeeded, 2) . ').'
         ]);
 
-        // NOTE: previously this blanket-deleted ALL of today's RiskLog rows
-        // (regardless of type/resolved status) and every low-allowance
-        // notification before doing anything else. That wiped still-valid
-        // warnings unrelated to this action and — same bug as LogExpense —
-        // defeated the "only notify once per cycle" guard below, since the
-        // guard's own exists() check always found nothing right after the
-        // delete. Funding a goal can only ever push remaining_allowance
-        // DOWN (money moves out to savings), never recover it, so there's
-        // no "resolve on recovery" branch needed here — just don't
-        // pre-emptively delete anything before evaluating.
-
-        $goalWasAchieved = false;
-
-        DB::transaction(function () use ($goal, $currentBudget, &$goalWasAchieved) {
-            $newSavedBalance = $goal->current_saved + $this->fund_amount;
-            $status = $goal->status;
-            
-            if ($newSavedBalance >= $goal->target_amount) {
-                $status = 'achieved';
-                $newSavedBalance = $goal->target_amount;
-                $goalWasAchieved = true;
-            }
-
-            $goal->update([
-                'current_saved' => $newSavedBalance,
-                'status' => $status
-            ]);
-
-            $currentBudget->decrement('remaining_allowance', $this->fund_amount);
-
-            $savingsCategory = ExpenseCategory::firstOrCreate(
-                ['name' => 'Savings'],
-                ['description' => 'Capital intentionally set aside for milestone savings targets.']
-            );
-
-            Expense::create([
-                'user_id' => auth()->id(),
-                'expense_category_id' => $savingsCategory->id,
-                'savings_goal_id' => $goal->id,
-                'item_name' => "{$goal->target_name}",
-                'merchant_name' => 'Savings Goal',
-                'amount' => $this->fund_amount,
-                'transaction_date' => now(),
-                'tracking_type' => 'manual',
-            ]);
-        });
-
-        $goal->refresh();
-
-        if ($goalWasAchieved) {
-            DatabaseNotification::create([
-                'id' => Str::uuid(),
-                'type' => 'App\Notifications\SavingsGoalAchieved',
-                'notifiable_type' => 'App\Models\User',
-                'notifiable_id' => auth()->id(),
-                'data' => [
-                    'anomaly_type' => 'goal_achieved',
-                    'severity_tier' => 'success',
-                    'description' => 'Target Smashed! 🎯 You successfully saved ₱' . number_format($goal->target_amount, 2) . ' for your "' . $goal->target_name . '" goal.',
-                ],
-                'read_at' => null,
-            ]);
-        } else {
-            $this->checkAndNotifySavingsMilestone($goal);
-        }
-
-        app(\App\Services\RiskDetectionService::class)->evaluateSpendingRisk(auth()->user());
-
-        // Low Remaining Budget Alert — threshold now driven by the admin's
-        // Risk Detection Rules settings instead of a hardcoded 0.20.
-        $riskSettings = RiskSetting::current();
-        if ($riskSettings->low_remaining_budget_enabled) {
-            $thresholdAmount = $currentBudget->total_allowance * ($riskSettings->low_remaining_budget_threshold / 100);
-
-            if ($currentBudget->remaining_allowance <= $thresholdAmount) {
-                $alreadyNotified = DatabaseNotification::where('notifiable_id', auth()->id())
-                    ->where('notifiable_type', 'App\Models\User')
-                    ->where('data', 'LIKE', '%"anomaly_type":"low_allowance_threshold"%')
-                    ->where('data', 'LIKE', '%"resolved":false%')
-                    ->where('created_at', '>=', $currentBudget->created_at)
-                    ->exists();
-
-                if (!$alreadyNotified) {
-                   $percentageLeft = round(($currentBudget->remaining_allowance / $currentBudget->total_allowance) * 100);
-                    DatabaseNotification::create([
-                        'id' => Str::uuid(),
-                        'type' => 'App\Notifications\LowAllowanceWarning',
-                        'notifiable_type' => 'App\Models\User',
-                        'notifiable_id' => auth()->id(),
-                        'data' => [
-                            'anomaly_type' => 'low_allowance_threshold',
-                            'severity_tier' => 'medium',
-                            'description' => "Great job saving! 🎯 Heads up: you have ₱" . number_format($currentBudget->remaining_allowance, 2) . " left for food and daily expenses this week.",
-                            // NEW: matches the flag added to LowAllowanceWarning's
-                            // toArray() so this manually-created notification is
-                            // eligible for the same dedupe/resolve logic.
-                            'resolved' => false,
-                        ],
-                        'read_at' => null,
-                    ]);
-                }
-            }
-        }
+        $result = app(\App\Services\SavingsGoalService::class)->addFunds(auth()->user(), $goal, (float) $this->fund_amount);
 
         $this->fundingGoalId = null;
         $this->emit('refreshNotifications');
 
-        if ($goalWasAchieved) {
-            session()->flash('success', 'Incredible! Target reached. Milestone shifted to your completed vault!');
-        } else {
-            session()->flash('success', 'Funds successfully transferred from your budget balance to your savings goal!');
-        }
+        session()->flash('success', $result['goalWasAchieved']
+            ? 'Incredible! Target reached. Milestone shifted to your completed vault!'
+            : 'Funds successfully transferred from your budget balance to your savings goal!');
     }
 
     private function checkAndNotifySavingsMilestone($goal)

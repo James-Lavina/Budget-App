@@ -50,8 +50,24 @@ class ScanExpense extends Component
         $this->validate();
     }
 
+    /**
+     * NEW: called from the Blade "Remove Image" / "Re-select image" buttons.
+     * Centralizes clearing the upload so the temp file reference is never
+     * left dangling on the component between renders.
+     */
+    public function clearReceiptImage()
+    {
+        $this->receiptImage = null;
+        $this->resetErrorBag('receiptImage');
+    }
+
     public function processReceipt()
     {
+        if (!$this->receiptImage) {
+            session()->flash('error', 'Please wait for the image to finish uploading before submitting.');
+            return;
+        }
+
         $this->validate();
         $this->isProcessing = true;
 
@@ -116,10 +132,10 @@ class ScanExpense extends Component
             $lastFailureReason = null;
 
             for ($attempt = 1; $attempt <= $maxAttempts; $attempt++) {
-                    $groqResponse = Http::withHeaders([
-                        'Authorization' => 'Bearer ' . $apiKey,
-                    ])->timeout(45)->post('https://api.groq.com/openai/v1/chat/completions', [
-                        'model' => $settings->groq_vision_model,
+                $groqResponse = Http::withHeaders([
+                    'Authorization' => 'Bearer ' . $apiKey,
+                ])->timeout(45)->post('https://api.groq.com/openai/v1/chat/completions', [
+                    'model' => $settings->groq_vision_model,
                     'messages' => [
                         ['role' => 'system', 'content' => $systemInstruction],
                         [
@@ -193,8 +209,18 @@ class ScanExpense extends Component
 
             $this->isProcessing = false;
             $this->step = 2;
+
+            // IMPORTANT: the temp upload has now been persisted into
+            // storage/app/public/receipts via ->store() above. Null the
+            // property out so Step 1's Blade template never tries to call
+            // temporaryUrl() against a tmp file that may since have expired
+            // or been cleaned up — that call was the actual source of the
+            // FileNotFoundException, thrown during view rendering rather
+            // than inside this try/catch.
+            $this->receiptImage = null;
         } catch (\Exception $e) {
             $this->isProcessing = false;
+            $this->receiptImage = null;
             session()->flash('error', $e->getMessage());
         }
     }
@@ -270,12 +296,11 @@ class ScanExpense extends Component
                             ]);
                         }
                     }
-
                 }
 
                 $currentBudget->decrement('remaining_allowance', $total);
 
-                 // NEW: one summarized log per receipt scan, same pattern as
+                // NEW: one summarized log per receipt scan, same pattern as
                 // AllExpenses::bulkDelete()'s expense_bulk_deleted — avoids
                 // flooding the log with one row per line item on a single receipt.
                 $itemNames = collect($this->items)->pluck('item_name')->take(5)->implode(', ');

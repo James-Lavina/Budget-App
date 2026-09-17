@@ -12,7 +12,6 @@
                  the admin category picker again. --}}
             <x-category-icon :type="$expense->icon_type" class="w-5 h-5" />
         </div>
-
         <div class="min-w-0">
             <h4 class="font-bold text-slate-900 text-xs sm:text-sm truncate">
                 {{ $expense->item_name }}
@@ -20,7 +19,7 @@
             <p class="text-[11px] sm:text-xs text-slate-400 font-medium truncate mt-0.5 flex items-center gap-1.5 flex-wrap">
                 <span>{{ ucfirst($expense->category->name ?? 'General') }}{{ $showMerchant && $expense->merchant_name ? ' · ' . $expense->merchant_name : '' }} · {{ $expense->formatted_date }}</span>
                 @if($isSavings)
-                    <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-indigo-50 text-indigo-600 text-[9px] font-bold uppercase tracking-wide shrink-0">
+                    <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-[rgba(var(--brand-rgb),0.08)] text-[var(--brand)] text-[9px] font-bold uppercase tracking-wide shrink-0">
                         <svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v12m-3-2.818l.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
                         </svg>
@@ -38,9 +37,8 @@
             </p>
         </div>
     </div>
-
     <div class="flex items-center gap-2 sm:gap-3 shrink-0">
-        <span class="font-bold text-xs sm:text-sm font-mono tracking-tight {{ $isSavings ? 'text-indigo-600' : 'text-slate-900' }}">
+        <span class="font-bold text-xs sm:text-sm font-mono tracking-tight {{ $isSavings ? 'text-[var(--brand)]' : 'text-slate-900' }}">
             {{ $isSavings ? '' : '-' }}₱{{ number_format($expense->amount, 2) }}
         </span>
         <div class="flex items-center gap-0.5 {{ $showMerchant ? '' : 'opacity-100 sm:opacity-0 sm:group-hover:opacity-100' }} transition-opacity">
@@ -51,7 +49,7 @@
                     </svg>
                 </span>
             @else
-                <a href="{{ route('student.expenses.edit', $expense->id) }}" class="p-1.5 text-slate-400 hover:text-indigo-600 rounded-lg hover:bg-slate-100 transition-colors" title="Edit">
+                <a href="{{ route('student.expenses.edit', $expense->id) }}" class="p-1.5 text-slate-400 hover:text-[var(--brand)] rounded-lg hover:bg-slate-100 transition-colors" title="Edit">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125"/>
                     </svg>

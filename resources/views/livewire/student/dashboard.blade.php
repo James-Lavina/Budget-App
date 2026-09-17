@@ -1,16 +1,18 @@
 <div class="min-h-screen py-3 sm:py-6 md:py-8 px-2.5 sm:px-6 lg:px-8 text-slate-800 antialiased relative pb-28 sm:pb-24 w-full max-w-full overflow-x-hidden">
     <div class="max-w-7xl mx-auto space-y-3 sm:space-y-6 w-full min-w-0">
 
-        <!-- HEADER SECTION: GREETING ONLY — status pill removed, it duplicated
-             the Spending Forecast Banner below almost word-for-word. One
-             place to state "how am I doing" instead of two. -->
+        <!-- HEADER SECTION: GREETING + WEEK RANGE PILL -->
         <div class="flex flex-col md:flex-row md:items-center justify-between gap-2 sm:gap-4 w-full min-w-0">
             <div class="min-w-0">
                 <h1 class="text-lg sm:text-2xl md:text-3xl font-extrabold text-slate-900 tracking-tight flex items-center gap-1.5 truncate">
                     Good {{ \Carbon\Carbon::now()->format('H') < 12 ? 'Morning' : (\Carbon\Carbon::now()->format('H') < 18 ? 'Afternoon' : 'Evening') }}, {{ auth()->user()->name }}
                 </h1>
-                <p class="text-[12px] sm:text-xs md:text-sm text-slate-500 font-medium mt-1">
-                    Here's how your money is looking today.
+                <p class="text-[12px] sm:text-xs md:text-sm text-slate-500 font-medium mt-1 flex items-center gap-1.5 flex-wrap">
+                    <span>Here's how your money is looking today.</span>
+                    <span class="text-slate-300 hidden sm:inline">·</span>
+                    <span class="inline-flex items-center px-2 py-0.5 rounded-md bg-slate-100 text-slate-600 font-bold text-[10px] sm:text-[11px] tracking-wide">
+                        Week of {{ $weekRangeLabel }}
+                    </span>
                 </p>
             </div>
             <div class="flex items-center gap-3 self-start md:self-auto shrink-0">
@@ -18,80 +20,258 @@
             </div>
         </div>
 
-        <!-- TOP METRICS (RESPONSIVE 3-CARD GRID) -->
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-5 w-full min-w-0">
-            <!-- 1. Weekly Allowance -->
-            <div class="bg-white rounded-2xl sm:rounded-3xl p-3.5 sm:p-5 border border-slate-100 shadow-sm flex items-center justify-between relative overflow-hidden min-w-0">
-                <div class="space-y-1 min-w-0">
-                    <span class="text-[11px] sm:text-xs font-semibold text-slate-500 block truncate">Weekly Allowance</span>
-                    <div class="text-lg sm:text-2xl font-black text-slate-900 font-mono truncate">
-                        ₱{{ number_format($currentBudget->total_allowance, 2) }}
+        <!-- TOP METRICS: PRIMARY + SECONDARY -->
+        <div class="space-y-3 sm:space-y-5 w-full min-w-0">
+
+            <!-- ===================================================== -->
+            <!-- ROW 1: PRIMARY METRIC -->
+            <!-- ===================================================== -->
+
+            <div class="bg-white rounded-2xl sm:rounded-3xl p-5 sm:p-6 border border-slate-100 shadow-sm min-w-0 relative overflow-hidden">
+
+                <div class="flex items-start justify-between gap-4">
+
+                    <div class="min-w-0">
+
+                        <span class="text-xs sm:text-sm font-semibold text-slate-500 block">
+                            Remaining Budget
+                        </span>
+
+                        <div class="text-3xl sm:text-4xl font-black text-slate-900 font-mono mt-1">
+                            ₱{{ number_format($currentBudget->remaining_allowance, 2) }}
+                        </div>
+
                     </div>
-                    <div class="flex items-center gap-1.5 text-[10px] sm:text-[11px] font-medium text-slate-400 truncate">
-                        <span>Resets {{ $currentBudget->reset_day }}</span>
+
+                    <!-- Icon -->
+                    <div class="h-11 w-11 sm:h-12 sm:w-12 rounded-2xl bg-orange-50 text-orange-500 flex items-center justify-center shrink-0">
+
+                        <svg class="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round"
+                                d="M20.25 6.375c0 2.278-3.694 4.125-8.25 4.125S3.75 8.653 3.75 6.375m16.5 0c0-2.278-3.694-4.125-8.25-4.125S3.75 4.097 3.75 6.375m16.5 0v11.25c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125V6.375m16.5 5.625c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125" />
+                        </svg>
+
+                    </div>
+
+                </div>
+
+
+                <!-- Progress -->
+                <div class="mt-4 space-y-2">
+
+                    <div class="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
+
+                        <div
+                            class="h-full rounded-full transition-all duration-500 {{ (100 - $remainingPercentage) >= 80 ? 'bg-rose-500' : ((100 - $remainingPercentage) >= 50 ? 'bg-amber-500' : 'bg-emerald-500') }}"
+                            style="width: {{ min(100, 100 - $remainingPercentage) }}%">
+                        </div>
+
+                    </div>
+
+                    <div class="flex flex-wrap items-center gap-1.5 text-[11px] font-medium text-slate-400">
+
+                        <span class="font-bold text-slate-600">
+                            {{ 100 - $remainingPercentage }}% used
+                        </span>
+
+                        @if($rolloverAmount > 0)
+
+                            <span>·</span>
+
+                            <span class="text-emerald-600 font-semibold">
+                                +₱{{ number_format($rolloverAmount, 2) }} rolled over
+                            </span>
+
+                        @endif
+
                         <span>·</span>
-                        <a href="{{ route('student.settings') }}" class="inline-flex items-center px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 hover:bg-[rgba(var(--brand-rgb),0.08)] hover:text-[var(--brand)] font-semibold transition-colors">Edit</a>
+
+                        <a href="{{ route('student.budget.add') }}"
+                            class="inline-flex items-center px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 hover:bg-[rgba(var(--brand-rgb),0.08)] hover:text-[var(--brand)] font-semibold transition-colors">
+                            Add Funds
+                        </a>
+
                     </div>
+
                 </div>
-                <div class="h-9 w-9 sm:h-12 sm:w-12 rounded-xl sm:rounded-2xl bg-[rgba(var(--brand-rgb),0.08)] text-[var(--brand)] flex items-center justify-center shrink-0 ml-2">
-                    <svg class="w-4 h-4 sm:w-6 sm:h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 7v5l3 3" />
-                    </svg>
-                </div>
+
             </div>
 
-            <!-- 2. Remaining Budget -->
-            <div class="bg-white rounded-2xl sm:rounded-3xl p-3.5 sm:p-5 border border-slate-100 shadow-sm flex items-center justify-between relative overflow-hidden min-w-0">
-                <div class="space-y-1 min-w-0">
-                    <span class="text-[11px] sm:text-xs font-semibold text-slate-500 block truncate">Remaining Budget</span>
-                    <div class="text-lg sm:text-2xl font-black text-slate-900 font-mono truncate">
-                        ₱{{ number_format($currentBudget->remaining_allowance, 2) }}
+
+            <!-- ===================================================== -->
+            <!-- ROW 2: SECONDARY METRICS -->
+            <!-- ===================================================== -->
+
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-5 w-full min-w-0">
+
+
+                <!-- ================================================= -->
+                <!-- DAILY SAFE-TO-SPEND -->
+                <!-- ================================================= -->
+
+                <div class="bg-white rounded-2xl sm:rounded-3xl p-4 sm:p-5 border border-slate-100 shadow-sm flex flex-col justify-between min-w-0">
+
+                    <!-- Header -->
+                    <div class="flex items-center justify-between gap-3">
+
+                        <span class="text-[11px] sm:text-xs font-semibold text-slate-500">
+                            Daily Safe-to-Spend
+                        </span>
+
+                        @php
+                            if ($dashboardState === 'depleted' || $dashboardState === 'pace_critical') {
+                                $safeToSpendIconStyle = 'bg-rose-50 text-rose-600';
+                            } elseif ($dashboardState === 'savings_locked') {
+                                $safeToSpendIconStyle = 'bg-[rgba(var(--brand-rgb),0.08)] text-[var(--brand)]';
+                            } elseif ($dashboardState === 'quota_hit') {
+                                $safeToSpendIconStyle = 'bg-amber-50 text-amber-600';
+                            } else {
+                                $safeToSpendIconStyle = 'bg-emerald-50 text-emerald-600';
+                            }
+                        @endphp
+                        <div class="h-7 w-7 rounded-lg {{ $safeToSpendIconStyle }} flex items-center justify-center shrink-0">
+
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+
+                                <path stroke-linecap="round" stroke-linejoin="round"
+                                    d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+
+                            </svg>
+
+                        </div>
+
                     </div>
-                    <div class="flex flex-wrap items-center gap-1.5 text-[10px] sm:text-[11px] font-medium text-slate-400">
-                        <span>{{ $remainingPercentage }}% left</span>
+
+
+                    <!-- Amount -->
+                    <div class="mt-4 flex items-baseline flex-wrap gap-x-2 gap-y-1">
+
+                        <span class="text-xl sm:text-2xl font-black text-slate-900 font-mono whitespace-nowrap">
+                            ₱{{ number_format($dailyQuota, 2) }}
+                        </span>
+
+                        <span class="text-slate-300 font-bold">
+                            /
+                        </span>
+
+                        <span class="text-base sm:text-lg font-bold text-slate-500 font-mono whitespace-nowrap">
+                            ₱{{ number_format($spentToday, 2) }}
+                        </span>
+
+                    </div>
+
+
+                    <!-- Footer -->
+                    <div class="text-[10px] sm:text-[11px] font-medium text-slate-400 mt-2">
+                        ₱{{ number_format($safeToSpend, 2) }} left today
+                    </div>
+
+                </div>
+
+
+                <!-- ================================================= -->
+                <!-- WEEKLY ALLOWANCE -->
+                <!-- ================================================= -->
+
+                <div class="bg-white rounded-2xl sm:rounded-3xl p-4 sm:p-5 border border-slate-100 shadow-sm flex flex-col justify-between min-w-0">
+
+                    <!-- Header -->
+                    <div class="flex items-center justify-between gap-3">
+
+                        <span class="text-[11px] sm:text-xs font-semibold text-slate-500">
+                            Total Available This Week
+                        </span>
+
+                        <div class="h-7 w-7 rounded-lg bg-[rgba(var(--brand-rgb),0.08)] text-[var(--brand)] flex items-center justify-center shrink-0">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round"
+                                    d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                <path stroke-linecap="round" stroke-linejoin="round"
+                                    d="M12 7v5l3 3" />
+                            </svg>
+                        </div>
+
+                    </div>
+
+                    <!-- Amount -->
+                    <div class="text-xl sm:text-2xl font-black text-slate-900 font-mono mt-4 whitespace-nowrap">
+                        ₱{{ number_format($weeklyAllowanceDisplay, 2) }}
+                    </div>
+
+                    <!-- Footer -->
+                    <div class="flex items-center gap-1 text-[10px] sm:text-[11px] font-medium text-slate-400 mt-2 flex-wrap">
+                        <span>Resets {{ $currentBudget->reset_day }}</span>
+
                         @if($rolloverAmount > 0)
                             <span>·</span>
-                            <span class="text-emerald-600 font-semibold">+₱{{ number_format($rolloverAmount, 2) }} rolled over</span>
+                            <span class="text-emerald-600 font-semibold">₱{{ number_format($currentBudget->total_allowance, 2) }} base + ₱{{ number_format($rolloverAmount, 2) }} rollover</span>
                         @endif
+
                         <span>·</span>
-                        <a href="{{ route('student.budget.add') }}" class="inline-flex items-center px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 hover:bg-[rgba(var(--brand-rgb),0.08)] hover:text-[var(--brand)] font-semibold transition-colors">Add</a>
+
+                        <a href="{{ route('student.settings') }}" class="text-slate-600 hover:text-[var(--brand)] font-semibold">
+                            Edit Base Allowance
+                        </a>
                     </div>
+
                 </div>
-                <div class="h-9 w-9 sm:h-12 sm:w-12 rounded-xl sm:rounded-2xl bg-orange-50 text-orange-500 flex items-center justify-center shrink-0 ml-2">
-                    <svg class="w-4 h-4 sm:w-6 sm:h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M20.25 6.375c0 2.278-3.694 4.125-8.25 4.125S3.75 8.653 3.75 6.375m16.5 0c0-2.278-3.694-4.125-8.25-4.125S3.75 4.097 3.75 6.375m16.5 0v11.25c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125V6.375m16.5 5.625c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125" />
-                    </svg>
+
+
+                <!-- ================================================= -->
+                <!-- TOTAL EXPENSES -->
+                <!-- ================================================= -->
+
+                <div class="bg-white rounded-2xl sm:rounded-3xl p-4 sm:p-5 border border-slate-100 shadow-sm flex flex-col justify-between min-w-0">
+
+                    <!-- Header -->
+                    <div class="flex items-center justify-between gap-3">
+
+                        <span class="text-[11px] sm:text-xs font-semibold text-slate-500">
+                            Total Expenses
+                        </span>
+
+                        <div class="h-7 w-7 rounded-lg bg-rose-50 text-rose-500 flex items-center justify-center shrink-0">
+
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+
+                                <path stroke-linecap="round" stroke-linejoin="round"
+                                    d="M3 10h18M7 15h1m4 0h1m-7 4h12a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+
+                            </svg>
+
+                        </div>
+
+                    </div>
+
+
+                    <!-- Amount -->
+                    <div class="text-xl sm:text-2xl font-black text-slate-900 font-mono mt-4 whitespace-nowrap">
+                        ₱{{ number_format($totalSpent, 2) }}
+                    </div>
+
+
+                    <!-- Footer -->
+                    <div class="flex items-center gap-1 text-[10px] sm:text-[11px] font-medium text-slate-400 mt-2">
+
+                        <span>
+                            This cycle
+                        </span>
+
+                        <span>·</span>
+
+                        <a href="{{ route('student.expenses.index') }}"
+                            class="text-slate-600 hover:text-[var(--brand)] font-semibold">
+                            View
+                        </a>
+
+                    </div>
+
                 </div>
+
             </div>
 
-            <!-- 3. Daily Safe-to-Spend -->
-            <div class="bg-white rounded-2xl sm:rounded-3xl p-3.5 sm:p-5 border border-slate-100 shadow-sm flex items-center justify-between sm:col-span-2 lg:col-span-1 relative overflow-hidden min-w-0">
-                <div class="space-y-1 min-w-0">
-                    <span class="text-[11px] sm:text-xs font-semibold text-slate-500 block truncate">Daily Safe-to-Spend</span>
-                    <div class="text-lg sm:text-2xl font-black text-slate-900 font-mono truncate">
-                        ₱{{ number_format($safeToSpend, 2) }}
-                    </div>
-                    <div class="flex items-center gap-1.5 text-[10px] sm:text-[11px] font-medium text-slate-400 truncate">
-                        <span>Spent today: ₱{{ number_format($spentToday, 2) }}</span>
-                        <span>·</span>
-                        <span>{{ $isFinalDay ? 'Last day' : $daysRemaining . ' ' . Str::plural('day', $daysRemaining) . ' left' }}</span>
-                    </div>
-                    {{-- NEW: one-line explanation connecting this number to
-                         "Remaining Budget" above it, so it's clear this is a
-                         slice of that total, not a separate figure. --}}
-                    <p class="text-[10px] sm:text-[11px] text-slate-400 font-medium leading-snug pt-0.5">
-                        Spend up to this much today without falling behind pace.
-                    </p>
-                </div>
-                <div class="h-9 w-9 sm:h-12 sm:w-12 rounded-xl sm:rounded-2xl {{ $isSavingsLocked ? 'bg-[rgba(var(--brand-rgb),0.08)] text-[var(--brand)]' : 'bg-emerald-50 text-emerald-600' }} flex items-center justify-center shrink-0 ml-2">
-                    <svg class="w-4 h-4 sm:w-6 sm:h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-                    </svg>
-                </div>
-            </div>
         </div>
-
+        
         <!-- SPENDING FORECAST BANNER -->
         <div class="bg-white rounded-2xl sm:rounded-3xl p-3.5 sm:p-5 border border-l-4 shadow-sm transition-all flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 sm:gap-4 w-full min-w-0 {{ $isDepleted || $isPaceCritical ? 'border-l-rose-500 border-slate-100' : ($isSavingsLocked ? 'border-slate-100' : ($isDailyQuotaHit ? 'border-l-amber-500 border-slate-100' : ($hasNoSpendingYet ? 'border-l-slate-300 border-slate-100' : 'border-l-emerald-500 border-slate-100'))) }}"
              style="{{ $isSavingsLocked && !$isDepleted && !$isPaceCritical ? 'border-left-color: var(--brand);' : '' }}">
@@ -158,7 +338,10 @@
             <div class="lg:col-span-7 bg-white rounded-2xl sm:rounded-3xl p-3.5 sm:p-6 border border-slate-100 shadow-sm flex flex-col justify-between w-full min-w-0 overflow-hidden">
                 <!-- HEADING -->
                 <div class="flex items-center justify-between gap-2 pb-3 border-b border-slate-100">
-                    <h3 class="text-xs sm:text-sm font-extrabold text-slate-900 truncate">Weekly Spending</h3>
+                    <div>
+                        <h3 class="text-xs sm:text-sm font-extrabold text-slate-900 truncate">Weekly Spending</h3>
+                        <span class="text-[10px] text-slate-400 font-semibold">{{ $weekRangeLabel }}</span>
+                    </div>
                     <div class="flex items-center gap-3 shrink-0">
                         <span class="text-[10px] sm:text-xs text-slate-400 font-medium">
                             Spent: <span class="font-bold text-slate-700">₱{{ number_format($totalSpent, 2) }}</span>
@@ -189,7 +372,6 @@
                 </div>
 
                 @if($totalSavedThisWeek > 0)
-                    <!-- SAVED THIS WEEK — visually separate from spending categories -->
                     <div class="mt-3 pt-3 border-t border-dashed border-slate-200 flex items-center justify-between text-xs bg-[rgba(var(--brand-rgb),0.06)] px-2.5 py-2 rounded-lg">
                         <div class="flex items-center gap-2 min-w-0">
                             <span class="w-2.5 h-2.5 rounded-full shrink-0 bg-[var(--brand)]"></span>
@@ -202,7 +384,13 @@
                 @endif
 
                 @php
-                    $chartLabels = array_values($daysOfWeek);
+                    $chartLabels = [];
+                    foreach (array_keys($daysOfWeek) as $dateKey) {
+                        $chartLabels[] = [
+                            \Carbon\Carbon::parse($dateKey)->format('D'),
+                            \Carbon\Carbon::parse($dateKey)->format('M j'),
+                        ];
+                    }
                     $chartMatrix = [];
                     foreach ($chartCategories as $cat) {
                         $row = [];
@@ -236,6 +424,11 @@
             <div class="lg:col-span-5 flex flex-col w-full min-w-0 overflow-hidden">
                 <livewire:student.expense-category-widget />
             </div>
+        </div>
+
+        <!-- SAVINGS GOALS PREVIEW (FULL WIDTH) -->
+        <div class="w-full min-w-0">
+            <livewire:student.savings-widget />
         </div>
 
         <!-- RECENT EXPENSES SECTION -->

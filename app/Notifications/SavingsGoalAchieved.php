@@ -21,7 +21,13 @@ class SavingsGoalAchieved extends Notification
     // Define the channels this notification sends to
     public function via($notifiable)
     {
-        return ['database', 'mail'];
+        $channels = ['database'];
+
+        if (\App\Models\AppSetting::current()->email_notifications_enabled) {
+            $channels[] = 'mail';
+        }
+
+        return $channels;
     }
 
     // Package the HTML/Log email structure
