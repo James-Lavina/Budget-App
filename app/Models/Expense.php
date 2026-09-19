@@ -13,7 +13,6 @@ class Expense extends Model
         'user_id',
         'expense_category_id',
         'savings_goal_id',
-        'merchant_name',
         'item_name',
         'amount',
         'transaction_date',

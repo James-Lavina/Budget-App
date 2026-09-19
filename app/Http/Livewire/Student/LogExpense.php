@@ -19,18 +19,21 @@ use Livewire\Component;
 class LogExpense extends Component
 {
     public $expense_category_id;
-    public $merchant_name;
     public $item_name;
     public $amount;
     public $transaction_date;
     public $sessionLog = [];
+
+    // NEW: holds the suggested category id when item_name history disagrees
+    // with the currently selected category. Null = no conflict detected.
+    public $suggestedCategoryId = null;
+    public $suggestedCategoryName = null;
 
     protected $rules = [
         'expense_category_id' => 'required|exists:expense_categories,id',
         'item_name' => 'required|string|max:255',
         'amount' => 'required|numeric|min:0.01|max:999999',
         'transaction_date' => 'required|date|before_or_equal:today',
-        'merchant_name' => 'nullable|string|max:255',
     ];
 
     protected $messages = [
@@ -46,13 +49,98 @@ class LogExpense extends Component
         $this->transaction_date = Carbon::today()->format('Y-m-d');
     }
 
-    // Shared logic extracted so both buttons reuse it
+    // NEW: fires whenever the item name field changes. Debounced on the
+    // Blade side (wire:model.live.debounce.500ms) so this doesn't query on
+    // every keystroke.
+    public function updatedItemName($value)
+    {
+        $this->checkCategoryMismatch();
+    }
+
+    public function updatedExpenseCategoryId($value)
+    {
+        // Re-check on category change too, and clear a stale suggestion
+        // once the student picks the category being suggested.
+        $this->checkCategoryMismatch();
+    }
+
+    private function checkCategoryMismatch()
+    {
+        $this->suggestedCategoryId = null;
+        $this->suggestedCategoryName = null;
+
+        $term = trim($this->item_name ?? '');
+        if (strlen($term) < 3 || !$this->expense_category_id) {
+            return;
+        }
+
+        // Look at this student's own logging history for the same item
+        // name (case-insensitive exact match, not fuzzy — avoids false
+        // positives on partial words). Find the category they used most
+        // often for it.
+        $dominant = Expense::where('user_id', auth()->id())
+            ->whereRaw('LOWER(item_name) = ?', [strtolower($term)])
+            ->select('expense_category_id', DB::raw('COUNT(*) as uses'))
+            ->groupBy('expense_category_id')
+            ->orderByDesc('uses')
+            ->first();
+
+        // Only nudge if: history exists, it disagrees with the current
+        // pick, and the history has at least 2 prior uses (avoids
+        // overriding a one-off mistake from the past).
+        if ($dominant && $dominant->uses >= 2 && (int) $dominant->expense_category_id !== (int) $this->expense_category_id) {
+            $category = ExpenseCategory::find($dominant->expense_category_id);
+            if ($category) {
+                $this->suggestedCategoryId = $category->id;
+                $this->suggestedCategoryName = $category->name;
+            }
+        }
+    }
+
+    // Called when the student taps "Use [Category]" on the nudge.
+    public function acceptSuggestedCategory()
+    {
+        if ($this->suggestedCategoryId) {
+            $this->expense_category_id = $this->suggestedCategoryId;
+        }
+        $this->suggestedCategoryId = null;
+        $this->suggestedCategoryName = null;
+    }
+
+    public function dismissSuggestion()
+    {
+        $this->suggestedCategoryId = null;
+        $this->suggestedCategoryName = null;
+    }
+
+    // NEW: recent distinct item names the student has logged under the
+    // currently selected category, most-recent-first, for one-tap fill.
+    public function getRecentItemsProperty()
+    {
+        if (!$this->expense_category_id) {
+            return collect();
+        }
+
+        return Expense::where('user_id', auth()->id())
+            ->where('expense_category_id', $this->expense_category_id)
+            ->select('item_name', DB::raw('MAX(transaction_date) as last_used'))
+            ->groupBy('item_name')
+            ->orderByDesc('last_used')
+            ->limit(6)
+            ->pluck('item_name');
+    }
+
+    public function pickRecentItem($name)
+    {
+        $this->item_name = $name;
+        $this->checkCategoryMismatch();
+    }
+
     private function persistExpense()
     {
         $this->validate();
 
         $currentBudget = WeeklyBudget::where('user_id', auth()->id())->latest()->first();
-
         if (!$currentBudget) {
             session()->flash('error', 'No active budget found. Set up your allowance first.');
             return null;
@@ -63,22 +151,11 @@ class LogExpense extends Component
             return null;
         }
 
-        // NOTE: we no longer blanket-delete today's RiskLog rows or every
-        // risk/low-allowance notification here before saving. That used to
-        // wipe warnings unrelated to this specific expense (including
-        // still-valid ones), and it broke the "only notify once per cycle"
-        // guard below by deleting the very row that guard checks against —
-        // causing a fresh Low Allowance notification to fire on every
-        // single purchase while under threshold instead of just once.
-        // RiskDetectionService now owns creating/resolving risk logs and
-        // their notifications on its own.
-
         $newExpense = null;
         DB::transaction(function() use ($currentBudget, &$newExpense) {
             $newExpense = Expense::create([
                 'user_id' => auth()->id(),
                 'expense_category_id' => $this->expense_category_id,
-                'merchant_name' => $this->merchant_name,
                 'item_name' => $this->item_name,
                 'amount' => $this->amount,
                 'transaction_date' => $this->transaction_date . ' ' . Carbon::now()->format('H:i:s'),
@@ -88,8 +165,6 @@ class LogExpense extends Component
             $currentBudget->remaining_allowance -= $this->amount;
             $currentBudget->save();
 
-            // NEW: audit trail for manual entries — previously only edits/deletes
-            // were logged, leaving the most common student action invisible to admins.
             ActivityLog::create([
                 'user_id'    => auth()->id(),
                 'event_type' => 'expense_logged',
@@ -104,12 +179,9 @@ class LogExpense extends Component
         $riskService->checkLargeTransaction(auth()->user(), $newExpense, $currentBudget->total_allowance);
         $riskService->resolveNoExpenseLogsAlert(auth()->user());
 
-        // Low Remaining Budget Alert — threshold now driven by the admin's
-        // Risk Detection Rules settings instead of a hardcoded 0.20.
         $riskSettings = RiskSetting::current();
         if ($riskSettings->low_remaining_budget_enabled) {
             $thresholdAmount = $currentBudget->total_allowance * ($riskSettings->low_remaining_budget_threshold / 100);
-
             if ($currentBudget->remaining_allowance <= $thresholdAmount) {
                 $alreadyNotified = DatabaseNotification::where('notifiable_id', auth()->id())
                     ->where('notifiable_type', 'App\Models\User')
@@ -123,9 +195,6 @@ class LogExpense extends Component
                     auth()->user()->notify(new LowAllowanceWarning($percentageLeft, $currentBudget->remaining_allowance));
                 }
             } else {
-                // Balance recovered above threshold — resolve any still-open
-                // low allowance warnings from this cycle instead of leaving
-                // them stuck "active" forever.
                 DatabaseNotification::where('notifiable_id', auth()->id())
                     ->where('notifiable_type', 'App\Models\User')
                     ->where('data', 'LIKE', '%"anomaly_type":"low_allowance_threshold"%')
@@ -156,7 +225,6 @@ class LogExpense extends Component
         if (!$expense) return;
 
         $category = ExpenseCategory::find($expense->expense_category_id);
-
         $this->sessionLog[] = [
             'id' => $expense->id,
             'item_name' => $expense->item_name,
@@ -165,10 +233,10 @@ class LogExpense extends Component
             'category_icon' => $category->icon ?? 'default',
         ];
 
-        // Reset only item-specific fields; keep category & date for the next entry
-        $this->reset(['item_name', 'amount', 'merchant_name']);
+        $this->reset(['item_name', 'amount']);
+        $this->suggestedCategoryId = null;
+        $this->suggestedCategoryName = null;
         $this->resetErrorBag();
-
         $this->dispatchBrowserEvent('expense-added');
     }
 
@@ -179,11 +247,6 @@ class LogExpense extends Component
 
         $currentBudget = WeeklyBudget::where('user_id', auth()->id())->latest()->first();
 
-        // NEW: same cycle-lock guard used everywhere else an expense gets
-        // deleted. In practice these entries were always created seconds
-        // earlier in this same form session, so this should never actually
-        // trip — but it closes the one delete path in the app that didn't
-        // have the check, for consistency and defense in depth.
         if ($currentBudget && !app(BudgetCycleService::class)->isWithinCurrentCycle($currentBudget, auth()->user(), $expense->transaction_date)) {
             session()->flash('error', 'This expense belongs to a previous budget cycle and can no longer be removed here.');
             return;
@@ -198,13 +261,8 @@ class LogExpense extends Component
         });
 
         $this->sessionLog = array_values(array_filter($this->sessionLog, fn($e) => $e['id'] !== $expenseId));
-
         $riskService = app(RiskDetectionService::class);
         $riskService->evaluateSpendingRisk(auth()->user());
-
-        // NEW: if this expense had triggered a "big purchase" alert, that
-        // alert is now about a transaction that no longer exists — resolve
-        // it instead of leaving a stale flag behind.
         $riskService->resolveLargeTransactionAlert(auth()->user(), $expenseId);
     }
 
@@ -213,7 +271,8 @@ class LogExpense extends Component
         return view('livewire.student.log-expense', [
             'categories' => ExpenseCategory::whereRaw('LOWER(name) != ?', ['savings'])
                 ->orderBy('name', 'asc')
-                ->get()
+                ->get(),
+            'recentItems' => $this->recentItems,
         ])->layout('layouts.student');
     }
 }

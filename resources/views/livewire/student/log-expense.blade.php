@@ -11,85 +11,14 @@
 
         <!-- Single Expense Form Card -->
         <form wire:submit.prevent="storeExpense" class="bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-slate-100 space-y-6">
-            
-            <!-- Row 1: Store/Merchant & Item Name -->
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <!-- Store / Merchant (optional) -->
-                <div class="space-y-1.5">
-                    <label for="merchant_name" class="block text-xs font-bold text-slate-700">
-                        Store / Merchant <span class="font-normal text-slate-400">(optional)</span>
-                    </label>
-                    <input id="merchant_name" type="text" wire:model.defer="merchant_name" placeholder="e.g., Jollibee"
-                        class="w-full px-4 py-3 bg-slate-100/80 border-0 rounded-2xl text-slate-900 font-semibold text-sm placeholder-slate-400 focus:bg-white focus:ring-2 focus:ring-indigo-500 transition-all">
-                    @error('merchant_name')
-                        <span class="text-[11px] font-semibold text-rose-500 block mt-1">{{ $message }}</span>
-                    @enderror
-                </div>
 
-                <!-- Item Name -->
-                <div class="space-y-1.5">
-                    <label for="item_name" class="block text-xs font-bold text-slate-700">
-                        Item Name
-                    </label>
-                    <input id="item_name" type="text" wire:model.defer="item_name" placeholder="e.g., Chickenjoy Meal"
-                        class="w-full px-4 py-3 bg-slate-100/80 border-0 rounded-2xl text-slate-900 font-semibold text-sm placeholder-slate-400 focus:bg-white focus:ring-2 focus:ring-indigo-500 transition-all">
-                    @error('item_name')
-                        <span class="text-[11px] font-semibold text-rose-500 block mt-1">{{ $message }}</span>
-                    @enderror
-                </div>
-            </div>
-
-            <!-- Row 2: Amount & Date -->
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <!-- Amount -->
-                <div class="space-y-1.5">
-                    <label for="amount" class="block text-xs font-bold text-slate-700">
-                        Amount
-                    </label>
-                    <div class="relative">
-                        <span class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-800 font-extrabold text-base">
-                            ₱
-                        </span>
-                        <input
-                        id="amount"
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        wire:model.defer="amount"
-                        placeholder="0.00"
-                        onblur="formatAmount(this)"
-                        class="w-full pl-9 pr-4 py-3 bg-slate-100/80 border-0 rounded-2xl text-slate-900 font-extrabold text-base placeholder-slate-400 focus:bg-white focus:ring-2 focus:ring-indigo-500 transition-all">
-                    </div>
-                    @error('amount')
-                        <span class="text-[11px] font-semibold text-rose-500 block mt-1">{{ $message }}</span>
-                    @enderror
-                </div>
-
-                <!-- Date -->
-                <div class="space-y-1.5">
-                    <label for="transaction_date" class="block text-xs font-bold text-slate-700">
-                        Date
-                    </label>
-                    <input id="transaction_date" type="date" wire:model.defer="transaction_date"
-                        class="w-full px-4 py-3 bg-slate-100/80 border-0 rounded-2xl text-slate-800 font-semibold text-sm focus:bg-white focus:ring-2 focus:ring-indigo-500 transition-all">
-                    @error('transaction_date')
-                        <span class="text-[11px] font-semibold text-rose-500 block mt-1">{{ $message }}</span>
-                    @enderror
-                </div>
-            </div>
-
-            <!-- Row 3: Category (Dynamic Pills) -->
-            <div class="space-y-2 pt-1">
-                <label class="block text-xs font-bold text-slate-700">
-                    Category
-                </label>
-                
+            {{-- Row 1: Category (moved to top — drives item suggestions below) --}}
+            <div class="space-y-2">
+                <label class="block text-xs font-bold text-slate-700">Category</label>
                 <div class="flex flex-wrap gap-2 items-center">
                     @foreach($categories as $category)
-                        @php
-                            $isSelected = $expense_category_id == $category->id;
-                        @endphp
-                        <button type="button" 
+                        @php $isSelected = $expense_category_id == $category->id; @endphp
+                        <button type="button"
                             wire:click="$set('expense_category_id', {{ $category->id }})"
                             class="px-4 py-2 rounded-full text-xs font-bold flex items-center gap-2 transition-all duration-150 transform active:scale-95 {{ $isSelected ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200' : 'bg-slate-100 text-slate-600 hover:bg-slate-200/80' }}">
                             <x-category-icon :type="$category->icon" />
@@ -97,10 +26,78 @@
                         </button>
                     @endforeach
                 </div>
-                
                 @error('expense_category_id')
                     <span class="text-[11px] font-semibold text-rose-500 block mt-1">{{ $message }}</span>
                 @enderror
+            </div>
+
+            {{-- Row 2: Item Name + recent-item chips for the selected category --}}
+            <div class="space-y-1.5">
+                <label for="item_name" class="block text-xs font-bold text-slate-700">Item Name</label>
+                <input id="item_name" type="text" wire:model.live.debounce.500ms="item_name" placeholder="e.g., Chickenjoy Meal"
+                    class="w-full px-4 py-3 bg-slate-100/80 border-0 rounded-2xl text-slate-900 font-semibold text-sm placeholder-slate-400 focus:bg-white focus:ring-2 focus:ring-indigo-500 transition-all">
+                @error('item_name')
+                    <span class="text-[11px] font-semibold text-rose-500 block mt-1">{{ $message }}</span>
+                @enderror
+
+                @if($expense_category_id && $recentItems->isNotEmpty())
+                    <div class="flex flex-wrap gap-1.5 pt-1">
+                        @foreach($recentItems as $recent)
+                            <button type="button" wire:click="pickRecentItem('{{ addslashes($recent) }}')"
+                                class="px-2.5 py-1 text-[11px] font-semibold bg-slate-50 hover:bg-slate-100 text-slate-500 border border-slate-200 rounded-lg transition-colors">
+                                {{ $recent }}
+                            </button>
+                        @endforeach
+                    </div>
+                @endif
+
+                {{-- Mismatch nudge --}}
+                @if($suggestedCategoryId)
+                    <div class="mt-2 p-3 bg-amber-50 border border-amber-100 rounded-2xl flex items-start gap-2.5">
+                        <svg class="w-4 h-4 text-amber-600 shrink-0 mt-0.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"/>
+                        </svg>
+                        <div class="flex-1 space-y-1.5">
+                            <p class="text-[11px] font-semibold text-amber-800 leading-snug">
+                                You usually log "{{ $item_name }}" under <span class="font-bold">{{ $suggestedCategoryName }}</span>. Switch category?
+                            </p>
+                            <div class="flex items-center gap-2">
+                                <button type="button" wire:click="acceptSuggestedCategory"
+                                    class="px-2.5 py-1 text-[10px] font-bold text-amber-800 bg-amber-100 hover:bg-amber-200 rounded-lg transition-colors">
+                                    Use {{ $suggestedCategoryName }}
+                                </button>
+                                <button type="button" wire:click="dismissSuggestion"
+                                    class="px-2.5 py-1 text-[10px] font-bold text-slate-500 hover:text-slate-700 transition-colors">
+                                    Keep current
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                @endif
+            </div>
+
+            {{-- Row 3: Amount & Date --}}
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div class="space-y-1.5">
+                    <label for="amount" class="block text-xs font-bold text-slate-700">Amount</label>
+                    <div class="relative">
+                        <span class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-800 font-extrabold text-base">₱</span>
+                        <input id="amount" type="number" step="0.01" min="0" wire:model.defer="amount" placeholder="0.00"
+                            onblur="formatAmount(this)"
+                            class="w-full pl-9 pr-4 py-3 bg-slate-100/80 border-0 rounded-2xl text-slate-900 font-extrabold text-base placeholder-slate-400 focus:bg-white focus:ring-2 focus:ring-indigo-500 transition-all">
+                    </div>
+                    @error('amount')
+                        <span class="text-[11px] font-semibold text-rose-500 block mt-1">{{ $message }}</span>
+                    @enderror
+                </div>
+                <div class="space-y-1.5">
+                    <label for="transaction_date" class="block text-xs font-bold text-slate-700">Date</label>
+                    <input id="transaction_date" type="date" wire:model.defer="transaction_date"
+                        class="w-full px-4 py-3 bg-slate-100/80 border-0 rounded-2xl text-slate-800 font-semibold text-sm focus:bg-white focus:ring-2 focus:ring-indigo-500 transition-all">
+                    @error('transaction_date')
+                        <span class="text-[11px] font-semibold text-rose-500 block mt-1">{{ $message }}</span>
+                    @enderror
+                </div>
             </div>
 
             {{-- Session Ledger: only shows once something's been logged --}}

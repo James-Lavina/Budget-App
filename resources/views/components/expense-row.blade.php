@@ -1,15 +1,10 @@
-@props(['expense', 'showMerchant' => false, 'locked' => false])
-
+@props(['expense', 'locked' => false])
 @php
     $isSavings = !is_null($expense->savings_goal_id);
 @endphp
-
 <div class="py-3.5 sm:py-4 flex items-center justify-between gap-3 group hover:bg-slate-50/70 -mx-2 px-2 rounded-2xl transition-all {{ $locked ? 'opacity-70' : '' }}">
     <div class="flex items-center gap-3.5 min-w-0">
         <div class="h-10 w-10 sm:h-11 sm:w-11 rounded-2xl {{ $expense->icon_bg_color }} flex items-center justify-center shrink-0 shadow-xs">
-            {{-- Was a duplicated inline @switch; now reuses the single shared
-                 icon component so this row can never drift out of sync with
-                 the admin category picker again. --}}
             <x-category-icon :type="$expense->icon_type" class="w-5 h-5" />
         </div>
         <div class="min-w-0">
@@ -17,7 +12,7 @@
                 {{ $expense->item_name }}
             </h4>
             <p class="text-[11px] sm:text-xs text-slate-400 font-medium truncate mt-0.5 flex items-center gap-1.5 flex-wrap">
-                <span>{{ ucfirst($expense->category->name ?? 'General') }}{{ $showMerchant && $expense->merchant_name ? ' · ' . $expense->merchant_name : '' }} · {{ $expense->formatted_date }}</span>
+                <span>{{ ucfirst($expense->category->name ?? 'General') }} · {{ $expense->formatted_date }}</span>
                 @if($isSavings)
                     <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-[rgba(var(--brand-rgb),0.08)] text-[var(--brand)] text-[9px] font-bold uppercase tracking-wide shrink-0">
                         <svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
@@ -41,7 +36,7 @@
         <span class="font-bold text-xs sm:text-sm font-mono tracking-tight {{ $isSavings ? 'text-[var(--brand)]' : 'text-slate-900' }}">
             {{ $isSavings ? '' : '-' }}₱{{ number_format($expense->amount, 2) }}
         </span>
-        <div class="flex items-center gap-0.5 {{ $showMerchant ? '' : 'opacity-100 sm:opacity-0 sm:group-hover:opacity-100' }} transition-opacity">
+        <div class="flex items-center gap-0.5 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
             @if($locked)
                 <span class="p-1.5 text-slate-300 cursor-not-allowed" title="Locked — belongs to a previous budget cycle">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">

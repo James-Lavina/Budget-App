@@ -66,7 +66,6 @@ class SavingsGoalService
                 'expense_category_id' => $savingsCategory->id,
                 'savings_goal_id'     => $goal->id,
                 'item_name'           => $goal->target_name,
-                'merchant_name'       => 'Savings Goal',
                 'amount'              => $amount,
                 'transaction_date'    => now(),
                 'tracking_type'       => 'manual',

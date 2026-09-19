@@ -1,11 +1,13 @@
-<div class="bg-white rounded-3xl border border-slate-100 shadow-sm p-5 sm:p-6 w-full flex flex-col justify-between" wire:init="loadCategoryBreakdown">
-  
+<div class="bg-white rounded-3xl border border-slate-100 shadow-sm p-5 sm:p-6 w-full flex-1 h-full flex flex-col justify-start" wire:init="loadCategoryBreakdown">
+
     <!-- HEADER SECTION -->
     <div class="pb-2">
         <h3 class="text-sm font-extrabold text-slate-900">Expense Categories</h3>
+        <span class="text-[10px] text-slate-400 font-semibold">Where your money went this week</span>
     </div>
+
     @if(!$hasExpenses)
-        <div class="py-12 flex flex-col items-center justify-center text-center space-y-3">
+        <div class="flex-1 py-12 flex flex-col items-center justify-center text-center space-y-3">
             <div class="h-10 w-10 bg-slate-50 border border-slate-100 text-slate-400 rounded-xl flex items-center justify-center">
                 <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M11 3.055A9.003 9.003 0 1020.945 13H11V3.055z" />
@@ -20,7 +22,8 @@
             return strcmp($a['name'], $b['name']);
         });
     @endphp
-    <div class="flex flex-col gap-4">
+
+    <div class="flex-1 flex flex-col justify-center gap-4">
         <div class="py-2 flex items-center justify-center">
             <div class="relative h-44 w-44 mx-auto shrink-0" wire:ignore>
                 <canvas id="categoryDistributionChart"></canvas>
@@ -42,6 +45,7 @@
         </div>
     </div>
     @endif
+
     <style>
         .custom-dashboard-scrollbar::-webkit-scrollbar {
             width: 4px;
@@ -57,11 +61,12 @@
             background: #cbd5e1;
         }
     </style>
+
     <script>
         document.addEventListener('livewire:load', function () {
             const chartCanvas = document.getElementById('categoryDistributionChart');
             if (!chartCanvas) return;
-    
+
             const ctx = chartCanvas.getContext('2d');
             let categoryChart = new Chart(ctx, {
                 type: 'doughnut',
@@ -91,14 +96,14 @@
                     }
                 }
             });
-    
+
             window.addEventListener('updateCategoryChart', event => {
                 const sortedPairs = event.detail.labels.map((label, idx) => ({
                     label: label,
                     val: event.detail.values[idx],
                     color: (event.detail.colors && event.detail.colors[idx]) || '#94a3b8'
                 })).sort((a, b) => a.label.localeCompare(b.label));
-    
+
                 categoryChart.data.labels = sortedPairs.map(p => p.label);
                 categoryChart.data.datasets[0].data = sortedPairs.map(p => p.val);
                 categoryChart.data.datasets[0].backgroundColor = sortedPairs.map(p => p.color);
@@ -106,4 +111,4 @@
             });
         });
     </script>
- </div>
+</div>

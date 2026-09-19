@@ -125,7 +125,6 @@ class Dashboard extends Component
 
         $startingBudgetForRemainingDays = $this->currentBudget->remaining_allowance + $spentToday;
         $dailyQuota = $startingBudgetForRemainingDays / $this->daysRemaining;
-
         $this->dailyQuota = $dailyQuota;
         $this->safeToSpend = max(0.00, $dailyQuota - $spentToday);
     }
@@ -186,6 +185,7 @@ class Dashboard extends Component
 
             $riskService = app(RiskDetectionService::class);
             $riskService->evaluateSpendingRisk(auth()->user());
+
             // NEW: if this expense had triggered a large-transaction alert,
             // resolve it — the flagged purchase no longer exists.
             $riskService->resolveLargeTransactionAlert(auth()->user(), $expense->id);
@@ -212,7 +212,6 @@ class Dashboard extends Component
             ->whereDate('transaction_date', $today)
             ->whereNotNull('savings_goal_id')
             ->sum('amount');
-
         $hasSavingsToday = $todaySavingsTotal > 0;
 
         $totalSpent = Expense::where('user_id', auth()->id())
@@ -227,13 +226,12 @@ class Dashboard extends Component
 
         $dailyVelocity       = $totalSpent / $daysElapsed;
         $futureDaysRemaining = $cycle['daysRemaining'];
-        // Same last-day guard as SpendingForecastService — daysElapsed hits 7 on
-        // the cycle's final calendar day, at which point remaining_allowance IS
-        // the final number, not something to keep projecting a velocity against.
+
         $isFinalDay          = $daysElapsed >= 7;
         $projectedRemaining  = $isFinalDay
             ? (float) $this->currentBudget->remaining_allowance
             : max(0, $this->currentBudget->remaining_allowance - ($dailyVelocity * $futureDaysRemaining));
+
         $projectedDaysLeft   = $dailyVelocity > 0 ? ($this->currentBudget->remaining_allowance / $dailyVelocity) : $this->daysRemaining;
 
         $remainingDailyRate = $futureDaysRemaining > 0
@@ -249,9 +247,6 @@ class Dashboard extends Component
         $totalAllowance      = max(1, $cycle['effectiveTotalAllowance']);
         $remainingPercentage = round(($this->currentBudget->remaining_allowance / $totalAllowance) * 100);
 
-        // Single ranked state — drives both the forecast banner AND the
-        // Daily Safe-to-Spend card icon, so the two can never disagree.
-        // (if/elseif instead of match() — this project targets PHP 7.x via Laravel 8)
         if ($isDepleted) {
             $dashboardState = 'depleted';
         } elseif ($isPaceCritical) {
@@ -266,7 +261,6 @@ class Dashboard extends Component
             $dashboardState = 'on_track';
         }
 
-        // Week range for header pill, e.g. "Sep 14 – 20"
         if ($startDate->isSameMonth($endDate)) {
             $weekRangeLabel = $startDate->format('M j') . ' – ' . $endDate->format('j');
         } else {
@@ -286,8 +280,6 @@ class Dashboard extends Component
             $dailyCategoryBreakdown[$dateKey] = [];
         }
 
-        // Colors now come straight from each category's admin-configured color,
-        // converted to hex — no more alphabetical index-into-fixed-palette cycling.
         $categoriesInCycle = Expense::where('expenses.user_id', auth()->id())
             ->whereBetween('transaction_date', [$startDate, $endDate])
             ->join('expense_categories', 'expenses.expense_category_id', '=', 'expense_categories.id')
@@ -321,6 +313,12 @@ class Dashboard extends Component
                 unset($categoryTotalsMap[$catName]);
             }
         }
+
+        // NEW: the single largest non-savings category this cycle, for the
+        // hero card's "Biggest Category" stat. $categoryTotalsMap stays
+        // ordered by total_amount desc (savings already stripped above),
+        // so the first key is the winner. Null when nothing's been spent.
+        $biggestCategoryName = array_key_first($categoryTotalsMap);
 
         $cycleExpenses = Expense::with('category')
             ->where('user_id', auth()->id())
@@ -356,23 +354,34 @@ class Dashboard extends Component
         $chartCategories = array_keys($categoryTotalsMap);
         $chartColors     = [];
         foreach ($chartCategories as $cat) {
-            // Falls back to the admin's brand color instead of a hardcoded
-            // hex, so uncategorized/legacy-color chart bars stay on-brand.
             $chartColors[] = $categoryColorMap[$cat] ?? $appSettings->primary_color;
         }
 
-        // Rollover must be measured against the true starting pool
-        // (effectiveTotalAllowance, i.e. $totalAllowance above), the same
-        // number already driving "Total Available This Week" — otherwise
-        // this footer drifts from that headline by whatever has been spent
-        // or saved so far this cycle.
         $rolloverAmount = max(0, $totalAllowance - $this->currentBudget->total_allowance);
+
+        // NEW: aggregate savings-goal figures for the "Savings Progress"
+        // card. Achieved goals count toward the saved total and percentage
+        // (a completed goal is still "money saved"), but not toward the
+        // active goal count shown next to it, matching the mockup's
+        // "4 goals · ₱2,850 saved" phrasing (goal count = still-active
+        // targets, saved total = everything banked so far).
+        $savingsGoalsForTotals = SavingsGoal::where('user_id', auth()->id())
+            ->whereIn('status', ['active', 'achieved'])
+            ->get();
+
+        $savingsGoalsCount   = SavingsGoal::where('user_id', auth()->id())->where('status', 'active')->count();
+        $totalSavingsSaved   = (float) $savingsGoalsForTotals->sum('current_saved');
+        $totalSavingsTarget  = (float) $savingsGoalsForTotals->sum('target_amount');
+        $savingsProgressPercent = $totalSavingsTarget > 0
+            ? min(100, round(($totalSavingsSaved / $totalSavingsTarget) * 100))
+            : 0;
 
         return view('livewire.student.dashboard', [
             'appSettings'            => $appSettings,
             'recentExpenses'         => $recentExpenses,
             'cycleStart'             => $startDate,
             'cycleEnd'               => $endDate,
+            'nextResetDate'          => $nextResetDate,
             'rolloverAmount'         => $rolloverAmount,
             'totalSpent'             => $totalSpent,
             'hasNoSpendingYet'       => $hasNoSpendingYet,
@@ -392,6 +401,10 @@ class Dashboard extends Component
             'weeklyAllowanceDisplay' => $totalAllowance,
             'dashboardState'         => $dashboardState,
             'weekRangeLabel'         => $weekRangeLabel,
+            'biggestCategoryName'    => $biggestCategoryName,
+            'savingsGoalsCount'      => $savingsGoalsCount,
+            'totalSavingsSaved'      => $totalSavingsSaved,
+            'savingsProgressPercent' => $savingsProgressPercent,
             'daysOfWeek'             => $daysOfWeek,
             'categoryColorMap'       => $categoryColorMap,
             'categoryTotalsMap'      => $categoryTotalsMap,

@@ -11,32 +11,17 @@
 
         <!-- Edit Expense Form Card -->
         <form wire:submit.prevent="updateExpense" class="bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-slate-100 space-y-6">
-            
-            <!-- Row 1: Store/Merchant & Item Name -->
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <!-- Store / Merchant (optional) -->
-                <div class="space-y-1.5">
-                    <label for="merchant_name" class="block text-xs font-bold text-slate-700">
-                        Store / Merchant <span class="font-normal text-slate-400">(optional)</span>
-                    </label>
-                    <input id="merchant_name" type="text" wire:model.defer="merchant_name" placeholder="e.g., Jollibee"
-                        class="w-full px-4 py-3 bg-slate-100/80 border-0 rounded-2xl text-slate-900 font-semibold text-sm placeholder-slate-400 focus:bg-white focus:ring-2 focus:ring-indigo-500 transition-all">
-                    @error('merchant_name')
-                        <span class="text-[11px] font-semibold text-rose-500 block mt-1">{{ $message }}</span>
-                    @enderror
-                </div>
 
-                <!-- Item Name -->
-                <div class="space-y-1.5">
-                    <label for="item_name" class="block text-xs font-bold text-slate-700">
-                        Item Name
-                    </label>
-                    <input id="item_name" type="text" wire:model.defer="item_name" placeholder="e.g., Chickenjoy Meal"
-                        class="w-full px-4 py-3 bg-slate-100/80 border-0 rounded-2xl text-slate-900 font-semibold text-sm placeholder-slate-400 focus:bg-white focus:ring-2 focus:ring-indigo-500 transition-all">
-                    @error('item_name')
-                        <span class="text-[11px] font-semibold text-rose-500 block mt-1">{{ $message }}</span>
-                    @enderror
-                </div>
+            <!-- Row 1: Item Name -->
+            <div class="space-y-1.5">
+                <label for="item_name" class="block text-xs font-bold text-slate-700">
+                    Item Name
+                </label>
+                <input id="item_name" type="text" wire:model.defer="item_name" placeholder="e.g., Chickenjoy Meal"
+                    class="w-full px-4 py-3 bg-slate-100/80 border-0 rounded-2xl text-slate-900 font-semibold text-sm placeholder-slate-400 focus:bg-white focus:ring-2 focus:ring-indigo-500 transition-all">
+                @error('item_name')
+                    <span class="text-[11px] font-semibold text-rose-500 block mt-1">{{ $message }}</span>
+                @enderror
             </div>
 
             <!-- Row 2: Amount & Date -->
@@ -50,7 +35,8 @@
                         <span class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-800 font-extrabold text-base">
                             ₱
                         </span>
-                        <input id="amount" type="number" step="1" wire:model.defer="amount" placeholder="0.00"
+                        <input id="amount" type="number" step="0.01" min="0" wire:model.defer="amount" placeholder="0.00"
+                            onblur="formatAmount(this)"
                             class="w-full pl-9 pr-4 py-3 bg-slate-100/80 border-0 rounded-2xl text-slate-900 font-extrabold text-base placeholder-slate-400 focus:bg-white focus:ring-2 focus:ring-indigo-500 transition-all">
                     </div>
                     @error('amount')
@@ -76,7 +62,7 @@
                 <label class="block text-xs font-bold text-slate-700">
                     Category
                 </label>
-            
+
                 @if($isSavingsLinked)
                     <div class="flex items-center gap-2 px-4 py-2.5 bg-indigo-50/70 border border-indigo-100 rounded-2xl text-xs font-bold text-indigo-700 w-fit">
                         <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
@@ -97,7 +83,7 @@
                         @endforeach
                     </div>
                 @endif
-            
+
                 @error('expense_category_id')
                     <span class="text-[11px] font-semibold text-rose-500 block mt-1">{{ $message }}</span>
                 @enderror
@@ -120,3 +106,14 @@
 
     </div>
 </div>
+
+<script>
+    function formatAmount(input) {
+        if (input.value !== '') {
+            input.value = parseFloat(input.value).toFixed(2);
+
+            // Keep Livewire updated
+            input.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+    }
+</script>

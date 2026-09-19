@@ -37,7 +37,6 @@ class SeedTestWeek extends Command
     public function handle()
     {
         $email = $this->argument('email');
-
         $user = $email
             ? User::where('email', $email)->first()
             : User::where('role', 'student')->first();
@@ -135,16 +134,13 @@ class SeedTestWeek extends Command
                 Expense::create([
                     'user_id'             => $user->id,
                     'expense_category_id' => $category->id,
-                    'merchant_name'       => null,
                     'item_name'           => $name,
                     'amount'              => $amount,
                     'transaction_date'    => $date->copy()->setTime(rand(7, 20), rand(0, 59)),
                     'tracking_type'       => 'manual',
                 ]);
-
                 $newlySeeded += $amount;
             }
-
             $this->info("{$dayNames[$i]} ({$date->format('Y-m-d')}): {$count} expenses seeded.");
         }
 
@@ -171,7 +167,6 @@ class SeedTestWeek extends Command
             } else {
                 // No name given - use the user's existing active goal if they have one, else make a generic test goal.
                 $goal = SavingsGoal::where('user_id', $user->id)->where('status', 'active')->latest()->first();
-
                 if (!$goal) {
                     $goal = SavingsGoal::create([
                         'user_id'       => $user->id,
@@ -201,7 +196,6 @@ class SeedTestWeek extends Command
                 'expense_category_id' => $savingsCategory->id,
                 'savings_goal_id'     => $goal->id,
                 'item_name'           => $goal->target_name,
-                'merchant_name'       => 'Savings Goal',
                 'amount'              => $savingsAmount,
                 'transaction_date'    => $contributionDate,
                 'tracking_type'       => 'manual',
@@ -218,7 +212,6 @@ class SeedTestWeek extends Command
         }
 
         $totalSpent = $preExistingSpent + $newlySeeded + $savingsSeeded;
-
         $budget->update([
             'remaining_allowance' => max(0, $totalAllowance - $totalSpent),
         ]);

@@ -56,12 +56,9 @@ class AllExpenses extends Component
     {
         return Expense::where('user_id', auth()->id())
             ->with('category')
-            // Group the OR conditions strictly to prevent SQL precedence errors
+            // Item-name-only search now that merchant_name no longer exists.
             ->when(filled($this->search), function ($q) {
-                $q->where(function ($sub) {
-                    $sub->where('item_name', 'like', '%' . trim($this->search) . '%')
-                        ->orWhere('merchant_name', 'like', '%' . trim($this->search) . '%');
-                });
+                $q->where('item_name', 'like', '%' . trim($this->search) . '%');
             })
             // Target the actual foreign key column 'expense_category_id'
             ->when(filled($this->selectedCategory), function ($q) {

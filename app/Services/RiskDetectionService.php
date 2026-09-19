@@ -323,7 +323,7 @@ class RiskDetectionService
         }
 
         //4. Category concentration check — independent of velocity checks above
-        $this->checkCategoryConcentration($user, $cycleStartDate, $cycleEndDate);
+        $this->checkCategoryConcentration($user, $cycleStartDate, $cycleEndDate, $actualStartingPool);
 
         //5. Rapid spending check — independent of the checks above
         $this->checkRapidSpending($user, $spentTodayDate);
@@ -348,7 +348,7 @@ class RiskDetectionService
      * distinct from RiskDetectionService's existing velocity-based checks,
      * which only look at overall pace, not where the money is going.
      */
-    private function checkCategoryConcentration($user, $cycleStartDate, $cycleEndDate)
+    private function checkCategoryConcentration($user, $cycleStartDate, $cycleEndDate, $startingPool)
     {
         $totalSpent = Expense::where('user_id', $user->id)
             ->whereBetween('transaction_date', [$cycleStartDate, $cycleEndDate])
@@ -361,8 +361,8 @@ class RiskDetectionService
         $categoryTotals = null;
         $percentage = 0;
 
-        // Skip early in the cycle — not enough data for a meaningful signal yet.
-        if ($totalSpent >= 200) {
+        // Only meaningful once at least 30% of the cycle's pool has been spent.
+        if ($totalSpent >= 200 && $startingPool > 0 && ($totalSpent / $startingPool) >= 0.30) {
             $categoryTotals = Expense::where('expenses.user_id', $user->id)
                 ->whereBetween('transaction_date', [$cycleStartDate, $cycleEndDate])
                 ->whereNull('savings_goal_id')
@@ -395,7 +395,8 @@ class RiskDetectionService
                     $user->notify(new \App\Notifications\CategoryConcentrationWarning(
                         $categoryTotals->name,
                         $percentage,
-                        (float) $categoryTotals->total
+                        (float) $categoryTotals->total,
+                        (float) $totalSpent
                     ));
                 } catch (\Throwable $e) {
                     \Log::warning('Email notification failed (possibly offline): ' . $e->getMessage());

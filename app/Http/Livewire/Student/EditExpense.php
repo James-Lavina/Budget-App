@@ -17,7 +17,6 @@ class EditExpense extends Component
 {
     public $expenseId;
     public $expense_category_id;
-    public $merchant_name;
     public $item_name;
     public $amount;
     public $transaction_date;
@@ -28,7 +27,6 @@ class EditExpense extends Component
         'item_name' => 'required|string|max:255',
         'amount' => 'required|numeric|min:0.01|max:999999',
         'transaction_date' => 'required|date|before_or_equal:today',
-        'merchant_name' => 'nullable|string|max:255',
     ];
 
     public function mount($id)
@@ -51,7 +49,6 @@ class EditExpense extends Component
         $this->expense_category_id = $expense->expense_category_id;
         $this->item_name = $expense->item_name;
         $this->amount = $expense->amount;
-        $this->merchant_name = $expense->merchant_name;
         $this->transaction_date = Carbon::parse($expense->transaction_date)->format('Y-m-d');
         $this->isSavingsLinked = !is_null($expense->savings_goal_id);
     }
@@ -80,8 +77,8 @@ class EditExpense extends Component
 
         $oldAmount = (float) $expense->amount;
         $newAmount = (float) $this->amount;
-
         $availableForThisExpense = (float) $currentBudget->remaining_allowance + $oldAmount;
+
         if ($newAmount > $availableForThisExpense) {
             $this->addError('amount', 'Insufficient allowance. You only have ₱' . number_format($availableForThisExpense, 2) . ' available for this transaction.');
             return;
@@ -108,12 +105,10 @@ class EditExpense extends Component
                     if ($newSaved < 0) {
                         $newSaved = 0.00;
                     }
-
                     $isAchieved = $newSaved >= $goal->target_amount && $goal->target_amount > 0;
                     if ($isAchieved) {
                         $newSaved = $goal->target_amount;
                     }
-
                     $goal->update([
                         'current_saved' => $newSaved,
                         'status' => $isAchieved
@@ -125,7 +120,6 @@ class EditExpense extends Component
 
             $expense->update([
                 'expense_category_id' => $categoryIdToSave,
-                'merchant_name' => $this->merchant_name ?: null,
                 'item_name' => $this->item_name,
                 'amount' => $this->amount,
                 'transaction_date' => $this->transaction_date . ' ' . Carbon::now()->format('H:i:s'),

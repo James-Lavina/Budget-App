@@ -38,7 +38,7 @@
 
                                 @if ($receiptImage)
                                     @php
-                                        // NEW: temporaryUrl() throws League\Flysystem\FileNotFoundException
+                                        // temporaryUrl() throws League\Flysystem\FileNotFoundException
                                         // if the underlying livewire-tmp file has expired, been cleaned up,
                                         // or was invalidated by an APP_KEY rotation — and it throws during
                                         // Blade compilation, bypassing any try/catch in the component. Guard
@@ -143,28 +143,27 @@
                     </div>
                 </div>
 
+                {{-- Backup OCR notice --}}
+                @if($usedBackupOcr)
+                    <div class="p-4 bg-amber-50 border border-amber-100 rounded-2xl text-amber-800 text-xs font-bold flex items-start gap-2">
+                        <svg class="w-4 h-4 text-amber-600 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                        </svg>
+                        <span>Our AI receipt reader couldn't process this receipt, so basic text recognition (OCR) was used instead. It's less accurate at matching items, prices and categories, so please review everything before saving.</span>
+                    </div>
+                @endif
+
                 {{-- Expense Form Card --}}
                 <form wire:submit.prevent="saveVerifiedExpense" class="bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-slate-100 space-y-6">
-                    {{-- Row 1: Store/Merchant & Date --}}
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div class="space-y-1.5">
-                            <label class="block text-xs font-bold text-slate-700">
-                                Store / Merchant <span class="font-normal text-slate-400">(optional)</span>
-                            </label>
-                            <input type="text" wire:model.defer="merchant_name" placeholder="e.g., Jollibee"
-                                class="w-full px-4 py-3 bg-slate-100/80 border-0 rounded-2xl text-slate-900 font-semibold text-sm placeholder-slate-400 focus:bg-white focus:ring-2 focus:ring-indigo-500 transition-all">
-                            @error('merchant_name')
-                                <span class="text-[11px] font-semibold text-rose-500 block mt-1">{{ $message }}</span>
-                            @enderror
-                        </div>
-                        <div class="space-y-1.5">
-                            <label class="block text-xs font-bold text-slate-700">Date</label>
-                            <input type="date" wire:model.defer="transaction_date"
-                                class="w-full px-4 py-3 bg-slate-100/80 border-0 rounded-2xl text-slate-800 font-semibold text-sm focus:bg-white focus:ring-2 focus:ring-indigo-500 transition-all">
-                            @error('transaction_date')
-                                <span class="text-[11px] font-semibold text-rose-500 block mt-1">{{ $message }}</span>
-                            @enderror
-                        </div>
+
+                    {{-- Row 1: Date --}}
+                    <div class="space-y-1.5">
+                        <label class="block text-xs font-bold text-slate-700">Date</label>
+                        <input type="date" wire:model.defer="transaction_date"
+                            class="w-full px-4 py-3 bg-slate-100/80 border-0 rounded-2xl text-slate-800 font-semibold text-sm focus:bg-white focus:ring-2 focus:ring-indigo-500 transition-all">
+                        @error('transaction_date')
+                            <span class="text-[11px] font-semibold text-rose-500 block mt-1">{{ $message }}</span>
+                        @enderror
                     </div>
 
                     {{-- Row 2: Items --}}
