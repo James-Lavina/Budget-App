@@ -1,376 +1,287 @@
-<div class="min-h-screen py-8 px-4 sm:px-6 lg:px-8 font-sans">
-    <div class="max-w-7xl mx-auto space-y-6">
-        
-        <!-- Header Section -->
-        <div class="border-b border-slate-200/60 pb-5">
-            <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                <div>
-                    <div class="flex items-center gap-2.5">
-                        <h1 class="text-2xl font-black text-slate-900 tracking-tight">Purchase Simulator</h1>
-                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 text-indigo-700 ring-1 ring-indigo-700/10 uppercase tracking-wider">
-                            Interactive Test
-                        </span>
+@php
+    $riskStyles = [
+        'low' => [
+            'label'   => 'Low Risk',
+            'badge'   => 'bg-emerald-50 text-emerald-700 border-emerald-100',
+            'text'    => 'text-emerald-600',
+            'bar'     => 'bg-emerald-500',
+            'callout' => 'border-l-emerald-500',
+            'icon'    => 'text-emerald-500',
+        ],
+        'medium' => [
+            'label'   => 'Medium Risk',
+            'badge'   => 'bg-amber-50 text-amber-700 border-amber-100',
+            'text'    => 'text-amber-600',
+            'bar'     => 'bg-amber-400',
+            'callout' => 'border-l-amber-400',
+            'icon'    => 'text-amber-500',
+        ],
+        'high' => [
+            'label'   => 'High Risk',
+            'badge'   => 'bg-rose-50 text-rose-700 border-rose-100',
+            'text'    => 'text-rose-600',
+            'bar'     => 'bg-rose-500',
+            'callout' => 'border-l-rose-500',
+            'icon'    => 'text-rose-500',
+        ],
+    ];
+    $risk = $riskStyles[$riskLevel] ?? $riskStyles['low'];
+
+    // Shared neutral icon chip for every card
+    $chip = 'bg-slate-100 text-slate-500';
+@endphp
+
+<div class="min-h-screen py-6 sm:py-8 px-3.5 sm:px-6 lg:px-8 font-sans">
+    <div class="max-w-4xl mx-auto space-y-5 sm:space-y-6">
+
+        {{-- Header --}}
+        <div>
+            <h1 class="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">Purchase Simulator</h1>
+            <p class="text-xs sm:text-sm text-slate-500 font-medium mt-1">
+                See how a planned purchase could affect your weekly budget.
+            </p>
+        </div>
+
+        @if(!$hasBudget)
+            <div class="bg-white rounded-3xl border border-slate-100 shadow-sm p-8 text-center space-y-3">
+                <p class="text-sm font-bold text-slate-800">Set up your weekly budget first</p>
+                <p class="text-xs text-slate-500 font-medium">The simulator needs an active budget to compare against.</p>
+                <a href="{{ route('student.budget-setup') }}" class="inline-flex px-5 py-2.5 rounded-2xl bg-[var(--brand)] text-white text-xs font-bold hover:opacity-90 transition">
+                    Set up budget
+                </a>
+            </div>
+        @else
+
+            {{-- Overview cards --}}
+            <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+                <div class="bg-white rounded-2xl sm:rounded-3xl border border-slate-100 shadow-sm p-4 sm:p-5 flex flex-col justify-between min-w-0">
+                    <div class="flex items-center justify-between gap-3">
+                        <span class="text-[11px] sm:text-xs font-semibold text-slate-500">Weekly Allowance</span>
+                        <div class="h-7 w-7 rounded-lg {{ $chip }} flex items-center justify-center shrink-0">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 10h18M7 15h1m4 0h1m-7 4h12a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+                        </div>
                     </div>
-                    <p class="text-xs text-slate-500 font-medium mt-1">
-                        Simulate potential purchases to view real-time impacts on your daily allowance before spending.
+                    <div class="text-lg sm:text-xl font-black text-slate-900 font-mono mt-4 whitespace-nowrap">₱{{ number_format($weeklyAllowance, 2) }}</div>
+                </div>
+
+                <div class="bg-white rounded-2xl sm:rounded-3xl border border-slate-100 shadow-sm p-4 sm:p-5 flex flex-col justify-between min-w-0">
+                    <div class="flex items-center justify-between gap-3">
+                        <span class="text-[11px] sm:text-xs font-semibold text-slate-500">Remaining Budget</span>
+                        <div class="h-7 w-7 rounded-lg {{ $chip }} flex items-center justify-center shrink-0">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                        </div>
+                    </div>
+                    <div class="text-lg sm:text-xl font-black text-slate-900 font-mono mt-4 whitespace-nowrap">₱{{ number_format($remainingBudget, 2) }}</div>
+                </div>
+
+                <div class="bg-white rounded-2xl sm:rounded-3xl border border-slate-100 shadow-sm p-4 sm:p-5 flex flex-col justify-between min-w-0">
+                    <div class="flex items-center justify-between gap-3">
+                        <span class="text-[11px] sm:text-xs font-semibold text-slate-500">Days Left</span>
+                        <div class="h-7 w-7 rounded-lg {{ $chip }} flex items-center justify-center shrink-0">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                        </div>
+                    </div>
+                    <div class="text-lg sm:text-xl font-black text-slate-900 font-mono mt-4 whitespace-nowrap">
+                        {{ $daysRemaining === 1 ? 'Last day' : $daysRemaining }}
+                    </div>
+                </div>
+
+                {{-- Daily Safe-to-Spend --}}
+                <div class="bg-white rounded-2xl sm:rounded-3xl border border-slate-100 shadow-sm p-4 sm:p-5 flex flex-col justify-between min-w-0">
+                    <div class="flex items-center justify-between gap-3">
+                        <span class="text-[11px] sm:text-xs font-semibold text-slate-500">Daily Safe-to-Spend</span>
+                        <div class="h-7 w-7 rounded-lg {{ $chip }} flex items-center justify-center shrink-0">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
+                            </svg>
+                        </div>
+                    </div>
+                    <div class="mt-4 flex items-baseline flex-wrap gap-x-2 gap-y-1">
+                        <span class="text-lg sm:text-xl font-black text-slate-900 font-mono whitespace-nowrap">₱{{ number_format($currentDailyQuota, 2) }}</span>
+                        <span class="text-slate-300 font-bold">/</span>
+                        <span class="text-sm sm:text-base font-bold text-slate-500 font-mono whitespace-nowrap">₱{{ number_format($spentToday, 2) }}</span>
+                    </div>
+                </div>
+            </div>
+
+            {{-- Form --}}
+            <form wire:submit.prevent="simulate" class="bg-white rounded-3xl border border-slate-100 shadow-sm p-5 sm:p-6 space-y-5">
+                <div class="grid grid-cols-1 sm:grid-cols-5 gap-4">
+                    <div class="sm:col-span-3 space-y-1.5">
+                        <label for="itemName" class="block text-xs font-bold text-slate-700">Planned Purchase</label>
+                        <input id="itemName" type="text" wire:model.defer="itemName"
+                            placeholder="Item name — e.g. New Shoes"
+                            class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-slate-900 font-semibold text-sm placeholder-slate-400 focus:bg-white focus:border-[var(--brand)] focus:ring-2 focus:ring-[rgba(var(--brand-rgb),0.2)] focus:outline-none transition-all">
+                        @error('itemName') <span class="text-[11px] font-semibold text-rose-500 block">{{ $message }}</span> @enderror
+                    </div>
+
+                    <div class="sm:col-span-2 space-y-1.5">
+                        <label for="purchaseAmount" class="block text-xs font-bold text-slate-700">Amount</label>
+                        <div class="relative">
+                            <span class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-400 font-extrabold text-sm">₱</span>
+                            <input id="purchaseAmount" type="text" inputmode="decimal" wire:model.defer="purchaseAmount"
+                                placeholder="0.00"
+                                onblur="formatSimulatorAmount(this)"
+                                class="w-full pl-9 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-slate-900 font-extrabold font-mono text-sm placeholder-slate-400 focus:bg-white focus:border-[var(--brand)] focus:ring-2 focus:ring-[rgba(var(--brand-rgb),0.2)] focus:outline-none transition-all">
+                        </div>
+                        @error('purchaseAmount') <span class="text-[11px] font-semibold text-rose-500 block">{{ $message }}</span> @enderror
+                    </div>
+                </div>
+
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <button type="submit" wire:loading.attr="disabled" wire:target="simulate,applyPreset"
+                        class="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-2xl bg-[var(--brand)] hover:opacity-90 active:scale-[0.98] text-white text-xs font-bold shadow-md shadow-[0_4px_12px_-2px_rgba(var(--brand-rgb),0.35)] transition-all disabled:opacity-60 self-start">
+                        <svg wire:loading.remove wire:target="simulate,applyPreset" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>
+                        <svg wire:loading wire:target="simulate,applyPreset" class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg>
+                        <span wire:loading.remove wire:target="simulate,applyPreset">Simulate Purchase</span>
+                        <span wire:loading wire:target="simulate,applyPreset">Simulating...</span>
+                    </button>
+
+                    <div class="flex flex-wrap items-center gap-2">
+                        <span class="text-[11px] font-bold text-slate-400">Quick picks:</span>
+                        <button type="button" wire:click="applyPreset(50, 'Milk Tea')" class="px-3 py-1.5 text-[11px] font-bold rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors">₱50 Milk Tea</button>
+                        <button type="button" wire:click="applyPreset(150, 'Campus Lunch')" class="px-3 py-1.5 text-[11px] font-bold rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors">₱150 Lunch</button>
+                        <button type="button" wire:click="applyPreset(500, 'Textbooks')" class="px-3 py-1.5 text-[11px] font-bold rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors">₱500 Books</button>
+                    </div>
+                </div>
+            </form>
+
+            {{-- Result / Empty state --}}
+            @if(!$hasSimulated)
+                <div class="bg-white rounded-3xl border border-slate-100 shadow-sm py-14 px-6 flex flex-col items-center text-center space-y-3">
+                    <div class="h-12 w-12 rounded-2xl {{ $chip }} flex items-center justify-center">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>
+                    </div>
+                    <h3 class="text-sm font-extrabold text-slate-800">Before you spend, check the impact</h3>
+                    <p class="text-xs text-slate-500 font-medium max-w-xs leading-relaxed">
+                        Enter an item and amount above, then simulate to see your budget after the purchase.
                     </p>
                 </div>
-                @if($purchaseAmount)
-                    <button 
-                        wire:click="resetSimulation" 
-                        type="button"
-                        class="px-3.5 py-2 text-xs font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition-all flex items-center gap-1.5 self-start md:self-auto"
-                    >
-                        <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
-                        <span>Reset Simulation</span>
-                    </button>
-                @endif
-            </div>
-        </div>
+            @else
+                <div class="bg-white rounded-3xl border border-slate-100 shadow-sm p-5 sm:p-6 space-y-5">
 
-        <!-- Onboarding Strip: always visible, orients any first-time visitor instantly -->
-        <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-4 sm:p-5 flex flex-col sm:flex-row items-stretch sm:items-center gap-4 sm:gap-6 divide-y sm:divide-y-0 sm:divide-x divide-slate-100">
-            <div class="flex items-center gap-3 flex-1 pt-3 sm:pt-0">
-                <span class="h-7 w-7 rounded-full bg-indigo-600 text-white text-xs font-black flex items-center justify-center shrink-0">1</span>
-                <p class="text-xs font-semibold text-slate-600">Pick a preset or type a price</p>
-            </div>
-            <div class="flex items-center gap-3 flex-1 pt-3 sm:pt-0 sm:pl-6">
-                <span class="h-7 w-7 rounded-full bg-indigo-600 text-white text-xs font-black flex items-center justify-center shrink-0">2</span>
-                <p class="text-xs font-semibold text-slate-600">See it hit your daily budget instantly</p>
-            </div>
-            <div class="flex items-center gap-3 flex-1 pt-3 sm:pt-0 sm:pl-6">
-                <span class="h-7 w-7 rounded-full bg-indigo-600 text-white text-xs font-black flex items-center justify-center shrink-0">3</span>
-                <p class="text-xs font-semibold text-slate-600">Decide before you actually buy it</p>
-            </div>
-        </div>
-
-        <div class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-         
-            <!-- Left Panel: Input Controls & Presets -->
-            <div class="lg:col-span-5 bg-white rounded-3xl p-6 shadow-sm border border-slate-100 space-y-5 lg:sticky lg:top-8 z-10">
-                <div class="flex items-center justify-between border-b border-slate-100 pb-3">
-                    <h3 class="text-xs font-extrabold text-slate-800 uppercase tracking-wider">Simulated Item Details</h3>
-                    <span class="text-[10px] text-indigo-600 font-bold bg-indigo-50 px-2 py-0.5 rounded-md">Live Calculation</span>
-                </div>
-            
-                <!-- Quick Presets: MOVED to top, framed as the fast path -->
-                <div>
-                    <label class="flex items-center gap-1.5 text-[11px] font-bold text-slate-500 mb-2">
-                        <svg class="w-3.5 h-3.5 text-amber-500" fill="currentColor" viewBox="0 0 20 20"><path d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z"/></svg>
-                        Tap one to try it instantly
-                    </label>
-                    <div class="flex flex-wrap gap-2">
-                        <button type="button" wire:click="applyPreset(50, 'Milk Tea')"
-                            class="px-3 py-2 text-xs font-bold bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-100 rounded-xl transition-all">
-                            +₱50 Milk Tea
-                        </button>
-                        <button type="button" wire:click="applyPreset(150, 'Campus Lunch')"
-                            class="px-3 py-2 text-xs font-bold bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-100 rounded-xl transition-all">
-                            +₱150 Lunch
-                        </button>
-                        <button type="button" wire:click="applyPreset(500, 'Textbooks')"
-                            class="px-3 py-2 text-xs font-bold bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-100 rounded-xl transition-all">
-                            +₱500 Books
-                        </button>
-                    </div>
-                </div>
-            
-                <div class="relative flex items-center py-1">
-                    <div class="flex-grow border-t border-slate-100"></div>
-                    <span class="mx-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider">or enter your own</span>
-                    <div class="flex-grow border-t border-slate-100"></div>
-                </div>
-            
-                <!-- Input: Item Name -->
-                <div class="space-y-1.5">
-                    <label for="itemName" class="block text-xs font-bold text-slate-700">What do you want to buy?</label>
-                    <div class="relative">
-                        <span class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
-                            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M9.568 3H5.25A2.25 2.25 0 003 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581a1.442 1.442 0 002.04 0l4.318-4.318a1.442 1.442 0 000-2.04l-9.581-9.581a2.25 2.25 0 00-1.591-.659z" />
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M6 6h.008v.008H6V6z" />
-                            </svg>
-                        </span>
-                        <input id="itemName" type="text" wire:model.lazy="itemName"
-                            placeholder="e.g., Campus Coffee, Books"
-                            class="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200/80 rounded-2xl text-slate-900 font-semibold text-xs placeholder-slate-400 focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all outline-none">
-                    </div>
-                </div>
-            
-                <!-- Input: Cost -->
-                <div class="space-y-1.5">
-                    <div class="flex items-center justify-between">
-                        <label for="purchaseAmount" class="block text-xs font-bold text-slate-700">Estimated Cost (₱)</label>
-                        <span class="text-[10px] font-semibold text-slate-400">
-                            Max ₱{{ number_format($purchaseCeiling, 0) }}
-                        </span>
-                    </div>
-                    <div class="relative">
-                        <span class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-800 font-extrabold text-sm">₱</span>
-                        <input
-                            id="purchaseAmount"
-                            type="text"
-                            inputmode="decimal"
-                            wire:model.lazy="purchaseAmount"
-                            placeholder="0.00"
-                            max="{{ $purchaseCeiling }}"
-                            onblur="formatPurchaseAmount(this)"
-                            class="w-full pl-9 pr-4 py-2.5 bg-slate-50 border border-slate-200/80 rounded-2xl text-slate-900 font-extrabold text-sm placeholder-slate-400 focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all font-mono outline-none">
-                    </div>
-                    @error('purchaseAmount')
-                        <span class="text-[11px] font-semibold text-rose-500 block mt-1">{{ $message }}</span>
-                    @enderror
-
-                    {{-- NEW: soft warning nudge before the user hits the hard validation error --}}
-                    @if($purchaseAmount && is_numeric($purchaseAmount) && floatval($purchaseAmount) > ($purchaseCeiling * 0.8) && floatval($purchaseAmount) <= $purchaseCeiling)
-                        <p class="text-[10px] font-semibold text-amber-600 flex items-center gap-1 mt-1">
-                            <svg class="w-3 h-3 shrink-0" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"/>
-                            </svg>
-                            Approaching the simulation limit of ₱{{ number_format($purchaseCeiling, 0) }}.
-                        </p>
-                    @endif
-                </div>
-            </div>
-
-            <!-- Right Panel: Predictive Output & Analysis -->
-            <div class="lg:col-span-7 space-y-5">
-
-                @if(!$purchaseAmount || floatval($purchaseAmount) <= 0)
-                    <!-- EMPTY STATE: shown until the user picks a preset or types an amount -->
-                    <div class="bg-white border-2 border-dashed border-slate-200 rounded-3xl p-10 sm:p-14 flex flex-col items-center justify-center text-center space-y-4 min-h-[420px]">
-                        <div class="h-14 w-14 bg-indigo-50 rounded-2xl flex items-center justify-center text-indigo-400 animate-bounce">
-                            <svg class="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-                            </svg>
-                        </div>
-                        <div class="space-y-1.5 max-w-xs">
-                            <h3 class="text-sm font-extrabold text-slate-800">Your simulation will appear here</h3>
-                            <p class="text-xs text-slate-500 font-medium leading-relaxed">
-                                Tap a preset or type an item's price on the left — this panel updates instantly, before you spend a single peso.
+                    {{-- Result header --}}
+                    <div class="flex items-start justify-between gap-3">
+                        <div class="min-w-0">
+                            <h3 class="text-base font-extrabold text-slate-900">After Purchase</h3>
+                            <p class="text-xs text-slate-400 font-medium truncate mt-0.5">
+                                {{ $simulatedItem }} · ₱{{ number_format($simulatedAmount, 2) }}
                             </p>
                         </div>
+                        <span class="shrink-0 inline-flex items-center gap-1.5 px-3 py-1 rounded-full border text-[11px] font-bold {{ $risk['badge'] }}">
+                            <span class="w-1.5 h-1.5 rounded-full {{ $risk['bar'] }}"></span>
+                            {{ $risk['label'] }}
+                        </span>
                     </div>
-                @else
-                    <!-- Metric Cards -->
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <!-- Baseline Daily Quota -->
-                        <div class="bg-white border border-slate-100 rounded-3xl p-5 shadow-sm flex items-center gap-4">
-                            <div class="h-11 w-11 bg-slate-50 border border-slate-100 text-slate-700 rounded-2xl flex items-center justify-center shrink-0">
-                                <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                </svg>
-                            </div>
-                            <div>
-                                <span class="flex items-center gap-1 text-[9px] text-slate-400 uppercase font-bold tracking-widest mb-0.5">
-                                    Current Safe-to-Spend
-                                    <span class="group relative">
-                                        <svg class="w-3 h-3 text-slate-300 cursor-help" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                                        <span class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-44 bg-slate-900 text-white text-[10px] font-medium rounded-lg px-2.5 py-2 opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-20 normal-case tracking-normal">
-                                            What you can spend per day and still finish the week without running out.
-                                        </span>
-                                    </span>
-                                </span>
-                                <span class="text-lg font-black text-slate-900 tracking-tight font-mono">
-                                    ₱{{ number_format($currentSafeToSpend, 2) }}<span class="text-xs text-slate-400 font-medium">/day</span>
-                                </span>
-                                <span class="text-[10px] text-slate-400 font-medium block mt-0.5">Active for <span class="font-bold text-slate-600">{{ $daysRemaining }} day(s)</span> left</span>
+
+                    {{-- Result stats --}}
+                    <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                        <div class="rounded-2xl border border-slate-100 p-4 flex flex-col justify-between min-w-0">
+                            <span class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">Remaining Budget</span>
+                            <div class="text-base sm:text-lg font-black font-mono mt-2 whitespace-nowrap {{ $isDeficit ? 'text-rose-600' : 'text-slate-900' }}">
+                                {{ $isDeficit ? '-' : '' }}₱{{ number_format(abs($newRemaining), 2) }}
                             </div>
                         </div>
-            
-                        <!-- Outcome Daily Quota Card -->
-                        @php $isWarningState = $isDeficit || $isCriticalZero; @endphp
-                        <div class="border rounded-3xl p-5 shadow-sm flex items-center gap-4 transition-all duration-300 {{ $isWarningState ? 'border-rose-200 bg-rose-50/40' : 'border-indigo-200/80 bg-indigo-50/30 ring-1 ring-indigo-500/10' }}">
-                            <div class="h-11 w-11 rounded-2xl flex items-center justify-center shrink-0 {{ $isWarningState ? 'bg-rose-100 text-rose-600 border border-rose-200/50' : 'bg-indigo-600 text-white shadow-md shadow-indigo-200' }}">
-                                @if($isWarningState)
-                                    <svg class="w-5 h-5 animate-pulse" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                                    </svg>
-                                @else
-                                    <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                        <path stroke-linecap="round" stroke-linejoin="round" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
-                                    </svg>
-                                @endif
+
+                        <div class="rounded-2xl border border-slate-100 p-4 flex flex-col justify-between min-w-0">
+                            <div class="flex items-center justify-between gap-2">
+                                <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Daily Safe-to-Spend</span>
                             </div>
-                            <div class="flex-1">
-                                <span class="block text-[9px] uppercase font-bold tracking-widest {{ $isWarningState ? 'text-rose-600' : 'text-indigo-600' }}">Simulated Safe-to-Spend</span>
-                                <div class="flex flex-col">
-                                    <span class="text-lg font-black font-mono tracking-tight {{ $isWarningState ? 'text-rose-600' : 'text-slate-900' }}">
-                                        @if($isDeficit)
-                                            ₱0.00
-                                        @else
-                                            ₱{{ number_format($newSafeToSpend, 2) }}<span class="text-xs text-slate-400 font-medium">/day</span>
-                                        @endif
-                                    </span>
-                                    @if($purchaseAmount && floatval($purchaseAmount) > 0 && !$isWarningState)
-                                        <span class="text-[11px] font-bold text-rose-500 font-mono mt-0.5">
-                                            (-₱{{ number_format($dailyImpactDelta, 2) }}/day)
-                                        </span>
-                                    @endif
-                                </div>
-                                <span class="text-[10px] text-slate-500 font-medium block mt-1">
+                            <div class="mt-2 flex items-baseline flex-wrap gap-x-1.5 gap-y-0.5">
+                                <span class="text-base sm:text-lg font-black text-slate-900 font-mono whitespace-nowrap">₱{{ number_format($newDailyQuota, 2) }}</span>
+                                <span class="text-slate-300 font-bold">/</span>
+                                <span class="text-xs sm:text-sm font-bold text-slate-500 font-mono whitespace-nowrap">₱{{ number_format($spentToday, 2) }}</span>
+                            </div>
+                            @if($dailyQuotaDrop > 0)
+                                <div class="text-[10px] font-bold text-rose-500 font-mono mt-1.5">-₱{{ number_format($dailyQuotaDrop, 2) }}/day</div>
+                            @endif
+                        </div>
+
+                        <div class="rounded-2xl border border-slate-100 p-4">
+                            <span class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">Budget Status</span>
+                            <div class="text-base sm:text-lg font-black mt-2 {{ $risk['text'] }}">{{ $risk['label'] }}</div>
+                        </div>
+
+                        <div class="rounded-2xl border border-slate-100 p-4">
+                            <span class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">Savings Goal</span>
+                            <div class="text-sm sm:text-base font-black text-slate-900 mt-2 leading-tight">{{ $savingsImpact }}</div>
+                        </div>
+                    </div>
+
+                    {{-- Before / After bars --}}
+                    <div class="rounded-2xl bg-slate-50/70 border border-slate-100 p-4 sm:p-5 space-y-4">
+                        <div class="space-y-1.5">
+                            <div class="flex items-center justify-between text-xs">
+                                <span class="font-bold text-slate-700">Before Purchase</span>
+                                <span class="font-bold text-slate-700 font-mono">₱{{ number_format($remainingBudget, 2) }} remaining</span>
+                            </div>
+                            <div class="w-full bg-slate-200/70 h-2.5 rounded-full overflow-hidden">
+                                <div class="h-full rounded-full bg-[var(--brand)] transition-all duration-500" style="width: {{ $percentBefore }}%"></div>
+                            </div>
+                        </div>
+
+                        <div class="space-y-1.5">
+                            <div class="flex items-center justify-between text-xs">
+                                <span class="font-bold text-slate-700">After Purchase</span>
+                                <span class="font-bold font-mono {{ $isDeficit ? 'text-rose-600' : 'text-slate-700' }}">
                                     @if($isDeficit)
-                                        Deficit: <span class="font-bold text-rose-600 font-mono">₱{{ number_format(abs($newRemaining), 2) }}</span>
-                                    @elseif($isCriticalZero)
-                                        <span class="font-bold text-rose-600">All of your remaining balance used</span>
+                                        ₱{{ number_format(abs($newRemaining), 2) }} over budget
                                     @else
-                                        Money Left: <span class="font-bold text-slate-700 font-mono">₱{{ number_format($newRemaining, 2) }}</span>
+                                        ₱{{ number_format($newRemaining, 2) }} remaining
                                     @endif
                                 </span>
                             </div>
-                        </div>
-                    </div>
-            
-                    <!-- AI Advice Banner -->
-                    <div class="p-5 rounded-3xl border transition-all duration-200 {{ $isWarningState ? 'bg-rose-50/70 border-rose-200/80 text-rose-900' : 'bg-gradient-to-br from-indigo-50/70 via-white to-blue-50/40 border-indigo-100 text-slate-800' }}">
-                        <div class="flex items-start gap-3.5">
-                            <div class="p-2 rounded-xl shrink-0 {{ $isDeficit ? 'bg-rose-100 text-rose-600' : 'bg-indigo-600 text-white shadow-sm shadow-indigo-600/10' }}">
-                                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-                                    <path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
-                                </svg>
-                            </div>
-                            <div class="space-y-1.5 w-full">
-                                <div class="flex items-center justify-between gap-2">
-                                    <h4 class="text-[10px] font-black uppercase tracking-widest {{ $isWarningState ? 'text-rose-800' : 'text-slate-400' }}">
-                                        {{ $isDeficit ? 'Budget Overdraft Warning' : ($isCriticalZero ? 'Zero Balance Warning' : 'AI Budget Advice') }}
-                                    </h4>
-                                    <div wire:loading.remove wire:target="runSimulation, resetSimulation, applyPreset">
-                                        @if(!empty($aiInsight))
-                                            @if($isOfflineMode)
-                                                <span class="px-2 py-0.5 rounded-full text-[9px] font-bold bg-slate-100 text-slate-600 border border-slate-200 uppercase tracking-wider">
-                                                    Instant Calculation
-                                                </span>
-                                            @else
-                                                <span class="px-2 py-0.5 rounded-full text-[9px] font-bold bg-indigo-50 text-indigo-700 ring-1 ring-indigo-700/10 uppercase tracking-wider flex items-center gap-1">
-                                                    <span class="w-1 h-1 bg-indigo-500 rounded-full animate-pulse"></span>
-                                                    AI Active
-                                                </span>
-                                            @endif
-                                        @endif
-                                    </div>
-                                    <span wire:loading wire:target="runSimulation, applyPreset" class="px-2 py-0.5 rounded-full text-[9px] font-bold bg-indigo-50 text-indigo-700 ring-1 ring-indigo-700/10 uppercase tracking-wider flex items-center gap-1">
-                                        Analyzing...
-                                    </span>
-                                </div>
-                                <div class="text-xs font-semibold leading-relaxed">
-                                    <div wire:loading wire:target="runSimulation, applyPreset" class="animate-pulse text-indigo-600 italic font-black flex items-center gap-1.5 py-0.5">
-                                        <span class="w-1.5 h-1.5 bg-indigo-500 rounded-full animate-ping"></span>
-                                        Calculating impact on weekly allowance...
-                                    </div>
-                                    <div wire:loading.remove wire:target="runSimulation, applyPreset">
-                                        {{ $aiInsight }}
-                                    </div>
-                                </div>
+                            <div class="w-full bg-slate-200/70 h-2.5 rounded-full overflow-hidden">
+                                <div class="h-full rounded-full {{ $risk['bar'] }} transition-all duration-500" style="width: {{ $isDeficit ? 100 : $percentAfter }}%"></div>
                             </div>
                         </div>
                     </div>
-            
-                    <!-- Pattern 1: Multi-Color Cash Breakdown Chart -->
-                    <div class="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm space-y-3">
-                        <div>
-                            <h3 class="text-xs font-extrabold text-slate-900 uppercase tracking-wider">Weekly Budget Breakdown</h3>
-                            <p class="text-[11px] text-slate-400 font-medium mt-0.5">Stacked breakdown accounting for spent cash, savings set aside, simulated item, and remaining allowance.</p>
-                        </div>
-                        <div class="h-36 relative w-full" wire:ignore>
-                            <canvas id="weeklyBreakdownChart"></canvas>
+
+                    {{-- Advice --}}
+                    <div class="flex items-start gap-3 rounded-2xl border border-slate-100 border-l-4 {{ $risk['callout'] }} p-4">
+                        <svg class="w-4 h-4 shrink-0 mt-0.5 {{ $risk['icon'] }}" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                        <div class="min-w-0">
+                            <p class="text-xs sm:text-sm font-semibold text-slate-700 leading-relaxed">{{ $aiInsight }}</p>
+                            <span class="inline-block mt-1.5 text-[9px] font-bold uppercase tracking-wider {{ $isOfflineMode ? 'text-slate-400' : 'text-[var(--brand)]' }}">
+                                {{ $isOfflineMode ? 'Instant calculation' : 'AI advice' }}
+                            </span>
                         </div>
                     </div>
-                @endif
-            </div>
-        </div>
+
+                    {{-- Actions --}}
+                    <div class="flex items-center justify-end gap-3 pt-1">
+                        <button type="button" wire:click="resetSimulation"
+                            class="px-4 py-2.5 rounded-2xl text-xs font-bold text-slate-600 hover:bg-slate-100 transition-colors">
+                            Cancel
+                        </button>
+
+                        @if($isDeficit)
+                            <span class="px-5 py-2.5 rounded-2xl bg-slate-100 text-slate-400 text-xs font-bold cursor-not-allowed" title="Not enough remaining budget">
+                                Not enough budget
+                            </span>
+                        @else
+                            <button type="button" wire:click="addAsExpense" wire:loading.attr="disabled"
+                                class="inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-[var(--brand)] hover:opacity-90 active:scale-[0.98] text-white text-xs font-bold shadow-md shadow-[0_4px_12px_-2px_rgba(var(--brand-rgb),0.35)] transition-all">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
+                                Add as Expense
+                            </button>
+                        @endif
+                    </div>
+                </div>
+            @endif
+        @endif
     </div>
 
     <script>
-        document.addEventListener('livewire:load', function () {
-            let breakdownChart = null;
-            let boundCanvas = null; // track which canvas element the chart is currently attached to
-    
-            function getOrCreateChart() {
-                const canvas = document.getElementById('weeklyBreakdownChart');
-                if (!canvas) return null; // still showing the empty state — nothing to draw yet
-    
-                // If Livewire swapped in a NEW canvas element (e.g. after Reset Simulation
-                // hid then re-showed this panel), the old Chart instance is pointing at a
-                // dead canvas. Detect that and rebuild instead of reusing a stale chart.
-                if (breakdownChart && boundCanvas === canvas) {
-                    return breakdownChart;
-                }
-    
-                if (breakdownChart) {
-                    breakdownChart.destroy();
-                }
-    
-                const ctx = canvas.getContext('2d');
-                breakdownChart = new Chart(ctx, {
-                    type: 'bar',
-                    data: {
-                        labels: ['Weekly Allowance'],
-                        datasets: [
-                            { label: 'Already Spent',       data: [{{ $chartSpent }}],     backgroundColor: '#64748b', borderRadius: 6 }, // slate-500
-                            { label: 'Savings Set Aside',   data: [{{ $chartSavings }}],   backgroundColor: '#0891b2', borderRadius: 6 }, // cyan-600
-                            { label: 'This Purchase',       data: [{{ $chartSimulated }}], backgroundColor: '#7c3aed', borderRadius: 6 }, // violet-600
-                            { label: 'Money Left',          data: [{{ $chartRemaining }}], backgroundColor: '#16a34a', borderRadius: 6 }, // green-600
-                            { label: 'Overdraft / Deficit', data: [{{ $chartDeficit }}],   backgroundColor: '#dc2626', borderRadius: 6 }  // red-600
-                        ]
-                    },
-                    options: {
-                        indexAxis: 'y',
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        plugins: {
-                            legend: {
-                                display: true,
-                                position: 'bottom',
-                                labels: { boxWidth: 14, boxHeight: 14, font: { size: 12, weight: '700' } }
-                            },
-                            tooltip: {
-                                padding: 10,
-                                bodyFont: { size: 11, weight: 'bold' },
-                                callbacks: { label: (ctx) => ` ${ctx.dataset.label}: ₱${ctx.raw.toLocaleString()}` }
-                            }
-                        },
-                        scales: {
-                            x: { stacked: true, grid: { color: '#f1f5f9' }, ticks: { font: { size: 9, weight: '600' }, color: '#94a3b8' } },
-                            y: { stacked: true, display: false }
-                        }
-                    }
-                });
-    
-                boundCanvas = canvas;
-                return breakdownChart;
-            }
-    
-            // Registered unconditionally — no early return, no dependency on the
-            // canvas existing at page-load time.
-            window.addEventListener('renderWeeklyImpactChart', event => {
-                const chart = getOrCreateChart();
-                if (!chart) return; // empty state is showing — ignore the event
-    
-                const data = event.detail;
-                chart.data.datasets[0].data = [data.spent];
-                chart.data.datasets[1].data = [data.savings || 0];
-                chart.data.datasets[2].data = [data.simulated];
-                chart.data.datasets[3].data = [data.remaining];
-                chart.data.datasets[4].data = [data.deficit || 0];
-                chart.update();
-            });
-        });
+        function formatSimulatorAmount(input) {
+            const cleaned = input.value.replace(/,/g, '').trim();
+            if (cleaned === '') return;
+
+            const value = parseFloat(cleaned);
+            if (isNaN(value)) return;
+
+            input.value = value.toFixed(2);
+            input.dispatchEvent(new Event('input', { bubbles: true }));
+        }
     </script>
 </div>
-
-<script>
-    function formatPurchaseAmount(input) {
-        if (input.value !== '') {
-            const value = parseFloat(input.value);
-
-            if (!isNaN(value)) {
-                input.value = value.toFixed(2);
-
-                // Tell Livewire about the formatted value
-                input.dispatchEvent(new Event('input', {
-                    bubbles: true
-                }));
-            }
-        }
-    }
-</script>

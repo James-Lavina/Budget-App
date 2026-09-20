@@ -14,6 +14,7 @@ use App\Services\RiskDetectionService;
 use Carbon\Carbon;
 use Illuminate\Notifications\DatabaseNotification;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Livewire\Component;
 
 class LogExpense extends Component
@@ -24,13 +25,14 @@ class LogExpense extends Component
     public $transaction_date;
     public $sessionLog = [];
 
-    // NEW: holds the suggested category id when item_name history disagrees
+    // holds the suggested category id when item_name history disagrees
     // with the currently selected category. Null = no conflict detected.
     public $suggestedCategoryId = null;
     public $suggestedCategoryName = null;
 
     protected $rules = [
-        'expense_category_id' => 'required|exists:expense_categories,id',
+        // Rejects disabled categories server-side, even if the id is tampered with.
+        'expense_category_id' => 'required|exists:expense_categories,id,status,enabled',
         'item_name' => 'required|string|max:255',
         'amount' => 'required|numeric|min:0.01|max:999999',
         'transaction_date' => 'required|date|before_or_equal:today',
@@ -38,6 +40,7 @@ class LogExpense extends Component
 
     protected $messages = [
         'expense_category_id.required' => 'Please select an expense category.',
+        'expense_category_id.exists' => 'That category is no longer available. Please pick another one.',
         'item_name.required' => 'Please provide an item description.',
         'amount.required' => 'Please specify the amount spent.',
         'amount.min' => 'Amount must be greater than zero.',
@@ -45,13 +48,25 @@ class LogExpense extends Component
         'transaction_date.before_or_equal' => 'You cannot enter a future transaction.',
     ];
 
-    public function mount() {
+    public function mount()
+    {
         $this->transaction_date = Carbon::today()->format('Y-m-d');
+
+        // Prefill when arriving from the What-If Simulator's "Add as Expense" button.
+        $item   = request()->query('item');
+        $amount = request()->query('amount');
+
+        if (is_string($item) && trim($item) !== '') {
+            $this->item_name = Str::limit(trim(strip_tags($item)), 255, '');
+        }
+
+        if (is_numeric($amount) && (float) $amount > 0) {
+            $this->amount = round((float) $amount, 2);
+        }
     }
 
-    // NEW: fires whenever the item name field changes. Debounced on the
-    // Blade side (wire:model.live.debounce.500ms) so this doesn't query on
-    // every keystroke.
+    // Fires whenever the item name field changes. Debounced on the
+    // Blade side so this doesn't query on every keystroke.
     public function updatedItemName($value)
     {
         $this->checkCategoryMismatch();
@@ -89,7 +104,9 @@ class LogExpense extends Component
         // pick, and the history has at least 2 prior uses (avoids
         // overriding a one-off mistake from the past).
         if ($dominant && $dominant->uses >= 2 && (int) $dominant->expense_category_id !== (int) $this->expense_category_id) {
-            $category = ExpenseCategory::find($dominant->expense_category_id);
+            // selectable(): never suggest a category the student can't actually
+            // pick (disabled by an admin, or the Savings category).
+            $category = ExpenseCategory::selectable()->find($dominant->expense_category_id);
             if ($category) {
                 $this->suggestedCategoryId = $category->id;
                 $this->suggestedCategoryName = $category->name;
@@ -113,7 +130,7 @@ class LogExpense extends Component
         $this->suggestedCategoryName = null;
     }
 
-    // NEW: recent distinct item names the student has logged under the
+    // Recent distinct item names the student has logged under the
     // currently selected category, most-recent-first, for one-tap fill.
     public function getRecentItemsProperty()
     {
@@ -269,7 +286,8 @@ class LogExpense extends Component
     public function render()
     {
         return view('livewire.student.log-expense', [
-            'categories' => ExpenseCategory::whereRaw('LOWER(name) != ?', ['savings'])
+            // Enabled, non-Savings categories only (see ExpenseCategory::scopeSelectable).
+            'categories' => ExpenseCategory::selectable()
                 ->orderBy('name', 'asc')
                 ->get(),
             'recentItems' => $this->recentItems,

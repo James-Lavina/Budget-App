@@ -34,8 +34,8 @@
             {{-- Row 2: Item Name + recent-item chips for the selected category --}}
             <div class="space-y-1.5">
                 <label for="item_name" class="block text-xs font-bold text-slate-700">Item Name</label>
-                <input id="item_name" type="text" wire:model.live.debounce.500ms="item_name" placeholder="e.g., Chickenjoy Meal"
-                    class="w-full px-4 py-3 bg-slate-100/80 border-0 rounded-2xl text-slate-900 font-semibold text-sm placeholder-slate-400 focus:bg-white focus:ring-2 focus:ring-indigo-500 transition-all">
+                <input id="item_name" type="text" wire:model.debounce.500ms="item_name" placeholder="e.g., Chickenjoy Meal"
+                class="w-full px-4 py-3 bg-slate-100/80 border-0 rounded-2xl text-slate-900 font-semibold text-sm placeholder-slate-400 focus:bg-white focus:ring-2 focus:ring-indigo-500 transition-all">
                 @error('item_name')
                     <span class="text-[11px] font-semibold text-rose-500 block mt-1">{{ $message }}</span>
                 @enderror
@@ -43,7 +43,8 @@
                 @if($expense_category_id && $recentItems->isNotEmpty())
                     <div class="flex flex-wrap gap-1.5 pt-1">
                         @foreach($recentItems as $recent)
-                            <button type="button" wire:click="pickRecentItem('{{ addslashes($recent) }}')"
+                            <button type="button"
+                                wire:click='pickRecentItem(@json($recent, JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_TAG))'
                                 class="px-2.5 py-1 text-[11px] font-semibold bg-slate-50 hover:bg-slate-100 text-slate-500 border border-slate-200 rounded-lg transition-colors">
                                 {{ $recent }}
                             </button>

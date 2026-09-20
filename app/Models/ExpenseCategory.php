@@ -42,7 +42,14 @@ class ExpenseCategory extends Model
         'description',
         'icon',
         'color',
+        'status',
     ];
+
+    public function scopeSelectable($query)
+    {
+        return $query->where('status', 'enabled')
+            ->whereRaw('LOWER(name) != ?', ['savings']);
+    }
 
     public function expenses()
     {

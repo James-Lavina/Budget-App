@@ -17,12 +17,16 @@ class EditExpense extends Component
 {
     public $expenseId;
     public $expense_category_id;
+    public $originalCategoryId; // category the expense had when the page loaded
     public $item_name;
     public $amount;
     public $transaction_date;
     public $isSavingsLinked = false; // true if this expense is a goal contribution
 
     protected $rules = [
+        // No status check here: an existing expense may legitimately keep a
+        // category that was disabled later. Switching to a *different* disabled
+        // category is rejected manually in updateExpense().
         'expense_category_id' => 'required|exists:expense_categories,id',
         'item_name' => 'required|string|max:255',
         'amount' => 'required|numeric|min:0.01|max:999999',
@@ -47,6 +51,7 @@ class EditExpense extends Component
 
         $this->expenseId = $expense->id;
         $this->expense_category_id = $expense->expense_category_id;
+        $this->originalCategoryId = $expense->expense_category_id;
         $this->item_name = $expense->item_name;
         $this->amount = $expense->amount;
         $this->transaction_date = Carbon::parse($expense->transaction_date)->format('Y-m-d');
@@ -73,6 +78,16 @@ class EditExpense extends Component
         if (!app(BudgetCycleService::class)->isWithinCurrentCycle($currentBudget, auth()->user(), $expense->transaction_date)) {
             session()->flash('error', 'This expense belongs to a previous budget cycle and can no longer be edited.');
             return redirect()->route('student.expenses.index');
+        }
+
+        // Category may only change to an enabled, non-Savings one. Keeping the
+        // expense's existing category is always allowed, even if the admin has
+        // disabled it since. Never trust the client's category id.
+        if (!$this->isSavingsLinked
+            && (int) $this->expense_category_id !== (int) $expense->expense_category_id
+            && !ExpenseCategory::selectable()->where('id', $this->expense_category_id)->exists()) {
+            $this->addError('expense_category_id', 'That category is no longer available. Please pick another one.');
+            return;
         }
 
         $oldAmount = (float) $expense->amount;
@@ -143,10 +158,16 @@ class EditExpense extends Component
     public function render()
     {
         return view('livewire.student.edit-expense', [
-            // Savings is never a selectable category — it's only ever
-            // applied automatically via a goal contribution, never chosen
-            // from this picker.
+            // Savings is never a selectable category — it's only ever applied
+            // automatically via a goal contribution. Disabled categories are
+            // hidden too, except the expense's ORIGINAL category, which stays
+            // in the list so the picker never shows "nothing selected" and the
+            // student can switch back to it after clicking another pill.
             'categories' => ExpenseCategory::whereRaw('LOWER(name) != ?', ['savings'])
+                ->where(function ($q) {
+                    $q->where('status', 'enabled')
+                      ->orWhere('id', $this->originalCategoryId);
+                })
                 ->orderBy('name', 'asc')
                 ->get(),
         ])->layout('layouts.student');

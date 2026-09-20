@@ -50,12 +50,18 @@
         {{-- HERO CARD: REMAINING THIS WEEK + STATS (RIGHT) + STATE BANNER (INSIDE CARD) --}}
         <div class="bg-white rounded-2xl sm:rounded-3xl p-5 sm:p-6 border border-slate-100 shadow-sm w-full min-w-0">
 
-            {{-- Date chip --}}
+            {{-- Date chip + Add Funds --}}
             <div class="flex items-center justify-between gap-3 flex-wrap">
                 <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-100 text-slate-600 text-[11px] font-bold">
                     <x-heroicon-o-calendar class="w-3.5 h-3.5" />
                     {{ $cycleStart->format('M j') }} – {{ $cycleEnd->format('j, Y') }}
                 </span>
+
+                <a href="{{ route('student.budget.add') }}"
+                    class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[rgba(var(--brand-rgb),0.08)] text-[var(--brand)] hover:bg-[rgba(var(--brand-rgb),0.14)] text-[11px] font-bold transition-colors">
+                    <x-heroicon-o-plus-circle class="w-3.5 h-3.5" />
+                    Add Funds
+                </a>
             </div>
 
             {{-- Top row: remaining amount (left) + compact stats (right) --}}
@@ -87,7 +93,11 @@
                             Days Left
                         </span>
                         <span class="text-sm font-extrabold text-slate-900 block mt-0.5 whitespace-nowrap">
-                            {{ $daysRemaining }} · to {{ $cycleEnd->format('M j') }}
+                            @if($daysRemaining === 1)
+                                Last day · {{ $cycleEnd->format('M j') }}
+                            @else
+                                {{ $daysRemaining }} · to {{ $cycleEnd->format('M j') }}
+                            @endif
                         </span>
                     </div>
 

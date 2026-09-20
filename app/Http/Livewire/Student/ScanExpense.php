@@ -42,7 +42,8 @@ class ScanExpense extends Component
             'items' => 'required|array|min:1',
             'items.*.item_name' => 'required|string|max:255',
             'items.*.amount' => 'required|numeric|min:0.01|max:999999',
-            'items.*.expense_category_id' => 'required|exists:expense_categories,id',
+            // Rejects disabled categories server-side, even if the id is tampered with.
+            'items.*.expense_category_id' => 'required|exists:expense_categories,id,status,enabled',
         ];
     }
 
@@ -79,13 +80,13 @@ class ScanExpense extends Component
             $settings = \App\Models\IntegrationSetting::current();
             $apiKey = $settings->groq_api_key ?: env('GROQ_API_KEY');
 
-            // Filter out 'Savings' category for AI category extraction
-            $dbCategories = ExpenseCategory::whereRaw('LOWER(name) != ?', ['savings'])
+            // Only enabled, non-Savings categories are offered to the AI.
+            $dbCategories = ExpenseCategory::selectable()
                 ->pluck('name')
                 ->toArray();
 
             if (empty($dbCategories)) {
-                throw new \Exception('Please seed your expense_categories table first.');
+                throw new \Exception('No enabled expense categories are available. Please contact an administrator.');
             }
 
             $categoryListString = implode(', ', array_map(fn ($cat) => "'$cat'", $dbCategories));
@@ -235,7 +236,12 @@ class ScanExpense extends Component
             $defaultCategoryId = $this->defaultCategoryId();
 
             $this->items = collect($extracted['items'])->map(function ($row) use ($defaultCategoryId) {
-                $matched = ExpenseCategory::where('name', $row['category'] ?? '')->first();
+                // selectable(): an AI-returned name that matches a disabled or
+                // Savings category falls back to the default instead.
+                $matched = ExpenseCategory::selectable()
+                    ->where('name', $row['category'] ?? '')
+                    ->first();
+
                 return [
                     'item_name' => $row['item_name'] ?? 'Item',
                     'amount' => number_format((float) ($row['amount'] ?? 0), 2, '.', ''),
@@ -265,7 +271,7 @@ class ScanExpense extends Component
 
     private function defaultCategoryId()
     {
-        return ExpenseCategory::whereRaw('LOWER(name) != ?', ['savings'])
+        return ExpenseCategory::selectable()
             ->orderBy('name', 'asc')
             ->value('id');
     }
@@ -553,7 +559,7 @@ class ScanExpense extends Component
     public function render()
     {
         return view('livewire.student.scan-expense', [
-            'availableCategories' => ExpenseCategory::whereRaw('LOWER(name) != ?', ['savings'])
+            'availableCategories' => ExpenseCategory::selectable()
                 ->orderBy('name', 'asc')
                 ->get(),
         ])->layout('layouts.student');
