@@ -50,7 +50,7 @@
                                 <th class="px-5 sm:px-6 py-3">Full Name</th>
                                 <th class="px-5 sm:px-6 py-3">Email</th>
                                 <th class="px-5 sm:px-6 py-3">School</th>
-                                <th class="px-5 sm:px-6 py-3">Weekly Allowance</th>
+                                <th class="px-5 sm:px-6 py-3">Base Allowance</th>
                                 <th class="px-5 sm:px-6 py-3">Remaining</th>
                                 <th class="px-5 sm:px-6 py-3">Status</th>
                                 <th class="px-5 sm:px-6 py-3">Registered</th>
@@ -114,9 +114,9 @@
                 <div class="flex items-start justify-between">
                     <div class="flex items-center gap-3">
                         {{-- Avatar circle --}}
-                            <div class="h-12 w-12 rounded-2xl bg-[var(--brand-primary)]/10 text-[var(--brand-primary)] font-extrabold flex items-center justify-center shrink-0">
-                                {{ strtoupper(substr($viewingUser->name, 0, 1)) }}
-                            </div>
+                        <div class="h-12 w-12 rounded-2xl bg-[var(--brand-primary)]/10 text-[var(--brand-primary)] font-extrabold flex items-center justify-center shrink-0">
+                            {{ strtoupper(substr($viewingUser->name, 0, 1)) }}
+                        </div>
                         <div>
                             <h3 class="text-sm font-extrabold text-slate-900">{{ $viewingUser->name }}</h3>
                             <p class="text-xs text-slate-500 font-medium">{{ $viewingUser->email }}</p>
@@ -126,6 +126,14 @@
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
                     </button>
                 </div>
+
+                @php
+                    $alertValueClass = [
+                        'rose'    => 'text-rose-600',
+                        'amber'   => 'text-amber-600',
+                        'emerald' => 'text-emerald-600',
+                    ][$viewingExtras['alerts']['tone']] ?? 'text-slate-800';
+                @endphp
 
                 <div class="grid grid-cols-2 gap-3 text-xs">
                     <div class="p-3 bg-slate-50 rounded-xl">
@@ -138,7 +146,7 @@
                     </div>
                     <div class="p-3 bg-slate-50 rounded-xl">
                         <span class="text-slate-400 font-bold uppercase tracking-wide text-[10px] block mb-0.5">Allowance</span>
-                        <span class="font-semibold text-slate-800 font-mono">₱{{ number_format($viewingUser->latestWeeklyBudget->total_allowance ?? $viewingUser->default_allowance ?? 0, 2) }}</span>
+                        <span class="font-semibold text-slate-800 font-mono">₱{{ number_format($viewingExtras['effectiveAllowance'], 2) }}</span>
                     </div>
                     <div class="p-3 bg-slate-50 rounded-xl">
                         <span class="text-slate-400 font-bold uppercase tracking-wide text-[10px] block mb-0.5">Remaining</span>
@@ -149,12 +157,19 @@
                     <div class="p-3 bg-slate-50 rounded-xl">
                         <span class="text-slate-400 font-bold uppercase tracking-wide text-[10px] block mb-0.5">Savings Goal</span>
                         <span class="font-semibold text-slate-800 font-mono">
-                            {{ $viewingExtras['topGoal'] ? '₱'.number_format($viewingExtras['topGoal']->target_amount, 2) : '—' }}
+                            @if($viewingExtras['topGoal'])
+                                ₱{{ number_format($viewingExtras['topGoal']->current_saved, 2) }} / ₱{{ number_format($viewingExtras['topGoal']->target_amount, 2) }}
+                            @else
+                                —
+                            @endif
                         </span>
                     </div>
                     <div class="p-3 bg-slate-50 rounded-xl">
-                        <span class="text-slate-400 font-bold uppercase tracking-wide text-[10px] block mb-0.5">Risk Score</span>
-                        <span class="font-semibold text-slate-800">{{ $viewingExtras['riskScore'] }}</span>
+                        <span class="text-slate-400 font-bold uppercase tracking-wide text-[10px] block mb-0.5">Active Alerts</span>
+                        <span class="font-semibold {{ $alertValueClass }}">
+                            {{ $viewingExtras['alerts']['total'] }}
+                        </span>
+                        <span class="text-[10px] text-slate-400 font-medium block mt-0.5">{{ $viewingExtras['alerts']['summary'] }}</span>
                     </div>
                 </div>
 
@@ -182,7 +197,7 @@
                 @endphp
                 <div class="p-3.5 rounded-xl border {{ $toneClass }}">
                     <span class="text-xs font-extrabold block">Forecast: {{ $viewingExtras['forecastLabel'] }}</span>
-                    <span class="text-[11px] font-medium opacity-80">Current behavior assessment for the weekly budget.</span>
+                    <span class="text-[11px] font-medium opacity-80">{{ $viewingExtras['forecastNote'] }}</span>
                 </div>
 
                 {{-- Recent expenses --}}

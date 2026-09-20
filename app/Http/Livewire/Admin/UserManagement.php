@@ -2,20 +2,35 @@
 
 namespace App\Http\Livewire\Admin;
 
-use App\Models\User;
-use Livewire\Component;
-use Livewire\WithPagination;
+use App\Models\ActivityLog;
 use App\Models\Expense;
 use App\Models\RiskLog;
 use App\Models\SavingsGoal;
+use App\Models\User;
 use App\Services\BudgetCycleService;
-use App\Models\ActivityLog;
+use Illuminate\Notifications\DatabaseNotification;
+use Livewire\Component;
+use Livewire\WithPagination;
 
 class UserManagement extends Component
 {
     use WithPagination;
 
     protected $paginationTheme = 'tailwind';
+
+    /**
+     * Notification types that are alerts but never write a risk_logs row.
+     * BudgetRiskNotification is deliberately excluded: it is always created
+     * from a RiskLog, so counting it here would double count the same alert.
+     * Success-type notifications (goal achieved, milestone, weekly review)
+     * are not alerts and are also excluded.
+     */
+    private const NOTIFICATION_ALERT_TYPES = [
+        'low_allowance_threshold',
+        'category_concentration',
+        'large_transaction',
+        'no_expense_logs',
+    ];
 
     public $search = '';
     public $statusFilter = '';
@@ -181,9 +196,8 @@ class UserManagement extends Component
 
         $user->delete(); // cascades to expenses/budgets/goals/logs via FK constraints
 
-        // NOTE: logged with user_id => null (not the just-deleted student's ID)
-        // since the FK would otherwise be dangling — the cascade above already
-        // removed that user row. auth()->id() below is the admin who acted.
+        // The activity is logged against the admin who acted (auth()->id()),
+        // not the deleted student, since that user row no longer exists.
         ActivityLog::create([
             'user_id'    => auth()->id(),
             'event_type' => 'user_deleted',
@@ -194,6 +208,140 @@ class UserManagement extends Component
 
         $this->confirmingDeleteId = null;
         session()->flash('success', "{$name} and all associated records were permanently deleted.");
+    }
+
+    /**
+     * Active alerts for the current cycle, combining both alert sources:
+     *  1. Unresolved risk_logs (pace check, overspending threshold,
+     *     daily safe-to-spend, rapid spending).
+     *  2. Unresolved notification-only alerts (low allowance, category
+     *     concentration, large transaction, no expense logs).
+     *
+     * Only alerts created since the cycle start are counted, so old
+     * never-resolved rows from previous weeks don't inflate the number.
+     * Note: a notification the student deleted no longer counts.
+     */
+    private function activeAlertsFor(User $user, $cycle): array
+    {
+        $riskQuery = RiskLog::where('user_id', $user->id)->where('resolved', false);
+
+        $notifQuery = DatabaseNotification::where('notifiable_id', $user->id)
+            ->where('notifiable_type', 'App\Models\User');
+
+        if ($cycle) {
+            $riskQuery->where('created_at', '>=', $cycle['startDate']);
+            $notifQuery->where('created_at', '>=', $cycle['startDate']);
+        }
+
+        $riskTiers = $riskQuery->pluck('severity_tier');
+
+        $notifTiers = $notifQuery->get()
+            ->filter(function ($notification) {
+                $data = $notification->data;
+
+                return in_array($data['anomaly_type'] ?? null, self::NOTIFICATION_ALERT_TYPES, true)
+                    && !($data['resolved'] ?? false);
+            })
+            ->map(function ($notification) {
+                return $notification->data['severity_tier'] ?? 'medium';
+            });
+
+        $tiers = $riskTiers->concat($notifTiers);
+
+        $high   = $tiers->filter(fn ($t) => $t === 'high')->count();
+        $medium = $tiers->filter(fn ($t) => $t === 'medium')->count();
+        $low    = $tiers->filter(fn ($t) => $t === 'low')->count();
+        $total  = $tiers->count();
+
+        $parts = [];
+        if ($high > 0) {
+            $parts[] = "{$high} high";
+        }
+        if ($medium > 0) {
+            $parts[] = "{$medium} medium";
+        }
+        if ($low > 0) {
+            $parts[] = "{$low} low";
+        }
+
+        if ($high > 0) {
+            $tone = 'rose';
+        } elseif ($total > 0) {
+            $tone = 'amber';
+        } else {
+            $tone = 'emerald';
+        }
+
+        return [
+            'total'   => $total,
+            'summary' => $total > 0 ? implode(' · ', $parts) : 'All clear',
+            'tone'    => $tone,
+        ];
+    }
+
+    /**
+     * Pace-based forecast, mirroring the student Dashboard's ranked state
+     * (depleted -> pace critical -> fresh start -> on track) so the admin
+     * and the student never see contradicting labels.
+     */
+    private function forecastFor(User $user, $budget, $cycle): array
+    {
+        if (!$budget || !$cycle) {
+            return [
+                'label' => 'No Data',
+                'tone'  => 'slate',
+                'note'  => 'This student has not set up a budget yet.',
+            ];
+        }
+
+        $remaining     = (float) $budget->remaining_allowance;
+        $daysElapsed   = max(1, (int) $cycle['daysElapsed']);
+        $daysRemaining = max(1, (int) $cycle['daysRemaining']);
+        $isFinalDay    = $daysElapsed >= 7;
+
+        // Same spend definition as the student Dashboard: up to the evaluation
+        // date, excluding savings-goal transfers and the Savings category.
+        $totalSpent = (float) Expense::where('user_id', $user->id)
+            ->whereBetween('transaction_date', [$cycle['startDate'], $cycle['evalDate']->copy()->endOfDay()])
+            ->whereNull('savings_goal_id')
+            ->whereDoesntHave('category', function ($query) {
+                $query->where('name', 'LIKE', '%Savings%');
+            })
+            ->sum('amount');
+
+        $dailyVelocity     = $totalSpent / $daysElapsed;
+        $projectedDaysLeft = $dailyVelocity > 0 ? ($remaining / $dailyVelocity) : $daysRemaining;
+
+        if ($remaining <= 0) {
+            return [
+                'label' => 'Budget Exhausted',
+                'tone'  => 'rose',
+                'note'  => 'No allowance left until the next reset.',
+            ];
+        }
+
+        if (!$isFinalDay && $projectedDaysLeft < $daysRemaining) {
+            return [
+                'label' => 'Spending Warning',
+                'tone'  => 'rose',
+                'note'  => 'At ₱' . number_format($dailyVelocity, 2) . '/day, the remaining balance lasts about '
+                    . number_format($projectedDaysLeft, 1) . ' of the ' . $daysRemaining . ' day(s) left.',
+            ];
+        }
+
+        if ($totalSpent <= 0) {
+            return [
+                'label' => 'Fresh Start',
+                'tone'  => 'slate',
+                'note'  => 'No spending logged yet this cycle.',
+            ];
+        }
+
+        return [
+            'label' => 'On Track',
+            'tone'  => 'emerald',
+            'note'  => 'Averaging ₱' . number_format($dailyVelocity, 2) . '/day with ' . $daysRemaining . ' day(s) left.',
+        ];
     }
 
     public function render()
@@ -221,88 +369,41 @@ class UserManagement extends Component
             $viewingUser = User::with('latestWeeklyBudget')->find($this->viewingUserId);
 
             if ($viewingUser) {
+                $budget = $viewingUser->latestWeeklyBudget;
+                $cycle = $budget ? app(BudgetCycleService::class)->resolve($budget, $viewingUser) : null;
+
                 $topGoal = SavingsGoal::where('user_id', $viewingUser->id)
                     ->where('status', 'active')
                     ->orderByDesc('target_amount')
                     ->first();
 
-                // Simple heuristic: unresolved risk logs weighted by severity.
-                // Not a formal model — gives admins a quick at-a-glance signal only.
-                $weights = ['low' => 3, 'medium' => 6, 'high' => 10];
-                $riskScore = RiskLog::where('user_id', $viewingUser->id)
-                    ->where('resolved', false)
-                    ->get()
-                    ->sum(fn ($log) => $weights[$log->severity_tier] ?? 0);
-                $riskScore = min(100, $riskScore);
+                // Effective allowance = base + rollover, the same figure the
+                // student sees as "Total Available This Week". total_allowance
+                // alone excludes rollover and can be lower than remaining.
+                $effectiveAllowance = $cycle
+                    ? (float) $cycle['effectiveTotalAllowance']
+                    : (float) ($viewingUser->default_allowance ?? 0);
 
-                $budget = $viewingUser->latestWeeklyBudget;
-
-                // FIX: total_allowance only reflects the CURRENT cycle's
-                // baseline — after a weekly rollover, remaining_allowance
-                // can legitimately exceed total_allowance (baseline +
-                // unspent rollover from last cycle, see
-                // Student\Dashboard::checkAndResetWeeklyCycle()). The old
-                // formula (total - remaining) / total assumed remaining
-                // could never exceed total, producing negative "% used"
-                // whenever a student rolled over a large unspent balance.
-                // Instead, derive actual spend from the gap between total
-                // and remaining (floored at 0), then compute % used against
-                // the TRUE spendable pool (remaining + spent), not just
-                // the post-reset baseline.
-                $budget = $viewingUser->latestWeeklyBudget;
-                $spent = 0;
+                // Same formula as the student Dashboard's "% used".
                 $percentUsed = 0;
-
-                if ($budget) {
-                    // Derive actual spend from real expense rows inside this cycle's
-                    // date window — NOT by subtracting remaining_allowance from
-                    // total_allowance. total_allowance only reflects the current
-                    // cycle's fresh baseline, while remaining_allowance carries over
-                    // unspent rollover from last cycle (see
-                    // Student\Dashboard::checkAndResetWeeklyCycle()), so remaining can
-                    // legitimately exceed total right after a reset. Subtracting the
-                    // two either produced a negative % (original bug) or silently
-                    // floored real spend to 0 (previous "fix"), neither of which
-                    // reflects what the student actually spent this week.
-                    $cycle = app(BudgetCycleService::class)->resolve($budget, $viewingUser);
-
-                    $spent = Expense::where('user_id', $viewingUser->id)
-                        ->whereBetween('transaction_date', [$cycle['startDate'], $cycle['endDate']])
-                        ->whereNull('savings_goal_id')
-                        ->sum('amount');
-
-                    // The true spendable pool for the cycle is whatever's left plus
-                    // whatever's already gone out — this holds correctly whether or
-                    // not a rollover inflated remaining_allowance above total_allowance.
-                    $truePool = $budget->remaining_allowance + $spent;
-
-                    $percentUsed = $truePool > 0
-                        ? max(0, min(100, round(($spent / $truePool) * 100)))
-                        : 0;
+                if ($budget && $effectiveAllowance > 0) {
+                    $percentUsed = (int) max(0, min(100, round(
+                        (1 - ((float) $budget->remaining_allowance / $effectiveAllowance)) * 100
+                    )));
                 }
 
-                $forecastLabel = 'No Data';
-                $forecastTone = 'slate';
-                if ($budget) {
-                    if ($budget->remaining_allowance <= 0) {
-                        $forecastLabel = 'Over Budget';
-                        $forecastTone = 'rose';
-                    } elseif ($percentUsed >= 80) {
-                        $forecastLabel = 'At Risk';
-                        $forecastTone = 'amber';
-                    } else {
-                        $forecastLabel = 'On Track';
-                        $forecastTone = 'emerald';
-                    }
-                }
+                $forecast = $this->forecastFor($viewingUser, $budget, $cycle);
+                $alerts = $this->activeAlertsFor($viewingUser, $cycle);
 
                 $viewingExtras = [
-                    'topGoal' => $topGoal,
-                    'riskScore' => $riskScore,
-                    'percentUsed' => $percentUsed,
-                    'forecastLabel' => $forecastLabel,
-                    'forecastTone' => $forecastTone,
-                    'recentExpenses' => Expense::where('user_id', $viewingUser->id)
+                    'topGoal'            => $topGoal,
+                    'effectiveAllowance' => $effectiveAllowance,
+                    'percentUsed'        => $percentUsed,
+                    'forecastLabel'      => $forecast['label'],
+                    'forecastTone'       => $forecast['tone'],
+                    'forecastNote'       => $forecast['note'],
+                    'alerts'             => $alerts,
+                    'recentExpenses'     => Expense::where('user_id', $viewingUser->id)
                         ->latest('transaction_date')
                         ->take(3)
                         ->get(),
