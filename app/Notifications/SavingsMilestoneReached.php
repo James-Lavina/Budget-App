@@ -11,11 +11,13 @@ class SavingsMilestoneReached extends Notification
 
     public $milestone;
     public $goalName;
+    public $goalId;
 
-    public function __construct($milestone, $goalName)
+    public function __construct($milestone, $goalName, $goalId)
     {
         $this->milestone = $milestone;
-        $this->goalName = $goalName;
+        $this->goalName  = $goalName;
+        $this->goalId    = $goalId;
     }
 
     public function via($notifiable)
@@ -27,6 +29,8 @@ class SavingsMilestoneReached extends Notification
     {
         return [
             'anomaly_type'  => 'savings_milestone',
+            'milestone'     => $this->milestone,
+            'goal_id'       => $this->goalId,
             'severity_tier' => 'success',
             'description'   => "Milestone Unlocked! 📈 You've saved {$this->milestone}% of your target for '{$this->goalName}'.",
         ];

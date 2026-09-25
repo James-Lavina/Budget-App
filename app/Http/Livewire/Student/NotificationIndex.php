@@ -52,7 +52,8 @@ class NotificationIndex extends Component
             ->paginate(12);
 
         return view('livewire.student.notification-index', [
-            'notifications' => $notifications
+            'notifications' => $notifications,
+            'unreadCount'   => DatabaseNotification::where('notifiable_id', auth()->id())->whereNull('read_at')->count(),
         ])->layout('layouts.student');
     }
 }

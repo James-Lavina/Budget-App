@@ -2,22 +2,21 @@
 
 namespace App\Services;
 
-use App\Models\SavingsGoal;
-use App\Models\WeeklyBudget;
 use App\Models\Expense;
 use App\Models\ExpenseCategory;
-use App\Models\RiskSetting;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Str;
+use App\Models\SavingsGoal;
+use App\Models\WeeklyBudget;
+use App\Notifications\SavingsGoalAchieved;
+use App\Notifications\SavingsMilestoneReached;
 use Illuminate\Notifications\DatabaseNotification;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 class SavingsGoalService
 {
     /**
-     * Single source of truth for "add funds to a savings goal" — used by
-     * both GoalsManager (full page) and SavingsWidget (dashboard quick-add),
-     * so the two entry points can never drift out of sync.
+     * Single source of truth for "add funds to a savings goal" — used by both
+     * GoalsManager (full page) and SavingsWidget (dashboard quick-add).
      *
      * @throws ValidationException
      */
@@ -45,22 +44,22 @@ class SavingsGoalService
 
         DB::transaction(function () use ($goal, $currentBudget, $amount, $user, &$goalWasAchieved) {
             $newSavedBalance = $goal->current_saved + $amount;
-            $status = $goal->status;
-        
+            $status          = $goal->status;
+
             if ($newSavedBalance >= $goal->target_amount) {
-                $status = 'achieved';
+                $status          = 'achieved';
                 $newSavedBalance = $goal->target_amount;
                 $goalWasAchieved = true;
             }
-        
+
             $goal->update(['current_saved' => $newSavedBalance, 'status' => $status]);
             $currentBudget->decrement('remaining_allowance', $amount);
-        
+
             $savingsCategory = ExpenseCategory::firstOrCreate(
                 ['name' => 'Savings'],
                 ['description' => 'Capital intentionally set aside for milestone savings targets.']
             );
-        
+
             Expense::create([
                 'user_id'             => $user->id,
                 'expense_category_id' => $savingsCategory->id,
@@ -75,24 +74,17 @@ class SavingsGoalService
         $goal->refresh();
 
         if ($goalWasAchieved) {
-            DatabaseNotification::create([
-                'id' => Str::uuid(),
-                'type' => 'App\Notifications\SavingsGoalAchieved',
-                'notifiable_type' => 'App\Models\User',
-                'notifiable_id' => $user->id,
-                'data' => [
-                    'anomaly_type' => 'goal_achieved',
-                    'severity_tier' => 'success',
-                    'description' => 'Target Smashed! 🎯 You successfully saved ₱' . number_format($goal->target_amount, 2) . ' for your "' . $goal->target_name . '" goal.',
-                ],
-                'read_at' => null,
-            ]);
+            try {
+                $user->notify(new SavingsGoalAchieved($goal));
+            } catch (\Throwable $e) {
+                \Log::warning('Notification failed: ' . $e->getMessage());
+            }
         } else {
             $this->checkAndNotifySavingsMilestone($user, $goal);
         }
 
+        // Also handles the low-remaining-budget alert.
         app(RiskDetectionService::class)->evaluateSpendingRisk($user);
-        $this->checkLowRemainingBudget($user, $currentBudget->fresh());
 
         return ['goal' => $goal, 'goalWasAchieved' => $goalWasAchieved];
     }
@@ -103,80 +95,29 @@ class SavingsGoalService
             return;
         }
 
-        $progressPercentage = round(($goal->current_saved / $goal->target_amount) * 100);
-        $milestones = [25, 50, 75];
-        $reachedMilestone = null;
+        // floor, not round: 74.6% must not announce 75%.
+        $progress = (int) floor(($goal->current_saved / $goal->target_amount) * 100);
+        $reached  = collect([25, 50, 75])->filter(fn ($m) => $progress >= $m)->max();
 
-        foreach ($milestones as $milestone) {
-            if ($progressPercentage >= $milestone) {
-                $reachedMilestone = $milestone;
-            }
-        }
-
-        if (!$reachedMilestone) {
+        if (!$reached) {
             return;
         }
 
         $alreadyNotified = DatabaseNotification::where('notifiable_id', $user->id)
             ->where('notifiable_type', 'App\Models\User')
-            ->where('data', 'LIKE', '%"anomaly_type":"savings_milestone"%')
-            ->where('data', 'LIKE', '%"milestone":' . $reachedMilestone . '%')
-            ->where('data', 'LIKE', '%"goal_id":' . $goal->id . '%')
+            ->where('data->anomaly_type', 'savings_milestone')
+            ->where('data->goal_id', $goal->id)
+            ->where('data->milestone', $reached)
             ->exists();
 
-        if (!$alreadyNotified) {
-            DatabaseNotification::create([
-                'id' => Str::uuid(),
-                'type' => 'App\Notifications\SavingsMilestoneReached',
-                'notifiable_type' => 'App\Models\User',
-                'notifiable_id' => $user->id,
-                'data' => [
-                    'anomaly_type' => 'savings_milestone',
-                    'milestone' => $reachedMilestone,
-                    'goal_id' => $goal->id,
-                    'severity_tier' => 'success',
-                    'description' => "Milestone Unlocked! 📈 You've saved {$reachedMilestone}% of your target for '{$goal->target_name}'.",
-                ],
-                'read_at' => null,
-            ]);
-        }
-    }
-
-    private function checkLowRemainingBudget($user, WeeklyBudget $currentBudget): void
-    {
-        $riskSettings = RiskSetting::current();
-
-        if (!$riskSettings->low_remaining_budget_enabled) {
+        if ($alreadyNotified) {
             return;
         }
 
-        $thresholdAmount = $currentBudget->total_allowance * ($riskSettings->low_remaining_budget_threshold / 100);
-
-        if ($currentBudget->remaining_allowance <= $thresholdAmount) {
-            $alreadyNotified = DatabaseNotification::where('notifiable_id', $user->id)
-                ->where('notifiable_type', 'App\Models\User')
-                ->where('data', 'LIKE', '%"anomaly_type":"low_allowance_threshold"%')
-                ->where('data', 'LIKE', '%"resolved":false%')
-                ->where('created_at', '>=', $currentBudget->created_at)
-                ->exists();
-
-            if (!$alreadyNotified) {
-                $percentageLeft = round(($currentBudget->remaining_allowance / $currentBudget->total_allowance) * 100);
-
-                DatabaseNotification::create([
-                    'id' => Str::uuid(),
-                    'type' => 'App\Notifications\LowAllowanceWarning',
-                    'notifiable_type' => 'App\Models\User',
-                    'notifiable_id' => $user->id,
-                    'data' => [
-                        'anomaly_type' => 'low_allowance_threshold',
-                        'severity_tier' => 'medium',
-                        'description' => "Great job saving! 🎯 Heads up: you have ₱" . number_format($currentBudget->remaining_allowance, 2) . " left for food and daily expenses this week.",
-                        'resolved' => false,
-                    ],
-                    'read_at' => null,
-                ]);
-            }
+        try {
+            $user->notify(new SavingsMilestoneReached($reached, $goal->target_name, $goal->id));
+        } catch (\Throwable $e) {
+            \Log::warning('Notification failed: ' . $e->getMessage());
         }
     }
 }

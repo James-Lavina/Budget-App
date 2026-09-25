@@ -2,8 +2,8 @@
 
 namespace App\Http\Livewire\Student;
 
-use Livewire\Component;
 use Illuminate\Notifications\DatabaseNotification;
+use Livewire\Component;
 
 class NotificationCenter extends Component
 {
@@ -18,6 +18,8 @@ class NotificationCenter extends Component
         if ($notification) {
             $notification->markAsRead();
         }
+
+        $this->emit('refreshNotifications');
     }
 
     public function markAllAsRead()
@@ -25,25 +27,18 @@ class NotificationCenter extends Component
         DatabaseNotification::where('notifiable_id', auth()->id())
             ->whereNull('read_at')
             ->update(['read_at' => now()]);
-    }
-
-    /**
-     * NEW: dismiss a single notification from the dropdown without
-     * navigating to the full Notification Center page.
-     */
-    public function dismiss($notificationId)
-    {
-        DatabaseNotification::where('id', $notificationId)
-            ->where('notifiable_id', auth()->id())
-            ->delete();
 
         $this->emit('refreshNotifications');
     }
 
+    // Hides it from the dropdown but keeps the row, which alert dedupe depends on.
+    public function dismiss($notificationId)
+    {
+        $this->markAsRead($notificationId);
+    }
+
     public function render()
     {
-        // NEW: cap to 6 most recent unread — prevents the dropdown from
-        // growing unbounded for users who don't check it often.
         $notifications = DatabaseNotification::where('notifiable_id', auth()->id())
             ->whereNull('read_at')
             ->latest()
@@ -55,8 +50,8 @@ class NotificationCenter extends Component
             ->count();
 
         return view('livewire.student.notification-center', [
-            'notifications'     => $notifications,
-            'totalUnreadCount'  => $totalUnreadCount,
+            'notifications'    => $notifications,
+            'totalUnreadCount' => $totalUnreadCount,
         ]);
     }
 }

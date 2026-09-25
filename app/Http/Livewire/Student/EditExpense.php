@@ -17,20 +17,18 @@ class EditExpense extends Component
 {
     public $expenseId;
     public $expense_category_id;
-    public $originalCategoryId; // category the expense had when the page loaded
+    public $merchant_name;
     public $item_name;
     public $amount;
     public $transaction_date;
     public $isSavingsLinked = false; // true if this expense is a goal contribution
 
     protected $rules = [
-        // No status check here: an existing expense may legitimately keep a
-        // category that was disabled later. Switching to a *different* disabled
-        // category is rejected manually in updateExpense().
         'expense_category_id' => 'required|exists:expense_categories,id',
         'item_name' => 'required|string|max:255',
         'amount' => 'required|numeric|min:0.01|max:999999',
         'transaction_date' => 'required|date|before_or_equal:today',
+        'merchant_name' => 'nullable|string|max:255',
     ];
 
     public function mount($id)
@@ -51,11 +49,18 @@ class EditExpense extends Component
 
         $this->expenseId = $expense->id;
         $this->expense_category_id = $expense->expense_category_id;
-        $this->originalCategoryId = $expense->expense_category_id;
         $this->item_name = $expense->item_name;
         $this->amount = $expense->amount;
+        $this->merchant_name = $expense->merchant_name;
         $this->transaction_date = Carbon::parse($expense->transaction_date)->format('Y-m-d');
         $this->isSavingsLinked = !is_null($expense->savings_goal_id);
+
+        // If the expense's category was disabled by an admin since it was logged, the
+        // picker no longer lists it. Clear the selection so the student must pick a
+        // valid one instead of silently keeping a hidden category.
+        if (!$this->isSavingsLinked && !ExpenseCategory::selectable()->whereKey($this->expense_category_id)->exists()) {
+            $this->expense_category_id = null;
+        }
     }
 
     public function updateExpense()
@@ -80,18 +85,18 @@ class EditExpense extends Component
             return redirect()->route('student.expenses.index');
         }
 
-        // Category may only change to an enabled, non-Savings one. Keeping the
-        // expense's existing category is always allowed, even if the admin has
-        // disabled it since. Never trust the client's category id.
-        if (!$this->isSavingsLinked
-            && (int) $this->expense_category_id !== (int) $expense->expense_category_id
-            && !ExpenseCategory::selectable()->where('id', $this->expense_category_id)->exists()) {
+        // Regular expenses must use a category students can actually pick (enabled, not
+        // Savings). Never trust the client — a tampered id or a since-disabled category
+        // is rejected here. Savings-linked expenses are exempt: their category is forced
+        // back to the original below.
+        if (!$this->isSavingsLinked && !ExpenseCategory::selectable()->whereKey($this->expense_category_id)->exists()) {
             $this->addError('expense_category_id', 'That category is no longer available. Please pick another one.');
             return;
         }
 
         $oldAmount = (float) $expense->amount;
         $newAmount = (float) $this->amount;
+
         $availableForThisExpense = (float) $currentBudget->remaining_allowance + $oldAmount;
 
         if ($newAmount > $availableForThisExpense) {
@@ -115,15 +120,20 @@ class EditExpense extends Component
 
             if ($expense->savings_goal_id) {
                 $goal = SavingsGoal::find($expense->savings_goal_id);
+
                 if ($goal && $goal->status !== 'abandoned') {
                     $newSaved = $goal->current_saved - $oldAmount + $newAmount;
+
                     if ($newSaved < 0) {
                         $newSaved = 0.00;
                     }
+
                     $isAchieved = $newSaved >= $goal->target_amount && $goal->target_amount > 0;
+
                     if ($isAchieved) {
                         $newSaved = $goal->target_amount;
                     }
+
                     $goal->update([
                         'current_saved' => $newSaved,
                         'status' => $isAchieved
@@ -135,6 +145,7 @@ class EditExpense extends Component
 
             $expense->update([
                 'expense_category_id' => $categoryIdToSave,
+                'merchant_name' => $this->merchant_name ?: null,
                 'item_name' => $this->item_name,
                 'amount' => $this->amount,
                 'transaction_date' => $this->transaction_date . ' ' . Carbon::now()->format('H:i:s'),
@@ -149,7 +160,9 @@ class EditExpense extends Component
             ]);
         });
 
-        app(RiskDetectionService::class)->evaluateSpendingRisk(auth()->user());
+        $riskService = app(RiskDetectionService::class);
+        $riskService->evaluateSpendingRisk(auth()->user());
+        $riskService->checkLargeTransaction(auth()->user(), $expense->fresh());
 
         session()->flash('success', 'Transaction modified. Limits calculated smoothly!');
         return redirect()->route('student.dashboard');
@@ -158,16 +171,11 @@ class EditExpense extends Component
     public function render()
     {
         return view('livewire.student.edit-expense', [
-            // Savings is never a selectable category — it's only ever applied
-            // automatically via a goal contribution. Disabled categories are
-            // hidden too, except the expense's ORIGINAL category, which stays
-            // in the list so the picker never shows "nothing selected" and the
-            // student can switch back to it after clicking another pill.
-            'categories' => ExpenseCategory::whereRaw('LOWER(name) != ?', ['savings'])
-                ->where(function ($q) {
-                    $q->where('status', 'enabled')
-                      ->orWhere('id', $this->originalCategoryId);
-                })
+            // Enabled, non-Savings categories only. Savings is never a selectable
+            // category — it's only ever applied automatically via a goal contribution.
+            // The fallback ("Other") is listed last.
+            'categories' => ExpenseCategory::selectable()
+                ->orderBy('is_fallback')
                 ->orderBy('name', 'asc')
                 ->get(),
         ])->layout('layouts.student');

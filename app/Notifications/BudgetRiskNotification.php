@@ -14,17 +14,11 @@ class BudgetRiskNotification extends Notification
 
     public $riskLog;
 
-    /**
-     * Pass the generated RiskLog instance into the notification context
-     */
     public function __construct(RiskLog $riskLog)
     {
         $this->riskLog = $riskLog;
     }
 
-    /**
-     * Determine which channels the notification will use.
-     */
     public function via($notifiable)
     {
         $channels = ['database'];
@@ -36,25 +30,30 @@ class BudgetRiskNotification extends Notification
         return $channels;
     }
 
-    /**
-     * Compile the Email Payload
-     */
     public function toMail($notifiable)
     {
-        $severity = ucfirst(strtolower($this->riskLog->severity_tier));
+        $severity  = ucfirst(strtolower($this->riskLog->severity_tier));
+        $paceIntro = 'Your spending pace is running faster than planned for this cycle.';
+
+        $copy = [
+            'early_week_depletion'   => ['Pace Check', $paceIntro],
+            'rapid_overspending'     => ['Pace Check', $paceIntro],
+            'overspending_threshold' => ['Budget Alert', "You've used most of this week's allowance."],
+            'daily_safe_to_spend'    => ['Daily Limit', "You're close to today's safe-to-spend amount."],
+            'rapid_spending'         => ['Rapid Spending', "You've made several large purchases today."],
+        ];
+
+        [$label, $intro] = $copy[$this->riskLog->anomaly_type] ?? ['Budget Update', 'We noticed something in your spending.'];
 
         return (new MailMessage)
-            ->subject("[Pace Check: {$severity} Priority] Weekly Budget Update")
+            ->subject("[{$label}: {$severity} Priority] Budget Alert")
             ->greeting("Hello {$notifiable->name},")
-            ->line("Heads up! We noticed your spending pace is running a bit faster than planned for this cycle.")
+            ->line($intro)
             ->line("**Alert Details:** {$this->riskLog->description}")
             ->action('View Dashboard Analytics', route('student.dashboard'))
-            ->line('Keeping an eye on your daily spending cap helps make sure your allowance lasts comfortably until the end of the week.');
+            ->line('Keeping an eye on your daily spending cap helps make sure your allowance lasts until reset day.');
     }
 
-    /**
-     * Compile the Database/In-App Payload (Stored as JSON)
-     */
     public function toArray($notifiable)
     {
         return [
@@ -62,10 +61,6 @@ class BudgetRiskNotification extends Notification
             'anomaly_type'  => $this->riskLog->anomaly_type,
             'severity_tier' => $this->riskLog->severity_tier,
             'description'   => $this->riskLog->description,
-            // NEW: lets RiskDetectionService flip this to true when the
-            // underlying risk log gets resolved, so the notification
-            // center can show "Resolved" instead of a stale-looking
-            // warning that never goes away.
             'resolved'      => false,
         ];
     }

@@ -49,54 +49,53 @@ class Dashboard extends Component
             return;
         }
 
-        $today = Carbon::today();
-        $startDate = Carbon::parse($this->currentBudget->cycle_start_date)->startOfDay();
+        $today          = Carbon::today();
+        $startDate      = Carbon::parse($this->currentBudget->cycle_start_date)->startOfDay();
         $targetResetDay = $this->currentBudget->reset_day ?? auth()->user()->default_reset_day ?? 'Monday';
 
         $isScheduledResetDay = strtolower($today->format('l')) === strtolower($targetResetDay);
         $isPastCycleWindow   = $today->gte($startDate->copy()->addDays(7));
 
-        if (($isScheduledResetDay && !$today->isSameDay($startDate)) || $isPastCycleWindow) {
-            DB::transaction(function () use ($targetResetDay, $today) {
-                $unspentSavings    = max(0.00, (float) $this->currentBudget->remaining_allowance);
-                $oldTotalAllowance = (float) $this->currentBudget->total_allowance;
-                $amountSpent       = max(0.00, $oldTotalAllowance - $this->currentBudget->remaining_allowance);
-                $user              = auth()->user();
-                $nextCycleBaseline = (float) ($user->default_allowance ?? 1000.00);
-                $nextCycleResetDay = $user->default_reset_day ?? $targetResetDay;
-
-                $newWeeklyTotal = $nextCycleBaseline + $unspentSavings;
-
-                // Snap the new cycle start to the most recent occurrence of the
-                // reset day, so cycles stay aligned to the calendar (e.g. always
-                // Monday) even if this reset was triggered late by the 7-day
-                // overrun fallback rather than firing exactly on the reset day.
-                if (strtolower($today->format('l')) === strtolower($nextCycleResetDay)) {
-                    $newCycleStart = $today->copy();
-                } else {
-                    $newCycleStart = $today->copy()->previous($nextCycleResetDay);
-                }
-
-                $this->currentBudget->update([
-                    'total_allowance'     => $nextCycleBaseline,
-                    'remaining_allowance' => $newWeeklyTotal,
-                    'reset_day'           => $nextCycleResetDay,
-                    'cycle_start_date'    => $newCycleStart,
-                ]);
-
-                $severity = $amountSpent > $oldTotalAllowance ? 'high' : 'low';
-
-                try {
-                    $user->notify(new WeeklyBudgetReview($amountSpent, $unspentSavings, $severity));
-                } catch (\Throwable $e) {
-                    \Log::warning('Email notification failed (possibly offline): ' . $e->getMessage());
-                }
-
-                session()->flash('message', 'Weekly budget reset successfully! ₱' . number_format($unspentSavings, 2) . ' rolled over to your new cycle.');
-            });
-
-            $this->currentBudget->refresh();
+        if (!(($isScheduledResetDay && !$today->isSameDay($startDate)) || $isPastCycleWindow)) {
+            return;
         }
+
+        DB::transaction(function () use ($targetResetDay, $today) {
+            $user = auth()->user();
+
+            $ending      = app(BudgetCycleService::class)->resolve($this->currentBudget, $user);
+            $endingPool  = (float) $ending['effectiveTotalAllowance'];
+            $amountSpent = (float) $ending['totalSpentInCycle'];
+            $amountSaved = (float) $ending['totalSavedInCycle'];
+            $unspent     = max(0.00, (float) $this->currentBudget->remaining_allowance);
+
+            $nextCycleBaseline = (float) ($user->default_allowance ?? 1000.00);
+            $nextCycleResetDay = $user->default_reset_day ?? $targetResetDay;
+            $newWeeklyTotal    = $nextCycleBaseline + $unspent;
+
+            $newCycleStart = strtolower($today->format('l')) === strtolower($nextCycleResetDay)
+                ? $today->copy()
+                : $today->copy()->previous($nextCycleResetDay);
+
+            $this->currentBudget->update([
+                'total_allowance'     => $nextCycleBaseline,
+                'remaining_allowance' => $newWeeklyTotal,
+                'reset_day'           => $nextCycleResetDay,
+                'cycle_start_date'    => $newCycleStart,
+            ]);
+
+            $severity = ($endingPool > 0 && ($amountSpent / $endingPool) >= 0.9) ? 'medium' : 'success';
+
+            try {
+                $user->notify(new WeeklyBudgetReview($amountSpent, $unspent, $severity, $amountSaved));
+            } catch (\Throwable $e) {
+                \Log::warning('Email notification failed (possibly offline): ' . $e->getMessage());
+            }
+
+            session()->flash('success', 'Weekly budget reset! ₱' . number_format($unspent, 2) . ' rolled over to your new cycle.');
+        });
+
+        $this->currentBudget->refresh();
     }
 
     public function computeBehavioralMetrics()

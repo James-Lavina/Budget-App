@@ -9,33 +9,44 @@
             </p>
         </div>
 
+        @if (session()->has('error'))
+            <div class="p-4 bg-rose-50 border border-rose-100 rounded-2xl text-rose-800 text-xs font-bold">
+                {{ session('error') }}
+            </div>
+        @endif
+
         <!-- Single Expense Form Card -->
         <form wire:submit.prevent="storeExpense" class="bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-slate-100 space-y-6">
 
-            {{-- Row 1: Category (moved to top — drives item suggestions below) --}}
-            <div class="space-y-2">
-                <label class="block text-xs font-bold text-slate-700">Category</label>
-                <div class="flex flex-wrap gap-2 items-center">
-                    @foreach($categories as $category)
-                        @php $isSelected = $expense_category_id == $category->id; @endphp
-                        <button type="button"
-                            wire:click="$set('expense_category_id', {{ $category->id }})"
-                            class="px-4 py-2 rounded-full text-xs font-bold flex items-center gap-2 transition-all duration-150 transform active:scale-95 {{ $isSelected ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200' : 'bg-slate-100 text-slate-600 hover:bg-slate-200/80' }}">
-                            <x-category-icon :type="$category->icon" />
-                            <span>{{ $category->name }}</span>
-                        </button>
-                    @endforeach
+            {{-- Quick add: tap the label to fill the form, tap + to log it again right now --}}
+            @if($frequentItems->isNotEmpty())
+                <div class="space-y-1.5">
+                    <label class="block text-[11px] font-bold text-slate-400 uppercase tracking-wider">Quick add</label>
+                    <div class="flex flex-wrap gap-2">
+                        @foreach($frequentItems as $freq)
+                            <div wire:key="freq-{{ $freq['id'] }}" class="inline-flex items-stretch bg-white border border-slate-200 rounded-xl overflow-hidden">
+                                <button type="button" wire:click="useFrequent({{ $freq['id'] }})"
+                                    class="px-3 py-1.5 text-[11px] font-semibold text-slate-600 hover:bg-slate-50 transition-colors">
+                                    {{ $freq['item_name'] }}
+                                    <span class="font-mono text-slate-400 ml-1">₱{{ number_format($freq['amount'], 2) }}</span>
+                                </button>
+                                <button type="button" wire:click="repeatExpense({{ $freq['id'] }})" wire:loading.attr="disabled"
+                                    title="Log this again now"
+                                    class="px-2.5 border-l border-slate-200 text-indigo-600 font-black text-sm hover:bg-indigo-50 transition-colors disabled:opacity-50">
+                                    +
+                                </button>
+                            </div>
+                        @endforeach
+                    </div>
                 </div>
-                @error('expense_category_id')
-                    <span class="text-[11px] font-semibold text-rose-500 block mt-1">{{ $message }}</span>
-                @enderror
-            </div>
+            @endif
 
-            {{-- Row 2: Item Name + recent-item chips for the selected category --}}
+            {{-- Row 1: Item Name (drives category detection) --}}
             <div class="space-y-1.5">
                 <label for="item_name" class="block text-xs font-bold text-slate-700">Item Name</label>
-                <input id="item_name" type="text" wire:model.debounce.500ms="item_name" placeholder="e.g., Chickenjoy Meal"
-                class="w-full px-4 py-3 bg-slate-100/80 border-0 rounded-2xl text-slate-900 font-semibold text-sm placeholder-slate-400 focus:bg-white focus:ring-2 focus:ring-indigo-500 transition-all">
+                <input id="item_name" type="text" autofocus autocomplete="off"
+                    wire:model.debounce.400ms="item_name" placeholder="e.g., Chickenjoy Meal"
+                    class="w-full px-4 py-3 bg-slate-100/80 border-0 rounded-2xl text-slate-900 font-semibold text-sm placeholder-slate-400 focus:bg-white focus:ring-2 focus:ring-indigo-500 transition-all">
                 @error('item_name')
                     <span class="text-[11px] font-semibold text-rose-500 block mt-1">{{ $message }}</span>
                 @enderror
@@ -51,6 +62,32 @@
                         @endforeach
                     </div>
                 @endif
+            </div>
+
+            {{-- Row 2: Category --}}
+            <div class="space-y-2">
+                <div class="flex items-center justify-between">
+                    <label class="block text-xs font-bold text-slate-700">Category</label>
+                    @if($categoryAutoPicked)
+                        <span class="text-[10px] font-bold text-emerald-600 uppercase tracking-wide">Auto-selected — tap another to change</span>
+                    @endif
+                </div>
+
+                <div class="flex flex-wrap gap-2 items-center">
+                    @foreach($categories as $category)
+                        @php $isSelected = $expense_category_id == $category->id; @endphp
+                        <button type="button"
+                            wire:key="cat-{{ $category->id }}"
+                            wire:click="$set('expense_category_id', {{ $category->id }})"
+                            class="px-4 py-2 rounded-full text-xs font-bold flex items-center gap-2 transition-all duration-150 transform active:scale-95 {{ $isSelected ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200' : 'bg-slate-100 text-slate-600 hover:bg-slate-200/80' }}">
+                            <x-category-icon :type="$category->icon" />
+                            <span>{{ $category->name }}</span>
+                        </button>
+                    @endforeach
+                </div>
+                @error('expense_category_id')
+                    <span class="text-[11px] font-semibold text-rose-500 block mt-1">{{ $message }}</span>
+                @enderror
 
                 {{-- Mismatch nudge --}}
                 @if($suggestedCategoryId)
@@ -60,7 +97,7 @@
                         </svg>
                         <div class="flex-1 space-y-1.5">
                             <p class="text-[11px] font-semibold text-amber-800 leading-snug">
-                                You usually log "{{ $item_name }}" under <span class="font-bold">{{ $suggestedCategoryName }}</span>. Switch category?
+                                "{{ $item_name }}" looks like <span class="font-bold">{{ $suggestedCategoryName }}</span>. Switch category?
                             </p>
                             <div class="flex items-center gap-2">
                                 <button type="button" wire:click="acceptSuggestedCategory"
@@ -169,7 +206,13 @@
         }
     }
 
-    document.addEventListener('expense-added', () => {
+    // Livewire 2's dispatchBrowserEvent fires on window, not document.
+    window.addEventListener('expense-added', () => {
         document.getElementById('item_name')?.focus();
+    });
+
+    window.addEventListener('focus-amount', () => {
+        const el = document.getElementById('amount');
+        if (el) { el.focus(); el.select(); }
     });
 </script>

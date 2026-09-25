@@ -13,6 +13,7 @@ use Illuminate\Notifications\DatabaseNotification;
 class CheckExpenseLogGaps extends Command
 {
     protected $signature = 'risk:check-log-gaps {--date= : Simulate "today" as this Y-m-d date, for testing}';
+
     protected $description = 'Daily check: alerts students who have not logged an expense for N consecutive days (per Risk Detection Rules).';
 
     public function handle()
@@ -29,13 +30,19 @@ class CheckExpenseLogGaps extends Command
             $this->warn('Simulating "today" as ' . Carbon::today()->format('Y-m-d') . ' for this run.');
         }
 
-        $threshold = $settings->no_expense_logs_days;
-        $today = Carbon::today();
+        $threshold = (int) $settings->no_expense_logs_days;
+        $today     = Carbon::today();
 
-        $students = User::where('role', 'student')->get();
+        $students = User::where('role', 'student')
+            ->where('status', 'active')
+            ->whereHas('weeklyBudgets')
+            ->get();
 
         foreach ($students as $user) {
-            $lastExpenseDate = Expense::where('user_id', $user->id)->max('transaction_date');
+            // Savings transfers are not "logging an expense".
+            $lastExpenseDate = Expense::where('user_id', $user->id)
+                ->whereNull('savings_goal_id')
+                ->max('transaction_date');
 
             $anchorDate = $lastExpenseDate
                 ? Carbon::parse($lastExpenseDate)->startOfDay()
@@ -60,7 +67,7 @@ class CheckExpenseLogGaps extends Command
         }
 
         if ($this->option('date')) {
-            Carbon::setTestNow(); // reset so you don't leave it faked for anything else in this process
+            Carbon::setTestNow();
         }
 
         return 0;

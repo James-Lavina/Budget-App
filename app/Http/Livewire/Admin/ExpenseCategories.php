@@ -2,33 +2,31 @@
 
 namespace App\Http\Livewire\Admin;
 
+use App\Models\ActivityLog;
 use App\Models\Expense;
 use App\Models\ExpenseCategory;
 use App\Support\HeroiconRegistry;
+use Illuminate\Support\Facades\Cache;
 use Livewire\Component;
-use App\Models\ActivityLog;
 
 class ExpenseCategories extends Component
 {
-    // Color palette unchanged from before.
     public const PALETTE = [
-        'amber'   => ['label' => 'Amber',   'value' => 'bg-amber-50 text-amber-700',     'swatch' => 'bg-amber-600'],
-        'orange'  => ['label' => 'Orange',  'value' => 'bg-orange-50 text-orange-700',   'swatch' => 'bg-orange-600'],
-        'rose'    => ['label' => 'Rose',    'value' => 'bg-rose-50 text-rose-700',       'swatch' => 'bg-rose-600'],
-        'pink'    => ['label' => 'Pink',    'value' => 'bg-pink-50 text-pink-700',       'swatch' => 'bg-pink-600'],
-        'fuchsia' => ['label' => 'Fuchsia', 'value' => 'bg-fuchsia-50 text-fuchsia-700', 'swatch' => 'bg-fuchsia-600'], // NEW — fills the gap between pink and purple
-        'purple'  => ['label' => 'Purple',  'value' => 'bg-purple-50 text-purple-700',   'swatch' => 'bg-purple-600'],
-        'indigo'  => ['label' => 'Indigo',  'value' => 'bg-indigo-50 text-indigo-700',   'swatch' => 'bg-indigo-600'],
-        'blue'    => ['label' => 'Blue',    'value' => 'bg-blue-50 text-blue-700',       'swatch' => 'bg-blue-600'],
-        'cyan'    => ['label' => 'Cyan',    'value' => 'bg-cyan-50 text-cyan-700',       'swatch' => 'bg-cyan-600'],
-        'emerald' => ['label' => 'Emerald', 'value' => 'bg-emerald-50 text-emerald-700', 'swatch' => 'bg-emerald-600'],
-        'lime'    => ['label' => 'Lime',    'value' => 'bg-lime-50 text-lime-700',       'swatch' => 'bg-lime-600'], // NEW — fills the gap between amber and emerald
-        'slate'   => ['label' => 'Slate',   'value' => 'bg-slate-100 text-slate-700',    'swatch' => 'bg-slate-500'],
+        'amber'   => ['label' => 'Amber',   'value' => 'bg-amber-50 text-amber-700',       'swatch' => 'bg-amber-600'],
+        'orange'  => ['label' => 'Orange',  'value' => 'bg-orange-50 text-orange-700',     'swatch' => 'bg-orange-600'],
+        'rose'    => ['label' => 'Rose',    'value' => 'bg-rose-50 text-rose-700',         'swatch' => 'bg-rose-600'],
+        'pink'    => ['label' => 'Pink',    'value' => 'bg-pink-50 text-pink-700',         'swatch' => 'bg-pink-600'],
+        'fuchsia' => ['label' => 'Fuchsia', 'value' => 'bg-fuchsia-50 text-fuchsia-700',   'swatch' => 'bg-fuchsia-600'],
+        'purple'  => ['label' => 'Purple',  'value' => 'bg-purple-50 text-purple-700',     'swatch' => 'bg-purple-600'],
+        'indigo'  => ['label' => 'Indigo',  'value' => 'bg-indigo-50 text-indigo-700',     'swatch' => 'bg-indigo-600'],
+        'blue'    => ['label' => 'Blue',    'value' => 'bg-blue-50 text-blue-700',         'swatch' => 'bg-blue-600'],
+        'cyan'    => ['label' => 'Cyan',    'value' => 'bg-cyan-50 text-cyan-700',         'swatch' => 'bg-cyan-600'],
+        'emerald' => ['label' => 'Emerald', 'value' => 'bg-emerald-50 text-emerald-700',   'swatch' => 'bg-emerald-600'],
+        'lime'    => ['label' => 'Lime',    'value' => 'bg-lime-50 text-lime-700',         'swatch' => 'bg-lime-600'],
+        'slate'   => ['label' => 'Slate',   'value' => 'bg-slate-100 text-slate-700',      'swatch' => 'bg-slate-500'],
     ];
 
-    // Quick-pick shortcuts shown as buttons before the admin ever needs to
-    // search. Keys are now REAL Heroicon names (except 'food', which is a
-    // manual SVG special case) — no translation layer anymore.
+    // Quick-pick shortcuts. Keys are real Heroicon names (except 'food', a manual SVG special case).
     public const CURATED_ICONS = [
         'food'           => 'Food & Dining',
         'truck'          => 'Transportation',
@@ -46,6 +44,8 @@ class ExpenseCategories extends Component
     public $showCreateModal = false;
     public $create_name;
     public $create_description;
+    public $create_keywords;
+    public $create_is_fallback = false;
     public $create_icon = 'document-text';
     public $create_icon_search = '';
     public $create_color = 'slate';
@@ -54,6 +54,8 @@ class ExpenseCategories extends Component
     public $editingId = null;
     public $edit_name;
     public $edit_description;
+    public $edit_keywords;
+    public $edit_is_fallback = false;
     public $edit_icon;
     public $edit_icon_search = '';
     public $edit_color;
@@ -61,20 +63,9 @@ class ExpenseCategories extends Component
     // --- Delete ---
     public $confirmingDeleteId = null;
 
-    protected function rules($id = null)
-    {
-        return [
-            'name' => 'required|string|max:255|unique:expense_categories,name' . ($id ? ",{$id}" : ''),
-            'description' => 'nullable|string|max:255',
-            'color' => 'required|string|in:' . implode(',', array_keys(self::PALETTE)),
-        ];
-    }
-
     private function iconRule()
     {
-        // Valid = 'food' (special-cased) OR any name that actually exists
-        // in the installed icon package — covers both curated picks and
-        // anything chosen via search.
+        // Valid = 'food' (special-cased) OR any name that exists in the installed icon package.
         return function ($attribute, $value, $fail) {
             if ($value !== 'food' && !HeroiconRegistry::exists($value)) {
                 $fail('Please choose a valid icon.');
@@ -82,11 +73,22 @@ class ExpenseCategories extends Component
         };
     }
 
+    // Only one category can be the fallback. Query-builder updates skip model events,
+    // so the detection cache is flushed explicitly.
+    private function clearOtherFallbacks($exceptId = null): void
+    {
+        ExpenseCategory::where('is_fallback', true)
+            ->when($exceptId, fn ($q) => $q->where('id', '!=', $exceptId))
+            ->update(['is_fallback' => false]);
+
+        Cache::forget(ExpenseCategory::KEYWORD_MAP_CACHE_KEY);
+    }
+
     // --- Create ---
     public function openCreate()
     {
-        $this->reset(['create_name', 'create_description', 'create_icon_search']);
-        $this->create_icon = 'document-text';
+        $this->reset(['create_name', 'create_description', 'create_keywords', 'create_is_fallback', 'create_icon_search']);
+        $this->create_icon  = 'document-text';
         $this->create_color = 'slate';
         $this->resetErrorBag();
         $this->showCreateModal = true;
@@ -100,18 +102,26 @@ class ExpenseCategories extends Component
     public function store()
     {
         $this->validate([
-            'create_name' => 'required|string|max:255|unique:expense_categories,name',
+            'create_name'        => 'required|string|max:255|unique:expense_categories,name',
             'create_description' => 'nullable|string|max:255',
-            'create_icon' => ['required', 'string', $this->iconRule()],
-            'create_color' => 'required|string|in:' . implode(',', array_keys(self::PALETTE)),
+            'create_keywords'    => 'nullable|string|max:1000',
+            'create_is_fallback' => 'boolean',
+            'create_icon'        => ['required', 'string', $this->iconRule()],
+            'create_color'       => 'required|string|in:' . implode(',', array_keys(self::PALETTE)),
         ]);
 
+        if ($this->create_is_fallback) {
+            $this->clearOtherFallbacks();
+        }
+
         $category = ExpenseCategory::create([
-            'name' => $this->create_name,
+            'name'        => $this->create_name,
             'description' => $this->create_description,
-            'icon' => $this->create_icon,
-            'color' => self::PALETTE[$this->create_color]['value'],
-            'status' => 'enabled',
+            'keywords'    => $this->create_keywords,
+            'is_fallback' => (bool) $this->create_is_fallback,
+            'icon'        => $this->create_icon,
+            'color'       => self::PALETTE[$this->create_color]['value'],
+            'status'      => 'enabled',
         ]);
 
         ActivityLog::create([
@@ -119,7 +129,10 @@ class ExpenseCategories extends Component
             'event_type' => 'category_created',
             'ip_address' => request()->ip(),
             'user_agent' => request()->userAgent(),
-            'details'    => "Created expense category \"{$category->name}\" (icon: {$category->icon}, color: {$this->create_color})",
+            'details'    => "Created expense category \"{$category->name}\" (icon: {$category->icon}, color: {$this->create_color}"
+                . ($category->is_fallback ? ', fallback' : '')
+                . ($category->keywords ? ', ' . count($category->keywordList()) . ' keywords' : '')
+                . ')',
         ]);
 
         $this->showCreateModal = false;
@@ -130,12 +143,15 @@ class ExpenseCategories extends Component
     public function openEdit($id)
     {
         $cat = ExpenseCategory::findOrFail($id);
-        $this->editingId = $cat->id;
-        $this->edit_name = $cat->name;
+
+        $this->editingId        = $cat->id;
+        $this->edit_name        = $cat->name;
         $this->edit_description = $cat->description;
-        $this->edit_icon = $cat->icon;
+        $this->edit_keywords    = str_replace(',', ', ', (string) $cat->keywords);
+        $this->edit_is_fallback = (bool) $cat->is_fallback;
+        $this->edit_icon        = $cat->icon;
         $this->edit_icon_search = '';
-        $this->edit_color = $this->colorKeyFromValue($cat->color);
+        $this->edit_color       = $this->colorKeyFromValue($cat->color);
         $this->resetErrorBag();
     }
 
@@ -147,36 +163,57 @@ class ExpenseCategories extends Component
     public function update()
     {
         $this->validate([
-            'edit_name' => 'required|string|max:255|unique:expense_categories,name,' . $this->editingId,
+            'edit_name'        => 'required|string|max:255|unique:expense_categories,name,' . $this->editingId,
             'edit_description' => 'nullable|string|max:255',
-            'edit_icon' => ['required', 'string', $this->iconRule()],
-            'edit_color' => 'required|string|in:' . implode(',', array_keys(self::PALETTE)),
+            'edit_keywords'    => 'nullable|string|max:1000',
+            'edit_is_fallback' => 'boolean',
+            'edit_icon'        => ['required', 'string', $this->iconRule()],
+            'edit_color'       => 'required|string|in:' . implode(',', array_keys(self::PALETTE)),
         ]);
 
         $cat = ExpenseCategory::findOrFail($this->editingId);
 
         $changes = [];
+
         if ($cat->name !== $this->edit_name) {
             $changes[] = "name: \"{$cat->name}\" → \"{$this->edit_name}\"";
         }
+
         if ($cat->description !== $this->edit_description) {
             $changes[] = "description: \"" . ($cat->description ?? '—') . "\" → \"" . ($this->edit_description ?? '—') . "\"";
         }
+
+        if ((string) $cat->keywords !== ExpenseCategory::normalizeKeywords($this->edit_keywords)) {
+            $changes[] = 'keywords updated';
+        }
+
+        if ((bool) $cat->is_fallback !== (bool) $this->edit_is_fallback) {
+            $changes[] = 'fallback: ' . ($cat->is_fallback ? 'Yes' : 'No') . ' → ' . ($this->edit_is_fallback ? 'Yes' : 'No');
+        }
+
         if ($cat->icon !== $this->edit_icon) {
             $changes[] = "icon: \"{$cat->icon}\" → \"{$this->edit_icon}\"";
         }
+
         $newColorValue = self::PALETTE[$this->edit_color]['value'];
+
         if ($cat->color !== $newColorValue) {
             $changes[] = "color: \"{$this->colorKeyFromValue($cat->color)}\" → \"{$this->edit_color}\"";
         }
 
         $originalName = $cat->name;
 
+        if ($this->edit_is_fallback) {
+            $this->clearOtherFallbacks($cat->id);
+        }
+
         $cat->update([
-            'name' => $this->edit_name,
+            'name'        => $this->edit_name,
             'description' => $this->edit_description,
-            'icon' => $this->edit_icon,
-            'color' => $newColorValue,
+            'keywords'    => $this->edit_keywords,
+            'is_fallback' => (bool) $this->edit_is_fallback,
+            'icon'        => $this->edit_icon,
+            'color'       => $newColorValue,
         ]);
 
         ActivityLog::create([
@@ -195,8 +232,8 @@ class ExpenseCategories extends Component
     public function toggleStatus($id)
     {
         $cat = ExpenseCategory::findOrFail($id);
-        $wasEnabled = $cat->status !== 'disabled';
 
+        $wasEnabled  = $cat->status !== 'disabled';
         $cat->status = $wasEnabled ? 'disabled' : 'enabled';
         $cat->save();
 
@@ -231,6 +268,7 @@ class ExpenseCategories extends Component
         }
 
         $cat = ExpenseCategory::findOrFail($this->confirmingDeleteId);
+
         $inUseCount = Expense::where('expense_category_id', $cat->id)->count();
 
         if ($inUseCount > 0) {
@@ -239,7 +277,7 @@ class ExpenseCategories extends Component
             return;
         }
 
-        $name = $cat->name;
+        $name  = $cat->name;
         $catId = $cat->id;
         $cat->delete();
 
@@ -262,6 +300,7 @@ class ExpenseCategories extends Component
                 return $key;
             }
         }
+
         return 'slate';
     }
 
@@ -272,6 +311,7 @@ class ExpenseCategories extends Component
         }
 
         $colorValue = self::PALETTE[$colorKey]['value'] ?? null;
+
         if (!$colorValue) {
             return null;
         }
@@ -295,13 +335,13 @@ class ExpenseCategories extends Component
             : null;
 
         return view('livewire.admin.expense-categories', [
-            'categories' => $categories,
-            'palette' => self::PALETTE,
-            'curatedIcons' => self::CURATED_ICONS,
+            'categories'          => $categories,
+            'palette'             => self::PALETTE,
+            'curatedIcons'        => self::CURATED_ICONS,
             'createSearchResults' => HeroiconRegistry::search($this->create_icon_search),
-            'editSearchResults' => HeroiconRegistry::search($this->edit_icon_search),
-            'createDuplicate' => $createDuplicate,
-            'editDuplicate' => $editDuplicate,
+            'editSearchResults'   => HeroiconRegistry::search($this->edit_icon_search),
+            'createDuplicate'     => $createDuplicate,
+            'editDuplicate'       => $editDuplicate,
         ])->layout('layouts.admin');
     }
 }

@@ -70,6 +70,7 @@ class AddBudgetFunds extends Component
 
         // Add funds directly to remaining allowance
         $budget->increment('remaining_allowance', (float) $this->amount);
+        app(\App\Services\RiskDetectionService::class)->evaluateSpendingRisk(auth()->user());
 
         session()->flash('success', 'Successfully added ₱' . number_format($this->amount, 2) . ' to your remaining budget!');
 

@@ -1,5 +1,4 @@
 <div>
-
     <div class="space-y-6">
 
         {{-- Header --}}
@@ -44,6 +43,7 @@
                                 <th class="px-5 sm:px-6 py-3">Category</th>
                                 <th class="px-5 sm:px-6 py-3">Icon</th>
                                 <th class="px-5 sm:px-6 py-3">Color</th>
+                                <th class="px-5 sm:px-6 py-3">Auto-detect</th>
                                 <th class="px-5 sm:px-6 py-3">Status</th>
                                 <th class="px-5 sm:px-6 py-3">Actions</th>
                             </tr>
@@ -51,10 +51,16 @@
                         <tbody class="divide-y divide-slate-100">
                             @foreach($categories as $cat)
                                 @php
-                                    $swatch = collect($palette)->first(fn($p) => $p['value'] === $cat->color)['swatch'] ?? 'bg-slate-400';
+                                    $swatch       = collect($palette)->first(fn($p) => $p['value'] === $cat->color)['swatch'] ?? 'bg-slate-400';
+                                    $keywordCount = count($cat->keywordList());
                                 @endphp
                                 <tr class="{{ $cat->status === 'disabled' ? 'opacity-50' : '' }}">
-                                    <td class="px-5 sm:px-6 py-3.5 font-semibold text-[var(--brand-primary)] whitespace-nowrap">{{ $cat->name }}</td>
+                                    <td class="px-5 sm:px-6 py-3.5 font-semibold text-[var(--brand-primary)] whitespace-nowrap">
+                                        {{ $cat->name }}
+                                        @if($cat->is_fallback)
+                                            <span class="ml-1.5 inline-flex items-center px-2 py-0.5 rounded-md text-[9px] font-bold uppercase tracking-wide bg-slate-100 text-slate-500">Fallback</span>
+                                        @endif
+                                    </td>
                                     <td class="px-5 sm:px-6 py-3.5">
                                         <div class="h-8 w-8 rounded-xl {{ $cat->color }} flex items-center justify-center">
                                             <x-category-icon :type="$cat->icon" />
@@ -62,6 +68,15 @@
                                     </td>
                                     <td class="px-5 sm:px-6 py-3.5">
                                         <span class="inline-block h-5 w-5 rounded-full {{ $swatch }}"></span>
+                                    </td>
+                                    <td class="px-5 sm:px-6 py-3.5 text-xs font-semibold text-slate-500 whitespace-nowrap">
+                                        @if($cat->is_fallback)
+                                            <span class="text-slate-400">Catch-all (never suggested)</span>
+                                        @elseif($keywordCount > 0)
+                                            {{ $keywordCount }} {{ \Illuminate\Support\Str::plural('keyword', $keywordCount) }}
+                                        @else
+                                            <span class="text-slate-400">Name only</span>
+                                        @endif
                                     </td>
                                     <td class="px-5 sm:px-6 py-3.5">
                                         <span class="inline-flex items-center px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wide {{ $cat->status === 'disabled' ? 'bg-amber-50 text-amber-700' : 'bg-emerald-50 text-emerald-700' }}">
@@ -84,7 +99,6 @@
                 </div>
             @endif
         </div>
-
     </div>
 
     {{-- CREATE MODAL --}}
@@ -104,15 +118,35 @@
                         <input type="text" wire:model.defer="create_name" placeholder="e.g., Groceries" class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:bg-white focus:ring-2 focus:ring-indigo-500 transition-all">
                         @error('create_name') <span class="text-[10px] font-bold text-rose-600 block mt-1">{{ $message }}</span> @enderror
                     </div>
+
                     <div class="space-y-1.5">
                         <label class="block text-xs font-bold text-slate-700">Description <span class="font-normal text-slate-400">(optional)</span></label>
                         <input type="text" wire:model.defer="create_description" class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:bg-white focus:ring-2 focus:ring-indigo-500 transition-all">
                     </div>
 
+                    {{-- KEYWORDS --}}
+                    <div class="space-y-1.5">
+                        <label class="block text-xs font-bold text-slate-700">Keywords <span class="font-normal text-slate-400">(optional)</span></label>
+                        <textarea rows="2" wire:model.defer="create_keywords" placeholder="e.g., chicken, burger, milk tea, lunch"
+                            class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:bg-white focus:ring-2 focus:ring-indigo-500 transition-all"></textarea>
+                        <p class="text-[10px] font-medium text-slate-400 leading-snug">
+                            Comma-separated words that auto-select this category when a student types them. The category name already counts as a keyword, and the system also learns from what students log.
+                        </p>
+                        @error('create_keywords') <span class="text-[10px] font-bold text-rose-600 block mt-1">{{ $message }}</span> @enderror
+                    </div>
+
+                    {{-- FALLBACK --}}
+                    <label class="flex items-start gap-3 p-3 bg-slate-50 border border-slate-200 rounded-xl cursor-pointer select-none">
+                        <input type="checkbox" wire:model.defer="create_is_fallback" class="h-4 w-4 mt-0.5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 shrink-0">
+                        <span class="space-y-0.5">
+                            <span class="text-xs font-bold text-slate-800 block">Use as the catch-all ("Other") category</span>
+                            <span class="text-[10px] font-medium text-slate-400 block leading-snug">Never auto-suggested and never blocks saving. Only one category can be the fallback — this replaces the current one.</span>
+                        </span>
+                    </label>
+
                     {{-- ICON --}}
                     <div class="space-y-2">
                         <label class="block text-xs font-bold text-slate-700">Icon</label>
-
                         <div class="grid grid-cols-5 gap-2">
                             @foreach($curatedIcons as $key => $label)
                                 <button type="button" wire:click="$set('create_icon', '{{ $key }}')" title="{{ $label }}"
@@ -198,15 +232,35 @@
                         <input type="text" wire:model.defer="edit_name" class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:bg-white focus:ring-2 focus:ring-indigo-500 transition-all">
                         @error('edit_name') <span class="text-[10px] font-bold text-rose-600 block mt-1">{{ $message }}</span> @enderror
                     </div>
+
                     <div class="space-y-1.5">
                         <label class="block text-xs font-bold text-slate-700">Description <span class="font-normal text-slate-400">(optional)</span></label>
                         <input type="text" wire:model.defer="edit_description" class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:bg-white focus:ring-2 focus:ring-indigo-500 transition-all">
                     </div>
 
+                    {{-- KEYWORDS --}}
+                    <div class="space-y-1.5">
+                        <label class="block text-xs font-bold text-slate-700">Keywords <span class="font-normal text-slate-400">(optional)</span></label>
+                        <textarea rows="3" wire:model.defer="edit_keywords" placeholder="e.g., chicken, burger, milk tea, lunch"
+                            class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:bg-white focus:ring-2 focus:ring-indigo-500 transition-all"></textarea>
+                        <p class="text-[10px] font-medium text-slate-400 leading-snug">
+                            Comma-separated words that auto-select this category when a student types them. The category name already counts as a keyword, and the system also learns from what students log.
+                        </p>
+                        @error('edit_keywords') <span class="text-[10px] font-bold text-rose-600 block mt-1">{{ $message }}</span> @enderror
+                    </div>
+
+                    {{-- FALLBACK --}}
+                    <label class="flex items-start gap-3 p-3 bg-slate-50 border border-slate-200 rounded-xl cursor-pointer select-none">
+                        <input type="checkbox" wire:model.defer="edit_is_fallback" class="h-4 w-4 mt-0.5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 shrink-0">
+                        <span class="space-y-0.5">
+                            <span class="text-xs font-bold text-slate-800 block">Use as the catch-all ("Other") category</span>
+                            <span class="text-[10px] font-medium text-slate-400 block leading-snug">Never auto-suggested and never blocks saving. Only one category can be the fallback — this replaces the current one.</span>
+                        </span>
+                    </label>
+
                     {{-- ICON --}}
                     <div class="space-y-2">
                         <label class="block text-xs font-bold text-slate-700">Icon</label>
-
                         <div class="grid grid-cols-5 gap-2">
                             @foreach($curatedIcons as $key => $label)
                                 <button type="button" wire:click="$set('edit_icon', '{{ $key }}')" title="{{ $label }}"
@@ -295,5 +349,4 @@
             </div>
         </div>
     @endif
-
 </div>

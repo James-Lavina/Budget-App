@@ -12,13 +12,11 @@ class SavingsGoalAchieved extends Notification
 
     protected $goal;
 
-    // Pass the savings goal model into the notification constructor
     public function __construct($goal)
     {
         $this->goal = $goal;
     }
 
-    // Define the channels this notification sends to
     public function via($notifiable)
     {
         $channels = ['database'];
@@ -30,10 +28,9 @@ class SavingsGoalAchieved extends Notification
         return $channels;
     }
 
-    // Package the HTML/Log email structure
     public function toMail($notifiable)
     {
-        $goalName = $this->goal->name ?? $this->goal->target_name ?? 'Savings Goal';
+        $goalName     = $this->goal->name ?? $this->goal->target_name ?? 'Savings Goal';
         $targetAmount = $this->goal->target_amount ?? 0;
 
         return (new MailMessage)
@@ -41,14 +38,13 @@ class SavingsGoalAchieved extends Notification
             ->greeting('Awesome job, ' . $notifiable->name . '!')
             ->line('Your financial discipline just pushed your savings goal "' . $goalName . '" to 100% completion!')
             ->line('Total Target Saved: ₱' . number_format($targetAmount, 2))
-            ->action('View Savings Vault', url('/dashboard/savings'))
+            ->action('View Savings Vault', route('student.goals'))
             ->line('Keep up this incredible financial habit!');
     }
 
-    // Structure the JSON payload that goes into your notifications table
     public function toArray($notifiable)
     {
-        $goalName = $this->goal->target_name ?? $this->goal->name ?? 'Savings Goal';
+        $goalName     = $this->goal->target_name ?? $this->goal->name ?? 'Savings Goal';
         $targetAmount = $this->goal->target_amount ?? 0;
 
         return [

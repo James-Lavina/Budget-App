@@ -5,11 +5,11 @@ namespace App\Http\Livewire\Student;
 use App\Models\ActivityLog;
 use App\Models\Expense;
 use App\Models\ExpenseCategory;
-use App\Models\RiskLog;
 use App\Models\RiskSetting;
 use App\Models\WeeklyBudget;
 use App\Notifications\LowAllowanceWarning;
 use App\Services\BudgetCycleService;
+use App\Services\CategorySuggester;
 use App\Services\RiskDetectionService;
 use Carbon\Carbon;
 use Illuminate\Notifications\DatabaseNotification;
@@ -25,26 +25,26 @@ class LogExpense extends Component
     public $transaction_date;
     public $sessionLog = [];
 
-    // holds the suggested category id when item_name history disagrees
-    // with the currently selected category. Null = no conflict detected.
+    // Category-mismatch state
     public $suggestedCategoryId = null;
     public $suggestedCategoryName = null;
+    public $categoryAutoPicked = false;    // true only while the category was chosen by the engine, not the student
+    public $mismatchAcknowledged = false;  // student pressed "Keep current" (or used their own history)
 
     protected $rules = [
-        // Rejects disabled categories server-side, even if the id is tampered with.
         'expense_category_id' => 'required|exists:expense_categories,id,status,enabled',
-        'item_name' => 'required|string|max:255',
-        'amount' => 'required|numeric|min:0.01|max:999999',
-        'transaction_date' => 'required|date|before_or_equal:today',
+        'item_name'           => 'required|string|max:255',
+        'amount'              => 'required|numeric|min:0.01|max:999999',
+        'transaction_date'    => 'required|date|before_or_equal:today',
     ];
 
     protected $messages = [
-        'expense_category_id.required' => 'Please select an expense category.',
-        'expense_category_id.exists' => 'That category is no longer available. Please pick another one.',
-        'item_name.required' => 'Please provide an item description.',
-        'amount.required' => 'Please specify the amount spent.',
-        'amount.min' => 'Amount must be greater than zero.',
-        'transaction_date.required' => 'Please pick a transaction date.',
+        'expense_category_id.required'     => 'Please select an expense category.',
+        'expense_category_id.exists'       => 'That category is no longer available. Please pick another one.',
+        'item_name.required'               => 'Please provide an item description.',
+        'amount.required'                  => 'Please specify the amount spent.',
+        'amount.min'                       => 'Amount must be greater than zero.',
+        'transaction_date.required'        => 'Please pick a transaction date.',
         'transaction_date.before_or_equal' => 'You cannot enter a future transaction.',
     ];
 
@@ -58,6 +58,7 @@ class LogExpense extends Component
 
         if (is_string($item) && trim($item) !== '') {
             $this->item_name = Str::limit(trim(strip_tags($item)), 255, '');
+            $this->evaluateCategory(true);
         }
 
         if (is_numeric($amount) && (float) $amount > 0) {
@@ -65,73 +66,162 @@ class LogExpense extends Component
         }
     }
 
-    // Fires whenever the item name field changes. Debounced on the
-    // Blade side so this doesn't query on every keystroke.
+    // ---------------------------------------------------------------
+    // Category detection
+    // ---------------------------------------------------------------
+
     public function updatedItemName($value)
     {
-        $this->checkCategoryMismatch();
+        $this->mismatchAcknowledged = false;
+        $this->evaluateCategory(true);
     }
 
+    // Livewire 2 only fires updated hooks for client-side changes, never for assignments
+    // made inside this class — so this always means "the student chose this category."
     public function updatedExpenseCategoryId($value)
     {
-        // Re-check on category change too, and clear a stale suggestion
-        // once the student picks the category being suggested.
-        $this->checkCategoryMismatch();
+        $this->categoryAutoPicked   = false;
+        $this->mismatchAcknowledged = false;
+        $this->evaluateCategory(false);
     }
 
-    private function checkCategoryMismatch()
+    /**
+     * @param bool $allowAutoPick When true, an empty (or previously auto-picked) category is
+     *                            filled in. A category the student picked manually is never
+     *                            overwritten — it can only trigger the nudge.
+     */
+    private function evaluateCategory(bool $allowAutoPick): void
     {
-        $this->suggestedCategoryId = null;
-        $this->suggestedCategoryName = null;
+        $this->clearSuggestion();
 
-        $term = trim($this->item_name ?? '');
-        if (strlen($term) < 3 || !$this->expense_category_id) {
+        if ($this->mismatchAcknowledged || mb_strlen(trim($this->item_name ?? '')) < 3) {
             return;
         }
 
-        // Look at this student's own logging history for the same item
-        // name (case-insensitive exact match, not fuzzy — avoids false
-        // positives on partial words). Find the category they used most
-        // often for it.
-        $dominant = Expense::where('user_id', auth()->id())
-            ->whereRaw('LOWER(item_name) = ?', [strtolower($term)])
-            ->select('expense_category_id', DB::raw('COUNT(*) as uses'))
-            ->groupBy('expense_category_id')
-            ->orderByDesc('uses')
-            ->first();
+        $match = app(CategorySuggester::class)->suggest(auth()->user(), $this->item_name);
 
-        // Only nudge if: history exists, it disagrees with the current
-        // pick, and the history has at least 2 prior uses (avoids
-        // overriding a one-off mistake from the past).
-        if ($dominant && $dominant->uses >= 2 && (int) $dominant->expense_category_id !== (int) $this->expense_category_id) {
-            // selectable(): never suggest a category the student can't actually
-            // pick (disabled by an admin, or the Savings category).
-            $category = ExpenseCategory::selectable()->find($dominant->expense_category_id);
-            if ($category) {
-                $this->suggestedCategoryId = $category->id;
-                $this->suggestedCategoryName = $category->name;
+        if (!$match) {
+            // The item name changed to something we can't classify: drop a stale auto-pick
+            // instead of leaving the previous item's category selected.
+            if ($allowAutoPick && $this->categoryAutoPicked) {
+                $this->expense_category_id = null;
+                $this->categoryAutoPicked  = false;
             }
+            return;
+        }
+
+        if ($allowAutoPick && (!$this->expense_category_id || $this->categoryAutoPicked)) {
+            $this->expense_category_id = $match->id;
+            $this->categoryAutoPicked  = true;
+            return;
+        }
+
+        if ($this->expense_category_id && (int) $match->id !== (int) $this->expense_category_id) {
+            $this->suggestedCategoryId   = $match->id;
+            $this->suggestedCategoryName = $match->name;
         }
     }
 
-    // Called when the student taps "Use [Category]" on the nudge.
+    private function clearSuggestion(): void
+    {
+        $this->suggestedCategoryId   = null;
+        $this->suggestedCategoryName = null;
+    }
+
+    private function currentCategoryIsFallback(): bool
+    {
+        return $this->expense_category_id
+            && ExpenseCategory::where('id', $this->expense_category_id)->where('is_fallback', true)->exists();
+    }
+
     public function acceptSuggestedCategory()
     {
         if ($this->suggestedCategoryId) {
             $this->expense_category_id = $this->suggestedCategoryId;
+            $this->categoryAutoPicked  = false;
         }
-        $this->suggestedCategoryId = null;
-        $this->suggestedCategoryName = null;
+
+        $this->mismatchAcknowledged = false;
+        $this->clearSuggestion();
+        $this->resetErrorBag('item_name');
     }
 
     public function dismissSuggestion()
     {
-        $this->suggestedCategoryId = null;
-        $this->suggestedCategoryName = null;
+        $this->mismatchAcknowledged = true;
+        $this->clearSuggestion();
+        $this->resetErrorBag('item_name');
     }
 
-    // Recent distinct item names the student has logged under the
-    // currently selected category, most-recent-first, for one-tap fill.
+    // ---------------------------------------------------------------
+    // Speed-ups: frequent items + one-tap repeat
+    // ---------------------------------------------------------------
+
+    // Top items across all categories with the last amount paid. Hidden once the student starts typing.
+    public function getFrequentItemsProperty()
+    {
+        if (filled($this->item_name)) {
+            return collect();
+        }
+
+        $rows = Expense::where('user_id', auth()->id())
+            ->whereNull('savings_goal_id')
+            ->whereHas('category', fn ($q) => $q->selectable())
+            ->select('item_name', 'expense_category_id', DB::raw('COUNT(*) as uses'), DB::raw('MAX(id) as last_id'))
+            ->groupBy('item_name', 'expense_category_id')
+            ->orderByDesc('uses')
+            ->orderByDesc('last_id')
+            ->limit(6)
+            ->get();
+
+        $amounts = Expense::whereIn('id', $rows->pluck('last_id'))->pluck('amount', 'id');
+
+        return $rows->map(fn ($r) => [
+            'id'        => (int) $r->last_id,
+            'item_name' => $r->item_name,
+            'amount'    => (float) ($amounts[$r->last_id] ?? 0),
+        ]);
+    }
+
+    // Fills item + category + last amount from one of the student's own past expenses.
+    public function useFrequent($expenseId)
+    {
+        $past = Expense::where('id', $expenseId)->where('user_id', auth()->id())->first();
+
+        if (!$past) {
+            return false;
+        }
+
+        $category = ExpenseCategory::selectable()->find($past->expense_category_id);
+
+        if (!$category) {
+            session()->flash('error', 'That category is no longer available. Please pick another one.');
+            return false;
+        }
+
+        $this->item_name            = $past->item_name;
+        $this->expense_category_id  = $category->id;
+        $this->amount               = round((float) $past->amount, 2);
+        $this->categoryAutoPicked   = false;
+        $this->mismatchAcknowledged = true; // the student's own history — don't second-guess it
+        $this->clearSuggestion();
+        $this->resetErrorBag();
+        $this->dispatchBrowserEvent('focus-amount');
+
+        return true;
+    }
+
+    // One tap: fill from history and log immediately for today.
+    public function repeatExpense($expenseId)
+    {
+        $this->transaction_date = Carbon::today()->format('Y-m-d');
+
+        if ($this->useFrequent($expenseId)) {
+            $this->storeAndAddAnother();
+        }
+    }
+
+    // Recent distinct item names under the currently selected category.
     public function getRecentItemsProperty()
     {
         if (!$this->expense_category_id) {
@@ -149,13 +239,34 @@ class LogExpense extends Component
 
     public function pickRecentItem($name)
     {
-        $this->item_name = $name;
-        $this->checkCategoryMismatch();
+        $this->item_name            = $name;
+        $this->mismatchAcknowledged = false;
+        $this->evaluateCategory(false);
     }
+
+    // ---------------------------------------------------------------
+    // Persistence
+    // ---------------------------------------------------------------
 
     private function persistExpense()
     {
         $this->validate();
+
+        // The exists rule accepts any enabled category; also reject Savings via a tampered id.
+        if (!ExpenseCategory::selectable()->whereKey($this->expense_category_id)->exists()) {
+            $this->addError('expense_category_id', 'That category is no longer available. Please pick another one.');
+            return null;
+        }
+
+        // Save gate: re-check against the final values and block once if a specific
+        // category still disagrees and the student hasn't confirmed it. Picking the
+        // fallback ("Other") is never blocked — the nudge is shown but saving proceeds.
+        $this->evaluateCategory(false);
+
+        if ($this->suggestedCategoryId && !$this->mismatchAcknowledged && !$this->currentCategoryIsFallback()) {
+            $this->addError('item_name', 'This item usually belongs to ' . $this->suggestedCategoryName . '. Confirm the category below.');
+            return null;
+        }
 
         $currentBudget = WeeklyBudget::where('user_id', auth()->id())->latest()->first();
         if (!$currentBudget) {
@@ -169,14 +280,14 @@ class LogExpense extends Component
         }
 
         $newExpense = null;
-        DB::transaction(function() use ($currentBudget, &$newExpense) {
+        DB::transaction(function () use ($currentBudget, &$newExpense) {
             $newExpense = Expense::create([
-                'user_id' => auth()->id(),
+                'user_id'             => auth()->id(),
                 'expense_category_id' => $this->expense_category_id,
-                'item_name' => $this->item_name,
-                'amount' => $this->amount,
-                'transaction_date' => $this->transaction_date . ' ' . Carbon::now()->format('H:i:s'),
-                'tracking_type' => 'manual',
+                'item_name'           => $this->item_name,
+                'amount'              => $this->amount,
+                'transaction_date'    => $this->transaction_date . ' ' . Carbon::now()->format('H:i:s'),
+                'tracking_type'       => 'manual',
             ]);
 
             $currentBudget->remaining_allowance -= $this->amount;
@@ -196,40 +307,11 @@ class LogExpense extends Component
         $riskService->checkLargeTransaction(auth()->user(), $newExpense, $currentBudget->total_allowance);
         $riskService->resolveNoExpenseLogsAlert(auth()->user());
 
-        $riskSettings = RiskSetting::current();
-        if ($riskSettings->low_remaining_budget_enabled) {
-            $thresholdAmount = $currentBudget->total_allowance * ($riskSettings->low_remaining_budget_threshold / 100);
-            if ($currentBudget->remaining_allowance <= $thresholdAmount) {
-                $alreadyNotified = DatabaseNotification::where('notifiable_id', auth()->id())
-                    ->where('notifiable_type', 'App\Models\User')
-                    ->where('data', 'LIKE', '%"anomaly_type":"low_allowance_threshold"%')
-                    ->where('data', 'LIKE', '%"resolved":false%')
-                    ->where('created_at', '>=', $currentBudget->created_at)
-                    ->exists();
-
-                if (!$alreadyNotified) {
-                    $percentageLeft = round(($currentBudget->remaining_allowance / $currentBudget->total_allowance) * 100);
-                    auth()->user()->notify(new LowAllowanceWarning($percentageLeft, $currentBudget->remaining_allowance));
-                }
-            } else {
-                DatabaseNotification::where('notifiable_id', auth()->id())
-                    ->where('notifiable_type', 'App\Models\User')
-                    ->where('data', 'LIKE', '%"anomaly_type":"low_allowance_threshold"%')
-                    ->where('data', 'LIKE', '%"resolved":false%')
-                    ->where('created_at', '>=', $currentBudget->created_at)
-                    ->get()
-                    ->each(function ($notification) {
-                        $data = $notification->data;
-                        $data['resolved'] = true;
-                        $notification->update(['data' => $data]);
-                    });
-            }
-        }
-
         return $newExpense;
     }
 
-    public function storeExpense() {
+    public function storeExpense()
+    {
         $expense = $this->persistExpense();
         if (!$expense) return;
 
@@ -237,22 +319,25 @@ class LogExpense extends Component
         return redirect()->route('student.dashboard');
     }
 
-    public function storeAndAddAnother() {
+    public function storeAndAddAnother()
+    {
         $expense = $this->persistExpense();
         if (!$expense) return;
 
         $category = ExpenseCategory::find($expense->expense_category_id);
         $this->sessionLog[] = [
-            'id' => $expense->id,
-            'item_name' => $expense->item_name,
-            'amount' => $expense->amount,
+            'id'            => $expense->id,
+            'item_name'     => $expense->item_name,
+            'amount'        => $expense->amount,
             'category_name' => $category->name ?? 'Uncategorized',
             'category_icon' => $category->icon ?? 'default',
         ];
 
-        $this->reset(['item_name', 'amount']);
-        $this->suggestedCategoryId = null;
-        $this->suggestedCategoryName = null;
+        // Next item starts clean: its category is re-detected from the new item name.
+        $this->reset(['item_name', 'amount', 'expense_category_id']);
+        $this->categoryAutoPicked   = false;
+        $this->mismatchAcknowledged = false;
+        $this->clearSuggestion();
         $this->resetErrorBag();
         $this->dispatchBrowserEvent('expense-added');
     }
@@ -277,7 +362,7 @@ class LogExpense extends Component
             $expense->delete();
         });
 
-        $this->sessionLog = array_values(array_filter($this->sessionLog, fn($e) => $e['id'] !== $expenseId));
+        $this->sessionLog = array_values(array_filter($this->sessionLog, fn ($e) => $e['id'] !== $expenseId));
         $riskService = app(RiskDetectionService::class);
         $riskService->evaluateSpendingRisk(auth()->user());
         $riskService->resolveLargeTransactionAlert(auth()->user(), $expenseId);
@@ -286,11 +371,10 @@ class LogExpense extends Component
     public function render()
     {
         return view('livewire.student.log-expense', [
-            // Enabled, non-Savings categories only (see ExpenseCategory::scopeSelectable).
-            'categories' => ExpenseCategory::selectable()
-                ->orderBy('name', 'asc')
-                ->get(),
-            'recentItems' => $this->recentItems,
+            // Fallback ("Other") is listed last.
+            'categories'    => ExpenseCategory::selectable()->orderBy('is_fallback')->orderBy('name')->get(),
+            'recentItems'   => $this->recentItems,
+            'frequentItems' => $this->frequentItems,
         ])->layout('layouts.student');
     }
 }

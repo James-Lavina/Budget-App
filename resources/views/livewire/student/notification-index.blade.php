@@ -8,7 +8,7 @@
             </p>
         </div>
 
-        @if($notifications->where('read_at', null)->count() > 0)
+        @if($unreadCount > 0)
             <button
                 wire:click="markAllAsRead"
                 class="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-2xl bg-indigo-50 text-indigo-600 hover:bg-indigo-100 font-semibold text-sm transition-all shadow-sm">
@@ -42,7 +42,6 @@
                     'goal_achieved'           => ['bg' => 'bg-emerald-100', 'text' => 'text-emerald-600', 'path' => 'M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z'],
                     'savings_milestone'       => ['bg' => 'bg-emerald-100', 'text' => 'text-emerald-600', 'path' => 'M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1'],
                     'weekly_review'           => ['bg' => 'bg-indigo-100', 'text' => 'text-indigo-600', 'path' => 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z'],
-                    'pacing_warning'          => ['bg' => 'bg-amber-100', 'text' => 'text-amber-600', 'path' => 'M13 7h8m0 0v8m0-8l-8 8-4-4-6 6'],
                     'low_allowance_threshold' => ['bg' => 'bg-amber-100', 'text' => 'text-amber-600', 'path' => 'M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z'],
                     'early_week_depletion'    => ['bg' => 'bg-red-100', 'text' => 'text-red-600', 'path' => 'M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z'],
                     'rapid_overspending'      => ['bg' => 'bg-red-100', 'text' => 'text-red-600', 'path' => 'M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z'],
@@ -73,7 +72,6 @@
                     case 'savings_milestone':
                         $link = route('student.goals');
                         break;
-                    case 'pacing_warning':
                     case 'early_week_depletion':
                     case 'rapid_overspending':
                     case 'overspending_threshold':
