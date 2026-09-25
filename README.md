@@ -41,5 +41,76 @@ Ensure you have the following installed on your machine:
 ### Step 1: Clone the Repository
 Open your terminal or command prompt and clone the project:
 ```bash
-git clone [https://github.com/James-Lavina/Budget-App.git](https://github.com/James-Lavina/Budget-App.git)
+git clone https://github.com/James-Lavina/Budget-App.git
 cd Budget-App
+```
+
+---
+
+### Step 2: Install PHP & Node Dependencies
+Install the backend and frontend package dependencies:
+```bash
+# Install PHP dependencies
+# (Use --ignore-platform-reqs if using PHP 8.2 or newer)
+composer install --ignore-platform-reqs
+
+# Install Node modules and build assets
+npm install
+npm run dev
+```
+
+---
+
+### Step 3: Configure Environment File
+1. Copy the example environment file to create your local `.env`:
+   ```bash
+   cp .env.example .env
+   ```
+   *(On Windows Command Prompt, run: `copy .env.example .env`)*
+
+2. Generate the application encryption key:
+   ```bash
+   php artisan key:generate
+   ```
+
+---
+
+### Step 4: Configure Database & API Credentials
+1. Start your **MySQL** server (e.g., using the XAMPP Control Panel).
+2. Create a new database in **phpMyAdmin** or MySQL CLI (e.g., `BudgetApp` or `budget_app_db`).
+3. Open `.env` in a text editor and configure your database and external API parameters:
+   ```env
+   DB_CONNECTION=mysql
+   DB_HOST=127.0.0.1
+   DB_PORT=3306
+   DB_DATABASE=BudgetApp
+   DB_USERNAME=root
+   DB_PASSWORD=
+
+   # External API Integrations
+   OCR_SPACE_API_KEY=your_ocr_space_api_key
+   GROQ_API_KEY=your_groq_api_key
+   ```
+
+---
+
+### Step 5: Run Database Migrations & Seeders
+1. Build the database schema:
+   ```bash
+   php artisan migrate
+   ```
+
+2. Seed default admin user data (optional):
+   ```bash
+   php artisan db:seed --class=AdminUserSeeder
+   ```
+
+---
+
+### Step 6: Launch the Application
+Start Laravel's local development server:
+```bash
+php artisan serve
+```
+
+Open your browser and navigate to **`http://127.0.0.1:8000`**.
