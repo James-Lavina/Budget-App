@@ -13,7 +13,7 @@ This application served as the final capstone project fulfillment for an undergr
 
 ## 🛠️ Technical Architecture & Stack
 
-* **Backend Framework:** Laravel 8.x (PHP 7.4+ / 8.0+)
+* **Backend Framework:** Laravel 8.x (PHP 7.4+ / 8.0+ / 8.1+)
 * **Frontend Ecosystem:**
   * **Tailwind CSS v3** (Responsive utility-first UI framework)
   * **Laravel Livewire v2** (Reactive, server-driven dynamic interfaces)
@@ -23,3 +23,23 @@ This application served as the final capstone project fulfillment for an undergr
   * **Groq AI Engine** (LLM-based parsing and predictive budgeting analytics)
 
 ---
+
+## 🚀 Local Installation & Setup Guide
+
+Follow these steps to clone, configure, and run the project locally on Windows / macOS / Linux environments.
+
+### Prerequisites
+Ensure you have the following installed on your machine:
+* **Git**
+* **PHP** (v8.0, v8.1, or v8.2 with `zip`, `openssl`, `curl`, and `pdo_mysql` extensions enabled in `php.ini`)
+* **Composer** (PHP Package Manager)
+* **Node.js** (v18+) & **NPM**
+* **MySQL / MariaDB** (e.g., via XAMPP)
+
+---
+
+### Step 1: Clone the Repository
+Open your terminal or command prompt and clone the project:
+```bash
+git clone [https://github.com/James-Lavina/Budget-App.git](https://github.com/James-Lavina/Budget-App.git)
+cd Budget-App
