@@ -4,6 +4,7 @@ namespace App\Http\Livewire\Student;
 
 use Livewire\Component;
 use App\Models\WeeklyBudget;
+use App\Services\RiskDetectionService;
 
 class Settings extends Component
 {
@@ -20,7 +21,7 @@ class Settings extends Component
     {
         $user = auth()->user();
         $currentBudget = WeeklyBudget::where('user_id', $user->id)->latest()->first();
-        
+
         $this->total_allowance = $user->default_allowance ?? ($currentBudget->total_allowance ?? 1000.00);
         $this->reset_day = $user->default_reset_day ?? ($currentBudget->reset_day ?? 'Monday');
     }
@@ -41,7 +42,6 @@ class Settings extends Component
             $oldTotalBaseline = (float) $currentBudget->total_allowance;
             $newTotalBaseline = (float) $this->total_allowance;
             $currentRemaining = (float) $currentBudget->remaining_allowance;
-
             $difference = $newTotalBaseline - $oldTotalBaseline;
             $finalRemaining = max(0.00, $currentRemaining + $difference);
 
@@ -50,6 +50,11 @@ class Settings extends Component
                 'remaining_allowance' => $finalRemaining,
                 'reset_day'           => $this->reset_day,
             ]);
+
+            // FIX: raising the allowance to fix an overspending or low-
+            // allowance alert should clear it immediately here, not wait
+            // for the student's next logged expense.
+            app(RiskDetectionService::class)->evaluateSpendingRisk($user);
 
             $this->update_current_week = false;
             $this->emit('refreshBudgetMetrics');

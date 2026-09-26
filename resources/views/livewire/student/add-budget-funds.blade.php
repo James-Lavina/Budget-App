@@ -6,14 +6,14 @@
     </div>
 
     <!-- Current Balance Card -->
-    <div class="bg-indigo-50/70 border border-indigo-100 rounded-2xl p-4 flex items-center justify-between">
+    <div class="bg-[rgba(var(--brand-rgb),0.06)] border border-[rgba(var(--brand-rgb),0.16)] rounded-2xl p-4 flex items-center justify-between">
         <div>
-            <span class="text-xs font-semibold text-indigo-600 block">Current Remaining Budget</span>
-            <span class="text-2xl font-black text-indigo-950 font-mono">
+            <span class="text-xs font-semibold text-[var(--brand)] block">Current Remaining Budget</span>
+            <span class="text-2xl font-black text-[var(--brand-dark)] font-mono">
                 ₱{{ number_format($currentBudget->remaining_allowance ?? 0, 2) }}
             </span>
         </div>
-        <div class="h-10 w-10 bg-indigo-600 text-white rounded-xl flex items-center justify-center font-bold text-lg">
+        <div class="h-10 w-10 bg-[var(--brand)] text-white rounded-xl flex items-center justify-center font-bold text-lg">
             ₱
         </div>
     </div>
@@ -41,7 +41,7 @@
                 placeholder="0.00"
                 max="{{ $fundsCeiling }}"
                 onblur="formatBudgetAmount(this)"
-                class="block w-full pl-8 pr-4 py-3 border border-slate-200 rounded-2xl text-slate-900 font-mono font-bold text-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all">
+                class="block w-full pl-8 pr-4 py-3 border border-slate-200 rounded-2xl text-slate-900 font-mono font-bold text-lg focus:ring-2 focus:ring-[rgba(var(--brand-rgb),0.2)] focus:border-[var(--brand)] transition-all">
             </div>
             @error('amount') 
                 <span class="text-xs text-rose-500 font-semibold mt-1 block">{{ $message }}</span> 
@@ -66,7 +66,7 @@
         <!-- Action Buttons -->
         <div class="pt-3 flex items-center gap-3">
             <button type="submit" 
-                class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold py-3 px-5 rounded-2xl shadow-md shadow-indigo-500/20 transition-all transform active:scale-95 text-sm">
+                class="flex-1 bg-[var(--brand)] hover:opacity-90 text-white font-extrabold py-3 px-5 rounded-2xl shadow-md shadow-[0_4px_12px_-2px_rgba(var(--brand-rgb),0.35)] transition-all transform active:scale-95 text-sm">
                 Add to Budget
             </button>
             <a href="{{ route('student.dashboard') }}" 

@@ -164,7 +164,25 @@ class RiskDetectionService
             ->where('anomaly_type', $type)
             ->where('created_at', '>=', $windowStart);
 
-        if ((clone $inWindow)->where('resolved', false)->exists()) {
+        $openLog = (clone $inWindow)->where('resolved', false)->latest('id')->first();
+
+        if ($openLog) {
+            // FIX: the RiskLog itself is still open and the condition is
+            // still true, but if the student deleted the notification for
+            // it, syncRiskAlert used to just return here forever — nothing
+            // would ever remind them again about a still-active alert
+            // until it resolved and re-triggered fresh. Re-send the
+            // notification for the still-open log instead of creating a
+            // duplicate RiskLog row.
+            $notificationExists = DatabaseNotification::where('notifiable_id', $user->id)
+                ->where('notifiable_type', 'App\Models\User')
+                ->where('data->risk_log_id', $openLog->id)
+                ->exists();
+
+            if (!$notificationExists) {
+                $this->notifyRisk($user, $openLog);
+            }
+
             return;
         }
 

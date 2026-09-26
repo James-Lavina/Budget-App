@@ -370,7 +370,14 @@ class UserManagement extends Component
 
             if ($viewingUser) {
                 $budget = $viewingUser->latestWeeklyBudget;
-                $cycle = $budget ? app(BudgetCycleService::class)->resolve($budget, $viewingUser) : null;
+
+                // FIX: readOnly = true — an admin opening this modal was
+                // previously able to trigger the STUDENT's weekly reset
+                // just by viewing their profile, since resolve() now
+                // persists a rollover as a side effect. Admin views must
+                // only inspect the cycle, never mutate it on the
+                // student's behalf.
+                $cycle = $budget ? app(BudgetCycleService::class)->resolve($budget, $viewingUser, true) : null;
 
                 $topGoal = SavingsGoal::where('user_id', $viewingUser->id)
                     ->where('status', 'active')

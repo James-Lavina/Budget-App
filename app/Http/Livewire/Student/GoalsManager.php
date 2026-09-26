@@ -4,14 +4,9 @@ namespace App\Http\Livewire\Student;
 
 use App\Models\SavingsGoal;
 use App\Models\WeeklyBudget;
-use App\Models\RiskLog;
-use App\Models\RiskSetting;
 use App\Models\Expense;
-use App\Models\ExpenseCategory;
-use Carbon\Carbon;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Notifications\DatabaseNotification;
-use Illuminate\Support\Str;
+use App\Notifications\SavingsGoalAchieved;
+use App\Services\SavingsGoalService;
 use Livewire\Component;
 use Livewire\WithPagination;
 
@@ -82,10 +77,26 @@ class GoalsManager extends Component
             'user_id' => auth()->id(),
             'target_name' => $this->target_name,
             'target_amount' => $targetAmount,
-            'current_saved' => 0.00,
+            // FIX: this used to be hardcoded to 0.00, silently discarding
+            // whatever amount the student entered as "already saved" —
+            // a goal could be created with status 'achieved' but 0%
+            // progress shown on screen.
+            'current_saved' => $initialSaved,
             'target_date' => $this->target_date ?: null,
             'status' => $status,
         ]);
+
+        // A goal created already at (or past) its target should tell the
+        // student immediately, same as reaching it via Add Funds.
+        if ($status === 'achieved') {
+            try {
+                auth()->user()->notify(new SavingsGoalAchieved($goal));
+            } catch (\Throwable $e) {
+                \Log::warning('Notification failed: ' . $e->getMessage());
+            }
+        } else {
+            app(SavingsGoalService::class)->checkAndNotifySavingsMilestone(auth()->user(), $goal);
+        }
 
         // A newly created goal lands on page 1 of the Active tab.
         $this->resetPage();
@@ -127,7 +138,7 @@ class GoalsManager extends Component
             'fund_amount.max' => 'Transfer halted! The amount exceeds either your remaining budget (₱' . number_format($currentBudget->remaining_allowance, 2) . ') or what is left to finish this goal (₱' . number_format($remainingNeeded, 2) . ').'
         ]);
 
-        $result = app(\App\Services\SavingsGoalService::class)->addFunds(auth()->user(), $goal, (float) $this->fund_amount);
+        $result = app(SavingsGoalService::class)->addFunds(auth()->user(), $goal, (float) $this->fund_amount);
 
         $this->fundingGoalId = null;
         $this->emit('refreshNotifications');
@@ -135,52 +146,6 @@ class GoalsManager extends Component
         session()->flash('success', $result['goalWasAchieved']
             ? 'Incredible! Target reached. Milestone shifted to your completed vault!'
             : 'Funds successfully transferred from your budget balance to your savings goal!');
-    }
-
-    private function checkAndNotifySavingsMilestone($goal)
-    {
-        if ($goal->target_amount <= 0) {
-            return;
-        }
-
-        $progressPercentage = round(($goal->current_saved / $goal->target_amount) * 100);
-        
-        $milestones = [25, 50, 75];
-        $reachedMilestone = null;
-
-        foreach ($milestones as $milestone) {
-            if ($progressPercentage >= $milestone) {
-                $reachedMilestone = $milestone;
-            }
-        }
-
-        if (!$reachedMilestone) {
-            return;
-        }
-
-        $alreadyNotified = DatabaseNotification::where('notifiable_id', auth()->id())
-            ->where('notifiable_type', 'App\Models\User')
-            ->where('data', 'LIKE', '%"anomaly_type":"savings_milestone"%')
-            ->where('data', 'LIKE', '%"milestone":' . $reachedMilestone . '%')
-            ->where('data', 'LIKE', '%"goal_id":' . $goal->id . '%')
-            ->exists();
-
-        if (!$alreadyNotified) {
-            DatabaseNotification::create([
-                'id' => Str::uuid(),
-                'type' => 'App\Notifications\SavingsMilestoneReached',
-                'notifiable_type' => 'App\Models\User',
-                'notifiable_id' => auth()->id(),
-                'data' => [
-                    'anomaly_type' => 'savings_milestone',
-                    'milestone' => $reachedMilestone,
-                    'goal_id' => $goal->id,
-                    'severity_tier' => 'success',
-                    'description' => "Milestone Unlocked! 📈 You've saved {$reachedMilestone}% of your target for '{$goal->target_name}'.",
-                ],
-                'read_at' => null,
-            ]);
-        }
     }
 
     public function abandonGoal($id)
@@ -226,7 +191,7 @@ class GoalsManager extends Component
             ->where('user_id', auth()->id())
             ->firstOrFail();
 
-        DB::transaction(function () use ($goal) {
+        \Illuminate\Support\Facades\DB::transaction(function () use ($goal) {
             Expense::where('savings_goal_id', $goal->id)->delete();
             $goal->delete();
         });

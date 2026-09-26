@@ -11,7 +11,7 @@
         @if($unreadCount > 0)
             <button
                 wire:click="markAllAsRead"
-                class="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-2xl bg-indigo-50 text-indigo-600 hover:bg-indigo-100 font-semibold text-sm transition-all shadow-sm">
+                class="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-2xl bg-[rgba(var(--brand-rgb),0.08)] text-[var(--brand)] hover:bg-[rgba(var(--brand-rgb),0.14)] font-semibold text-sm transition-all shadow-sm">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
                 </svg>
@@ -41,11 +41,11 @@
                 $iconMap = [
                     'goal_achieved'           => ['bg' => 'bg-emerald-100', 'text' => 'text-emerald-600', 'path' => 'M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z'],
                     'savings_milestone'       => ['bg' => 'bg-emerald-100', 'text' => 'text-emerald-600', 'path' => 'M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1'],
-                    'weekly_review'           => ['bg' => 'bg-indigo-100', 'text' => 'text-indigo-600', 'path' => 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z'],
+                    'weekly_review'           => ['bg' => 'bg-[rgba(var(--brand-rgb),0.12)]', 'text' => 'text-[var(--brand)]', 'path' => 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z'],
                     'low_allowance_threshold' => ['bg' => 'bg-amber-100', 'text' => 'text-amber-600', 'path' => 'M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z'],
                     'early_week_depletion'    => ['bg' => 'bg-red-100', 'text' => 'text-red-600', 'path' => 'M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z'],
                     'rapid_overspending'      => ['bg' => 'bg-red-100', 'text' => 'text-red-600', 'path' => 'M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z'],
-                    'default'                 => ['bg' => 'bg-indigo-100', 'text' => 'text-indigo-600', 'path' => 'M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z'],
+                    'default'                 => ['bg' => 'bg-[rgba(var(--brand-rgb),0.12)]', 'text' => 'text-[var(--brand)]', 'path' => 'M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z'],
                     'category_concentration' => ['bg' => 'bg-purple-100', 'text' => 'text-purple-700', 'path' => 'M11 3.055A9.003 9.003 0 1020.945 13H11V3.055z'],
                     'large_transaction'       => ['bg' => 'bg-orange-100', 'text' => 'text-orange-700', 'path' => 'M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1'],
                     // NEW: Risk Detection Rules — Overspending Threshold
@@ -99,7 +99,7 @@
                 }
             @endphp
 
-            <div class="p-5 border-b border-slate-100 last:border-b-0 transition-colors flex items-start justify-between gap-4 {{ $isResolved ? 'opacity-60' : ($isUnread ? 'bg-indigo-50/30' : 'hover:bg-slate-50/60') }}">
+            <div class="p-5 border-b border-slate-100 last:border-b-0 transition-colors flex items-start justify-between gap-4 {{ $isResolved ? 'opacity-60' : ($isUnread ? 'bg-[rgba(var(--brand-rgb),0.04)]' : 'hover:bg-slate-50/60') }}">
                 <div class="flex items-start gap-4">
                     {{-- Icon (mapped by notification type, muted when resolved) --}}
                     <div class="shrink-0 p-3 rounded-2xl mt-0.5 {{ $icon['bg'] }} {{ $icon['text'] }}">
@@ -126,7 +126,7 @@
                                 </span>
                             @endif
                             @if($link && !$isResolved)
-                                <a href="{{ $link }}" class="text-xs font-semibold text-indigo-600 hover:text-indigo-700">View →</a>
+                                <a href="{{ $link }}" class="text-xs font-semibold text-[var(--brand)] hover:opacity-80">View →</a>
                             @endif
                         </div>
                     </div>
@@ -138,7 +138,7 @@
                         <button
                             wire:click="markAsRead('{{ $notification->id }}')"
                             title="Mark as read"
-                            class="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all">
+                            class="p-2 text-slate-400 hover:text-[var(--brand)] hover:bg-[rgba(var(--brand-rgb),0.08)] rounded-xl transition-all">
                             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
                             </svg>

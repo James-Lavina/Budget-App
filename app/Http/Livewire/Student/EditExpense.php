@@ -7,8 +7,10 @@ use App\Models\Expense;
 use App\Models\ExpenseCategory;
 use App\Models\SavingsGoal;
 use App\Models\WeeklyBudget;
+use App\Notifications\SavingsGoalAchieved;
 use App\Services\BudgetCycleService;
 use App\Services\RiskDetectionService;
+use App\Services\SavingsGoalService;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Livewire\Component;
@@ -113,7 +115,15 @@ class EditExpense extends Component
             ? $expense->expense_category_id
             : $this->expense_category_id;
 
-        DB::transaction(function () use ($expense, $currentBudget, $oldAmount, $newAmount, $categoryIdToSave) {
+        // FIX: capture the affected goal + whether this edit newly crossed
+        // 100%, so a student who bumps up a savings-linked expense enough
+        // to hit their target gets notified — previously the status/amount
+        // was mutated silently with no SavingsGoalAchieved /
+        // SavingsMilestoneReached notification at all.
+        $affectedGoal      = null;
+        $goalNewlyAchieved = false;
+
+        DB::transaction(function () use ($expense, $currentBudget, $oldAmount, $newAmount, $categoryIdToSave, &$affectedGoal, &$goalNewlyAchieved) {
             $adjustmentDelta = $oldAmount - $newAmount;
             $currentBudget->remaining_allowance += $adjustmentDelta;
             $currentBudget->save();
@@ -122,6 +132,8 @@ class EditExpense extends Component
                 $goal = SavingsGoal::find($expense->savings_goal_id);
 
                 if ($goal && $goal->status !== 'abandoned') {
+                    $wasAchieved = $goal->status === 'achieved';
+
                     $newSaved = $goal->current_saved - $oldAmount + $newAmount;
 
                     if ($newSaved < 0) {
@@ -140,6 +152,9 @@ class EditExpense extends Component
                             ? 'achieved'
                             : ($goal->status === 'achieved' ? 'active' : $goal->status),
                     ]);
+
+                    $affectedGoal      = $goal->fresh();
+                    $goalNewlyAchieved = $isAchieved && !$wasAchieved;
                 }
             }
 
@@ -159,6 +174,18 @@ class EditExpense extends Component
                 'details'    => "Edited \"{$expense->item_name}\": ₱" . number_format($oldAmount, 2) . " → ₱" . number_format($newAmount, 2),
             ]);
         });
+
+        if ($affectedGoal) {
+            if ($goalNewlyAchieved) {
+                try {
+                    auth()->user()->notify(new SavingsGoalAchieved($affectedGoal));
+                } catch (\Throwable $e) {
+                    \Log::warning('Notification failed: ' . $e->getMessage());
+                }
+            } else {
+                app(SavingsGoalService::class)->checkAndNotifySavingsMilestone(auth()->user(), $affectedGoal);
+            }
+        }
 
         $riskService = app(RiskDetectionService::class);
         $riskService->evaluateSpendingRisk(auth()->user());

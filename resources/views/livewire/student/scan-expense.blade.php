@@ -22,7 +22,7 @@
                         </p>
                     </div>
                     <div>
-                        <span class="inline-flex items-center px-3.5 py-1.5 rounded-full text-xs font-extrabold bg-indigo-50 text-indigo-600">
+                        <span class="inline-flex items-center px-3.5 py-1.5 rounded-full text-xs font-extrabold bg-[rgba(var(--brand-rgb),0.08)] text-[var(--brand)]">
                             Step 1 of 2
                         </span>
                     </div>
@@ -33,7 +33,7 @@
                     <div class="bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-slate-100 space-y-6">
                         <form wire:submit.prevent="processReceipt" class="space-y-6">
                             {{-- Drag and Drop Dropzone --}}
-                            <div class="relative border-2 border-dashed {{ $receiptImage ? 'border-indigo-500 bg-indigo-50/20' : 'border-slate-200 hover:border-indigo-400 bg-slate-50/50' }} rounded-3xl p-8 flex flex-col items-center justify-center text-center min-h-[220px] transition-all cursor-pointer">
+                            <div class="relative border-2 border-dashed {{ $receiptImage ? 'border-[var(--brand)] bg-[rgba(var(--brand-rgb),0.06)]' : 'border-slate-200 hover:border-[var(--brand)] bg-slate-50/50' }} rounded-3xl p-8 flex flex-col items-center justify-center text-center min-h-[220px] transition-all cursor-pointer">
                                 <input type="file" id="receipt_upload" wire:model="receiptImage" accept="image/*" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer {{ $isProcessing ? 'pointer-events-none' : '' }}">
 
                                 @if ($receiptImage)
@@ -68,14 +68,14 @@
                                                 </svg>
                                             </div>
                                             <p class="text-xs font-bold text-slate-800">Your upload expired or couldn't be previewed.</p>
-                                            <button type="button" wire:click="clearReceiptImage" class="text-xs font-bold text-indigo-600 hover:text-indigo-700 transition-colors">
+                                            <button type="button" wire:click="clearReceiptImage" class="text-xs font-bold text-[var(--brand)] hover:opacity-80 transition-colors">
                                                 Re-select image
                                             </button>
                                         </div>
                                     @endif
                                 @else
                                     <div class="space-y-3">
-                                        <div class="w-12 h-12 bg-indigo-50 rounded-2xl flex items-center justify-center mx-auto text-indigo-600">
+                                        <div class="w-12 h-12 bg-[rgba(var(--brand-rgb),0.08)] rounded-2xl flex items-center justify-center mx-auto text-[var(--brand)]">
                                             <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/>
                                             </svg>
@@ -89,7 +89,7 @@
 
                                 {{-- Loading Overlay: file uploading --}}
                                 <div wire:loading.flex wire:target="receiptImage" class="absolute inset-0 bg-white/95 rounded-3xl flex-col justify-center items-center backdrop-blur-sm z-20">
-                                    <div class="animate-spin rounded-full h-8 w-8 border-2 border-indigo-600 border-t-transparent mb-2"></div>
+                                    <div class="animate-spin rounded-full h-8 w-8 border-2 border-[var(--brand)] border-t-transparent mb-2"></div>
                                     <span class="text-xs font-extrabold text-slate-700">Preparing File...</span>
                                 </div>
                             </div>
@@ -105,7 +105,7 @@
                                 </a>
                                 @if ($receiptImage)
                                     <button type="submit" wire:loading.attr="disabled" wire:target="processReceipt"
-                                        class="px-8 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-full font-bold text-xs shadow-lg shadow-indigo-200 transition-all transform active:scale-95 disabled:opacity-50 flex items-center gap-2">
+                                        class="px-8 py-3 bg-[var(--brand)] hover:opacity-90 text-white rounded-full font-bold text-xs shadow-lg shadow-[0_8px_16px_-4px_rgba(var(--brand-rgb),0.3)] transition-all transform active:scale-95 disabled:opacity-50 flex items-center gap-2">
                                         <span wire:loading.remove wire:target="processReceipt">Extract Receipt Data</span>
                                         <span wire:loading wire:target="processReceipt">Processing OCR...</span>
                                     </button>
@@ -117,7 +117,7 @@
                     {{-- Full-card Loading Overlay: OCR + AI processing --}}
                     <div wire:loading.flex wire:target="processReceipt"
                          class="absolute inset-0 bg-white/95 rounded-3xl flex-col justify-center items-center backdrop-blur-sm z-30">
-                        <div class="animate-spin rounded-full h-10 w-10 border-2 border-indigo-600 border-t-transparent mb-3"></div>
+                        <div class="animate-spin rounded-full h-10 w-10 border-2 border-[var(--brand)] border-t-transparent mb-3"></div>
                         <span class="text-sm font-extrabold text-slate-700">Reading your receipt...</span>
                         <span class="text-xs font-medium text-slate-400 mt-1">This can take a few seconds</span>
                     </div>
@@ -137,7 +137,7 @@
                         </p>
                     </div>
                     <div>
-                        <span class="inline-flex items-center px-3.5 py-1.5 rounded-full text-xs font-extrabold bg-indigo-50 text-indigo-600">
+                        <span class="inline-flex items-center px-3.5 py-1.5 rounded-full text-xs font-extrabold bg-[rgba(var(--brand-rgb),0.08)] text-[var(--brand)]">
                             Step 2 of 2
                         </span>
                     </div>
@@ -160,7 +160,7 @@
                     <div class="space-y-1.5">
                         <label class="block text-xs font-bold text-slate-700">Date</label>
                         <input type="date" wire:model.defer="transaction_date"
-                            class="w-full px-4 py-3 bg-slate-100/80 border-0 rounded-2xl text-slate-800 font-semibold text-sm focus:bg-white focus:ring-2 focus:ring-indigo-500 transition-all">
+                            class="w-full px-4 py-3 bg-slate-100/80 border-0 rounded-2xl text-slate-800 font-semibold text-sm focus:bg-white focus:ring-2 focus:ring-[rgba(var(--brand-rgb),0.2)] transition-all">
                         @error('transaction_date')
                             <span class="text-[11px] font-semibold text-rose-500 block mt-1">{{ $message }}</span>
                         @enderror
@@ -170,7 +170,7 @@
                     <div class="space-y-3 pt-1">
                         <div class="flex items-center justify-between">
                             <label class="block text-xs font-bold text-slate-700">Items ({{ count($items) }})</label>
-                            <button type="button" wire:click="addItem" class="text-xs font-bold text-indigo-600 hover:text-indigo-700 transition-colors">
+                            <button type="button" wire:click="addItem" class="text-xs font-bold text-[var(--brand)] hover:opacity-80 transition-colors">
                                 + Add Item
                             </button>
                         </div>
@@ -182,7 +182,7 @@
                             <div wire:key="item-{{ $index }}" class="bg-slate-50 rounded-2xl p-4 space-y-3 border border-slate-100">
                                 <div class="flex items-center justify-between gap-2">
                                     <input type="text" wire:model.defer="items.{{ $index }}.item_name" placeholder="Item name"
-                                        class="flex-1 px-3 py-2 rounded-xl bg-white border border-slate-200 text-sm font-semibold placeholder-slate-400 focus:ring-2 focus:ring-indigo-500 transition-all">
+                                        class="flex-1 px-3 py-2 rounded-xl bg-white border border-slate-200 text-sm font-semibold placeholder-slate-400 focus:ring-2 focus:ring-[rgba(var(--brand-rgb),0.2)] transition-all">
                                     <button type="button" wire:click="removeItem({{ $index }})"
                                         class="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors" title="Remove item">
                                         <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
@@ -194,10 +194,10 @@
                                     <div class="relative">
                                         <span class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400 font-bold text-xs">₱</span>
                                         <input type="text" inputmode="decimal" wire:model.defer="items.{{ $index }}.amount" placeholder="0.00"
-                                            class="w-full pl-7 pr-3 py-2 rounded-xl bg-white border border-slate-200 text-sm font-bold placeholder-slate-400 focus:ring-2 focus:ring-indigo-500 transition-all">
+                                            class="w-full pl-7 pr-3 py-2 rounded-xl bg-white border border-slate-200 text-sm font-bold placeholder-slate-400 focus:ring-2 focus:ring-[rgba(var(--brand-rgb),0.2)] transition-all">
                                     </div>
                                     <select wire:model.defer="items.{{ $index }}.expense_category_id"
-                                        class="px-3 py-2 rounded-xl bg-white border border-slate-200 text-sm font-semibold focus:ring-2 focus:ring-indigo-500 transition-all">
+                                        class="px-3 py-2 rounded-xl bg-white border border-slate-200 text-sm font-semibold focus:ring-2 focus:ring-[rgba(var(--brand-rgb),0.2)] transition-all">
                                         @foreach($availableCategories as $cat)
                                             <option value="{{ $cat->id }}">{{ $cat->name }}</option>
                                         @endforeach
@@ -228,7 +228,7 @@
                            Back
                         </button>
                         <button type="submit" wire:loading.attr="disabled" wire:target="saveVerifiedExpense"
-                            class="px-8 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-full font-bold text-xs shadow-lg shadow-indigo-200 transition-all transform active:scale-95 disabled:opacity-50 flex items-center gap-2">
+                            class="px-8 py-3 bg-[var(--brand)] hover:opacity-90 text-white rounded-full font-bold text-xs shadow-lg shadow-[0_8px_16px_-4px_rgba(var(--brand-rgb),0.3)] transition-all transform active:scale-95 disabled:opacity-50 flex items-center gap-2">
                             <span wire:loading.remove wire:target="saveVerifiedExpense">Finalize Entry</span>
                             <span wire:loading wire:target="saveVerifiedExpense">Saving...</span>
                         </button>

@@ -21,7 +21,7 @@
 
         <!-- Profile Card Header -->
         <div class="bg-white rounded-3xl p-5 sm:p-6 shadow-sm border border-slate-100 flex items-center gap-4">
-            <div class="w-14 h-14 rounded-2xl bg-indigo-600 text-white font-extrabold text-xl flex items-center justify-center shadow-md shadow-indigo-600/20 shrink-0">
+            <div class="w-14 h-14 rounded-2xl bg-[var(--brand)] text-white font-extrabold text-xl flex items-center justify-center shadow-md shadow-[0_8px_16px_-4px_rgba(var(--brand-rgb),0.3)] shrink-0">
                 {{ strtoupper(substr(auth()->user()->name ?? 'S', 0, 1)) }}
             </div>
             <div class="space-y-0.5 min-w-0">
@@ -31,7 +31,7 @@
                 <p class="text-xs font-medium text-slate-500 truncate">
                     {{ auth()->user()->email ?? 'student@example.com' }}
                 </p>
-                <span class="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold bg-indigo-50 text-indigo-700 mt-1">
+                <span class="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold bg-[rgba(var(--brand-rgb),0.08)] text-[var(--brand)] mt-1">
                     Student Account
                 </span>
             </div>
@@ -52,7 +52,7 @@
                         Display name
                     </label>
                     <input id="name" type="text" wire:model.defer="name" placeholder="John Doe"
-                        class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-slate-900 font-medium text-sm placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-600/20 focus:border-indigo-600 transition-all">
+                        class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-slate-900 font-medium text-sm placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[rgba(var(--brand-rgb),0.2)] focus:border-[var(--brand)] transition-all">
                     @error('name')
                         <span class="text-xs font-medium text-rose-600 flex items-center gap-1 mt-1">
                             <span class="w-1.5 h-1.5 rounded-full bg-rose-600 inline-block shrink-0"></span> {{ $message }}
@@ -66,7 +66,7 @@
                         Email address
                     </label>
                     <input id="email" type="email" wire:model.defer="email" placeholder="student@example.com"
-                        class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-slate-900 font-medium text-sm placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-600/20 focus:border-indigo-600 transition-all">
+                        class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-slate-900 font-medium text-sm placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[rgba(var(--brand-rgb),0.2)] focus:border-[var(--brand)] transition-all">
                     @error('email')
                         <span class="text-xs font-medium text-rose-600 flex items-center gap-1 mt-1">
                             <span class="w-1.5 h-1.5 rounded-full bg-rose-600 inline-block shrink-0"></span> {{ $message }}
@@ -81,7 +81,7 @@
                     School <span class="font-normal text-slate-400">(optional)</span>
                 </label>
                 <input id="school" type="text" wire:model.defer="school" placeholder="e.g., Saint Joseph College"
-                    class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-slate-900 font-medium text-sm placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-600/20 focus:border-indigo-600 transition-all">
+                    class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-slate-900 font-medium text-sm placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[rgba(var(--brand-rgb),0.2)] focus:border-[var(--brand)] transition-all">
                 @error('school')
                     <span class="text-xs font-medium text-rose-600 flex items-center gap-1 mt-1">
                         <span class="w-1.5 h-1.5 rounded-full bg-rose-600 inline-block shrink-0"></span> {{ $message }}
@@ -101,7 +101,7 @@
                         Current password
                     </label>
                     <input id="current_password" type="password" wire:model.defer="current_password" autocomplete="current-password" placeholder="••••••••"
-                        class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-slate-900 font-medium text-sm placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-600/20 focus:border-indigo-600 transition-all">
+                        class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-slate-900 font-medium text-sm placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[rgba(var(--brand-rgb),0.2)] focus:border-[var(--brand)] transition-all">
                     @error('current_password')
                         <span class="text-xs font-medium text-rose-600 flex items-center gap-1 mt-1">
                             <span class="w-1.5 h-1.5 rounded-full bg-rose-600 inline-block shrink-0"></span> {{ $message }}
@@ -116,7 +116,7 @@
                             New password
                         </label>
                         <input id="new_password" type="password" wire:model.defer="new_password" autocomplete="new-password" placeholder="8+ characters"
-                            class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-slate-900 font-medium text-sm placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-600/20 focus:border-indigo-600 transition-all">
+                            class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-slate-900 font-medium text-sm placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[rgba(var(--brand-rgb),0.2)] focus:border-[var(--brand)] transition-all">
                         @error('new_password')
                             <span class="text-xs font-medium text-rose-600 flex items-center gap-1 mt-1">
                                 <span class="w-1.5 h-1.5 rounded-full bg-rose-600 inline-block shrink-0"></span> {{ $message }}
@@ -129,7 +129,7 @@
                             Confirm new password
                         </label>
                         <input id="new_password_confirmation" type="password" wire:model.defer="new_password_confirmation" autocomplete="new-password" placeholder="Repeat new password"
-                            class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-slate-900 font-medium text-sm placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-600/20 focus:border-indigo-600 transition-all">
+                            class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-slate-900 font-medium text-sm placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[rgba(var(--brand-rgb),0.2)] focus:border-[var(--brand)] transition-all">
                     </div>
                 </div>
             </div>
@@ -142,7 +142,7 @@
                 </a>
 
                 <button type="submit" wire:loading.attr="disabled"
-                    class="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 active:scale-[0.99] text-white rounded-2xl font-bold text-xs shadow-lg shadow-indigo-600/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2">
+                    class="px-6 py-3 bg-[var(--brand)] hover:opacity-90 active:scale-[0.99] text-white rounded-2xl font-bold text-xs shadow-lg shadow-[0_8px_16px_-4px_rgba(var(--brand-rgb),0.3)] transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2">
                     <span wire:loading.remove wire:target="updateProfile">Save Changes</span>
                     <span wire:loading wire:target="updateProfile" class="inline-flex items-center gap-2">
                         <svg class="animate-spin h-3.5 w-3.5 text-white" fill="none" viewBox="0 0 24 24">

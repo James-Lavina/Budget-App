@@ -89,7 +89,13 @@ class SavingsGoalService
         return ['goal' => $goal, 'goalWasAchieved' => $goalWasAchieved];
     }
 
-    private function checkAndNotifySavingsMilestone($user, SavingsGoal $goal): void
+    /**
+     * Made public (was private) so callers other than addFunds() — a goal
+     * created already partway funded, or a savings-linked expense edited up
+     * to a new milestone — can reuse this instead of duplicating the
+     * milestone math a third time.
+     */
+    public function checkAndNotifySavingsMilestone($user, SavingsGoal $goal): void
     {
         if ($goal->target_amount <= 0) {
             return;

@@ -35,7 +35,7 @@
                             ₱
                         </span>
                         <input id="total_allowance" type="number" step="0.01" wire:model.defer="total_allowance" placeholder="0.00"
-                            class="w-full pl-9 pr-4 py-3 bg-slate-100/80 border-0 rounded-2xl text-slate-900 font-extrabold text-base placeholder-slate-400 focus:bg-white focus:ring-2 focus:ring-indigo-500 transition-all">
+                            class="w-full pl-9 pr-4 py-3 bg-slate-100/80 border-0 rounded-2xl text-slate-900 font-extrabold text-base placeholder-slate-400 focus:bg-white focus:ring-2 focus:ring-[rgba(var(--brand-rgb),0.2)] transition-all">
                     </div>
                     @error('total_allowance')
                         <span class="text-[11px] font-semibold text-rose-500 block mt-1">{{ $message }}</span>
@@ -48,7 +48,7 @@
                         Weekly Reset Day
                     </label>
                     <select id="reset_day" wire:model.defer="reset_day"
-                        class="w-full px-4 py-3 bg-slate-100/80 border-0 rounded-2xl text-slate-900 font-semibold text-sm focus:bg-white focus:ring-2 focus:ring-indigo-500 transition-all">
+                        class="w-full px-4 py-3 bg-slate-100/80 border-0 rounded-2xl text-slate-900 font-semibold text-sm focus:bg-white focus:ring-2 focus:ring-[rgba(var(--brand-rgb),0.2)] transition-all">
                         <option value="Monday">Monday</option>
                         <option value="Tuesday">Tuesday</option>
                         <option value="Wednesday">Wednesday</option>
@@ -64,15 +64,15 @@
             </div>
 
             <!-- Calculation Behavior Info Box -->
-            <div class="p-4 sm:p-5 bg-indigo-50/50 rounded-2xl border border-indigo-100/60 space-y-3">
+            <div class="p-4 sm:p-5 bg-[rgba(var(--brand-rgb),0.04)] rounded-2xl border border-[rgba(var(--brand-rgb),0.12)] space-y-3">
                 <div class="text-xs text-slate-600 leading-relaxed">
-                    <span class="font-extrabold text-indigo-950 block mb-0.5">When should changes apply?</span>
+                    <span class="font-extrabold text-[var(--brand-dark)] block mb-0.5">When should changes apply?</span>
                     By default, your new allowance starts on your next reset day.
                 </div>
 
-                <label class="flex items-start gap-3 p-3 bg-white rounded-xl border border-slate-100 cursor-pointer select-none hover:border-indigo-200 transition-all">
+                <label class="flex items-start gap-3 p-3 bg-white rounded-xl border border-slate-100 cursor-pointer select-none hover:border-[rgba(var(--brand-rgb),0.35)] transition-all">
                     <input type="checkbox" wire:model="update_current_week"
-                        class="h-4 w-4 mt-0.5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 transition-colors shrink-0">
+                        class="h-4 w-4 mt-0.5 rounded border-slate-300 text-[var(--brand)] focus:ring-[var(--brand)] transition-colors shrink-0">
                     <div class="space-y-0.5">
                         <span class="text-xs font-bold text-slate-800 block">
                             Update my current week's budget right now
@@ -92,7 +92,7 @@
                 </a>
 
                 <button type="submit" wire:loading.attr="disabled"
-                    class="w-full sm:w-auto justify-center px-8 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-full font-bold text-xs shadow-lg shadow-indigo-200 transition-all transform active:scale-95 disabled:opacity-50 flex items-center gap-2">
+                    class="w-full sm:w-auto justify-center px-8 py-3 bg-[var(--brand)] hover:opacity-90 text-white rounded-full font-bold text-xs shadow-lg shadow-[0_8px_16px_-4px_rgba(var(--brand-rgb),0.3)] transition-all transform active:scale-95 disabled:opacity-50 flex items-center gap-2">
                     <span wire:loading.remove wire:target="updateSettings">Save Changes</span>
                     <span wire:loading wire:target="updateSettings">Saving...</span>
                 </button>

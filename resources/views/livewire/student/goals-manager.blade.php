@@ -8,7 +8,7 @@
                 <p class="text-xs text-slate-500 font-medium mt-1">Set aside money for upcoming fees, gadgets, or personal targets.</p>
             </div>
             <div>
-                <button wire:click="openCreateModal" class="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 active:scale-[0.98] text-white font-extrabold text-xs px-5 py-3 rounded-2xl shadow-lg shadow-indigo-200 transition-all">
+                <button wire:click="openCreateModal" class="inline-flex items-center gap-2 bg-[var(--brand)] hover:opacity-90 active:scale-[0.98] text-white font-extrabold text-xs px-5 py-3 rounded-2xl shadow-lg shadow-[0_8px_16px_-4px_rgba(var(--brand-rgb),0.3)] transition-all">
                     <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
                     </svg>
@@ -34,31 +34,31 @@
         <!-- Main Goals Grid Area -->
         <div class="space-y-6">
             <div class="flex border-b border-slate-200/80 gap-6">
-                <button wire:click="$set('activeTab', 'active')" class="pb-3 text-xs font-extrabold uppercase tracking-wider transition-all relative flex items-center gap-1.5 {{ $activeTab === 'active' ? 'text-indigo-600 border-b-2 border-indigo-600' : 'text-slate-400 hover:text-slate-600' }}">
+                <button wire:click="$set('activeTab', 'active')" class="pb-3 text-xs font-extrabold uppercase tracking-wider transition-all relative flex items-center gap-1.5 {{ $activeTab === 'active' ? 'text-[var(--brand)] border-b-2 border-[var(--brand)]' : 'text-slate-400 hover:text-slate-600' }}">
                     Active
-                    <span class="px-1.5 py-0.5 rounded-md text-[10px] font-bold {{ $activeTab === 'active' ? 'bg-indigo-50 text-indigo-600' : 'bg-slate-100 text-slate-400' }}">{{ $counts['active'] }}</span>
+                    <span class="px-1.5 py-0.5 rounded-md text-[10px] font-bold {{ $activeTab === 'active' ? 'bg-[rgba(var(--brand-rgb),0.08)] text-[var(--brand)]' : 'bg-slate-100 text-slate-400' }}">{{ $counts['active'] }}</span>
                 </button>
-                <button wire:click="$set('activeTab', 'achieved')" class="pb-3 text-xs font-extrabold uppercase tracking-wider transition-all relative flex items-center gap-1.5 {{ $activeTab === 'achieved' ? 'text-indigo-600 border-b-2 border-indigo-600' : 'text-slate-400 hover:text-slate-600' }}">
+                <button wire:click="$set('activeTab', 'achieved')" class="pb-3 text-xs font-extrabold uppercase tracking-wider transition-all relative flex items-center gap-1.5 {{ $activeTab === 'achieved' ? 'text-[var(--brand)] border-b-2 border-[var(--brand)]' : 'text-slate-400 hover:text-slate-600' }}">
                     Completed
-                    <span class="px-1.5 py-0.5 rounded-md text-[10px] font-bold {{ $activeTab === 'achieved' ? 'bg-indigo-50 text-indigo-600' : 'bg-slate-100 text-slate-400' }}">{{ $counts['achieved'] }}</span>
+                    <span class="px-1.5 py-0.5 rounded-md text-[10px] font-bold {{ $activeTab === 'achieved' ? 'bg-[rgba(var(--brand-rgb),0.08)] text-[var(--brand)]' : 'bg-slate-100 text-slate-400' }}">{{ $counts['achieved'] }}</span>
                 </button>
-                <button wire:click="$set('activeTab', 'abandoned')" class="pb-3 text-xs font-extrabold uppercase tracking-wider transition-all relative flex items-center gap-1.5 {{ $activeTab === 'abandoned' ? 'text-indigo-600 border-b-2 border-indigo-600' : 'text-slate-400 hover:text-slate-600' }}">
+                <button wire:click="$set('activeTab', 'abandoned')" class="pb-3 text-xs font-extrabold uppercase tracking-wider transition-all relative flex items-center gap-1.5 {{ $activeTab === 'abandoned' ? 'text-[var(--brand)] border-b-2 border-[var(--brand)]' : 'text-slate-400 hover:text-slate-600' }}">
                     Archived
-                    <span class="px-1.5 py-0.5 rounded-md text-[10px] font-bold {{ $activeTab === 'abandoned' ? 'bg-indigo-50 text-indigo-600' : 'bg-slate-100 text-slate-400' }}">{{ $counts['abandoned'] }}</span>
+                    <span class="px-1.5 py-0.5 rounded-md text-[10px] font-bold {{ $activeTab === 'abandoned' ? 'bg-[rgba(var(--brand-rgb),0.08)] text-[var(--brand)]' : 'bg-slate-100 text-slate-400' }}">{{ $counts['abandoned'] }}</span>
                 </button>
             </div>
  
             @if($goals->isEmpty())
                 @if($activeTab === 'active')
                     <div class="bg-white rounded-3xl border border-dashed border-slate-200 text-center py-16 px-4 space-y-3">
-                        <div class="h-11 w-11 bg-indigo-50 text-indigo-500 rounded-2xl flex items-center justify-center mx-auto">
+                        <div class="h-11 w-11 bg-[rgba(var(--brand-rgb),0.08)] text-[var(--brand)] rounded-2xl flex items-center justify-center mx-auto">
                             <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
                             </svg>
                         </div>
                         <p class="text-sm font-bold text-slate-700">No active goals yet</p>
                         <p class="text-[11px] font-medium text-slate-400 max-w-xs mx-auto">Start your first savings target and watch it grow with every contribution.</p>
-                        <button wire:click="openCreateModal" class="inline-flex items-center gap-1.5 mt-1 text-xs font-bold text-indigo-600 hover:text-indigo-700">
+                        <button wire:click="openCreateModal" class="inline-flex items-center gap-1.5 mt-1 text-xs font-bold text-[var(--brand)] hover:opacity-80">
                             + Add your first goal
                         </button>
                     </div>
@@ -119,7 +119,7 @@
                     <div class="space-y-1.5">
                         <label class="block text-xs font-bold text-slate-700">Goal name</label>
                         <input type="text" wire:model.defer="target_name" placeholder="e.g. Concert tickets" 
-                            class="w-full px-4 py-3 bg-slate-100/70 border border-slate-200/80 rounded-2xl text-slate-900 font-semibold text-xs placeholder-slate-400 focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all outline-none">
+                            class="w-full px-4 py-3 bg-slate-100/70 border border-slate-200/80 rounded-2xl text-slate-900 font-semibold text-xs placeholder-slate-400 focus:bg-white focus:border-[var(--brand)] focus:ring-2 focus:ring-[rgba(var(--brand-rgb),0.2)] transition-all outline-none">
                         @error('target_name') <span class="text-[10px] font-bold text-rose-600 block mt-1">{{ $message }}</span> @enderror
                     </div>
 
@@ -135,7 +135,7 @@
                             wire:model.defer="target_amount"
                             placeholder="0.00"
                             onblur="formatAmount(this, 'target_amount')"
-                            class="w-full pl-8 pr-3 py-3 bg-slate-100/70 border border-slate-200/80 rounded-2xl text-slate-900 font-bold text-xs placeholder-slate-400 focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all outline-none">
+                            class="w-full pl-8 pr-3 py-3 bg-slate-100/70 border border-slate-200/80 rounded-2xl text-slate-900 font-bold text-xs placeholder-slate-400 focus:bg-white focus:border-[var(--brand)] focus:ring-2 focus:ring-[rgba(var(--brand-rgb),0.2)] transition-all outline-none">
                         </div>
                         @error('target_amount') <span class="text-[10px] font-bold text-rose-600 block mt-1">{{ $message }}</span> @enderror
                     </div>
@@ -144,7 +144,7 @@
                     <div class="space-y-1.5">
                         <label class="block text-xs font-bold text-slate-700">Target date (optional)</label>
                         <input type="date" wire:model.defer="target_date" 
-                            class="w-full px-4 py-3 bg-slate-100/70 border border-slate-200/80 rounded-2xl text-slate-900 font-semibold text-xs focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all outline-none">
+                            class="w-full px-4 py-3 bg-slate-100/70 border border-slate-200/80 rounded-2xl text-slate-900 font-semibold text-xs focus:bg-white focus:border-[var(--brand)] focus:ring-2 focus:ring-[rgba(var(--brand-rgb),0.2)] transition-all outline-none">
                         @error('target_date') <span class="text-[10px] font-bold text-rose-600 block mt-1">{{ $message }}</span> @enderror
                     </div>
 
@@ -155,7 +155,7 @@
                             Cancel
                         </button>
                         <button type="submit" 
-                            class="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-extrabold text-xs shadow-md shadow-indigo-200 transition-all active:scale-[0.98]">
+                            class="px-6 py-2.5 bg-[var(--brand)] hover:opacity-90 text-white rounded-2xl font-extrabold text-xs shadow-md shadow-[0_4px_12px_-2px_rgba(var(--brand-rgb),0.35)] transition-all active:scale-[0.98]">
                             Create
                         </button>
                     </div>
@@ -187,13 +187,13 @@
                             autofocus
                             placeholder="0.00"
                             onblur="formatAmount(this, 'fund_amount')"
-                            class="block w-full pl-8 pr-3.5 py-2.5 border border-slate-200 bg-slate-50/50 text-xs font-bold rounded-2xl text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:border-indigo-500 focus:ring-indigo-500/20 transition-all">
+                            class="block w-full pl-8 pr-3.5 py-2.5 border border-slate-200 bg-slate-50/50 text-xs font-bold rounded-2xl text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:border-[var(--brand)] focus:ring-[rgba(var(--brand-rgb),0.2)] transition-all">
                         </div>
                         @error('fund_amount') <span class="text-[10px] font-bold text-rose-600 block mt-1">{{ $message }}</span> @enderror
                     </div>
                     <div class="flex items-center gap-2 pt-2">
                         <button type="button" wire:click="$set('fundingGoalId', null)" class="px-4 py-2.5 rounded-2xl border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-50 transition-colors">Go Back</button>
-                        <button type="submit" class="flex-1 px-4 py-2.5 rounded-2xl text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 shadow-md shadow-indigo-200 transition-all text-center">Confirm</button>
+                        <button type="submit" class="flex-1 px-4 py-2.5 rounded-2xl text-xs font-bold text-white bg-[var(--brand)] hover:opacity-90 shadow-md shadow-[0_4px_12px_-2px_rgba(var(--brand-rgb),0.35)] transition-all text-center">Confirm</button>
                     </div>
                 </form>
             </div>
