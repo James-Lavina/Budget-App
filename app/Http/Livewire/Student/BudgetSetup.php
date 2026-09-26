@@ -2,6 +2,7 @@
 
 namespace App\Http\Livewire\Student;
 
+use App\Models\ActivityLog;
 use App\Models\AppSetting;
 use App\Models\ExpenseCategory;
 use App\Models\SavingsGoal;
@@ -65,13 +66,11 @@ class BudgetSetup extends Component
     public function getFirstCycleProperty(): array
     {
         $today = Carbon::today();
-
         $nextReset = strtolower($today->format('l')) === strtolower($this->reset_day)
             ? $today->copy()->addWeek()
             : $today->copy()->next($this->reset_day);
 
         $days = max(1, min(7, (int) $today->diffInDays($nextReset)));
-
         $perDay = is_numeric($this->total_allowance) && $this->total_allowance > 0
             ? round($this->total_allowance / $days, 2)
             : 0.00;
@@ -115,7 +114,6 @@ class BudgetSetup extends Component
 
         // Re-validate every step server-side; never trust the client's step counter.
         $this->validate($this->stepRules(1));
-
         $goalRules = $this->stepRules(3);
         if (!empty($goalRules)) {
             $this->validate($goalRules);
@@ -150,8 +148,21 @@ class BudgetSetup extends Component
             }
         });
 
-        session()->flash('success', "You're all set! Your budget is live.");
+        // NEW: the seed event for a student's entire history had no
+        // audit trail — lower priority, but this is the record an admin
+        // would look for first when reviewing an account from day one.
+        ActivityLog::create([
+            'user_id'    => $user->id,
+            'event_type' => 'budget_setup_completed',
+            'ip_address' => request()->ip(),
+            'user_agent' => request()->userAgent(),
+            'details'    => "Completed initial budget setup: ₱" . number_format($allowance, 2) . " weekly allowance, resets {$this->reset_day}"
+                . (filled($this->goal_name) && filled($this->goal_amount)
+                    ? ", with savings goal \"{$this->goal_name}\" (₱" . number_format((float) $this->goal_amount, 2) . ')'
+                    : ''),
+        ]);
 
+        session()->flash('success', "You're all set! Your budget is live.");
         return redirect()->route('student.dashboard');
     }
 

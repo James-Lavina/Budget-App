@@ -134,6 +134,16 @@ Route::middleware(['auth', 'maintenance.check'])->group(function() {
     });
     // Global Routes
     Route::post('/', function() {
+        if (auth()->check()) {
+            \App\Models\ActivityLog::create([
+                'user_id'    => auth()->id(),
+                'event_type' => 'auth_logout',
+                'ip_address' => request()->ip(),
+                'user_agent' => request()->userAgent(),
+                'details'    => 'Logged out',
+            ]);
+        }
+    
         auth()->logout();
         request()->session()->invalidate();
         request()->session()->regenerateToken();

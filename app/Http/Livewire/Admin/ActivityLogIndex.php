@@ -74,6 +74,37 @@ class ActivityLogIndex extends Component
                 return 'Enabled Maintenance Mode';
             case 'maintenance_mode_disabled':
                 return 'Disabled Maintenance Mode';
+            // NEW: student-side events added for full audit coverage.
+            case 'password_changed':
+                return 'Changed Password';
+            case 'profile_updated':
+                return 'Updated Profile';
+            case 'savings_goal_created':
+                return 'Created Savings Goal';
+            case 'savings_goal_funded':
+                return 'Funded Savings Goal';
+            case 'savings_goal_archived':
+                return 'Archived Savings Goal';
+            case 'savings_goal_unarchived':
+                return 'Restored Savings Goal';
+            case 'savings_goal_deleted':
+                return 'Deleted Savings Goal';
+            case 'budget_funds_added':
+                return 'Added Budget Funds';
+            case 'budget_settings_updated':
+                return 'Updated Budget Settings';
+            case 'budget_setup_completed':
+                return 'Completed Budget Setup';
+            case 'ai_forecast_requested':
+                return 'Requested AI Forecast';
+            case 'ai_simulation_requested':
+                return 'Requested AI Simulation';
+            case 'auth_login':
+                return 'Logged In';
+            case 'auth_login_failed':
+                return 'Failed Login Attempt';
+            case 'user_registered':
+                return 'Registered Account';
             default:
                 return ucwords(str_replace('_', ' ', $eventType));
         }

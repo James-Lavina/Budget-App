@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\ActivityLog;
 use App\Models\Expense;
 use App\Models\IntegrationSetting;
 use App\Models\WeeklyBudget;
@@ -248,7 +249,7 @@ class SpendingForecastService
         }
     }
 
-    /**
+        /**
      * Optional extras: up to 2 short AI tips. Returns no tips when offline,
      * because the page already has a complete local action. Failures are NOT cached.
      */
@@ -319,7 +320,6 @@ class SpendingForecastService
             }
 
             $content = $response->json()['choices'][0]['message']['content'] ?? '';
-
             if (!str_contains($content, '|')) {
                 $content = preg_replace('/[\r\n]+/', '|', $content);
             }
@@ -336,6 +336,17 @@ class SpendingForecastService
 
             $result = ['is_online' => true, 'tips' => array_slice($tips, 0, 3)];
             Cache::put($cacheKey, $result, now()->addHour());
+
+            // NEW: instruments the admin dashboard's "AI Forecast Requests"
+            // stat card, which previously always read 0 because nothing
+            // ever wrote this event type.
+            ActivityLog::create([
+                'user_id'    => $user->id,
+                'event_type' => 'ai_forecast_requested',
+                'ip_address' => request()->ip(),
+                'user_agent' => request()->userAgent(),
+                'details'    => 'Spending forecast AI tips generated.',
+            ]);
 
             return $result;
         } catch (\Exception $e) {

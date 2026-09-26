@@ -2,11 +2,13 @@
 
 namespace App\Http\Livewire\Student;
 
+use App\Models\ActivityLog;
 use App\Models\SavingsGoal;
 use App\Models\WeeklyBudget;
 use App\Models\Expense;
 use App\Notifications\SavingsGoalAchieved;
 use App\Services\SavingsGoalService;
+use Illuminate\Support\Facades\DB;
 use Livewire\Component;
 use Livewire\WithPagination;
 
@@ -41,8 +43,6 @@ class GoalsManager extends Component
 
     protected $listeners = ['refreshSavings' => '$refresh'];
 
-    // Reset to page 1 whenever the tab changes, so switching from a deep
-    // page on "Active" to "Archived" doesn't land on a nonexistent page.
     public function updatedActiveTab()
     {
         $this->resetPage();
@@ -77,17 +77,11 @@ class GoalsManager extends Component
             'user_id' => auth()->id(),
             'target_name' => $this->target_name,
             'target_amount' => $targetAmount,
-            // FIX: this used to be hardcoded to 0.00, silently discarding
-            // whatever amount the student entered as "already saved" —
-            // a goal could be created with status 'achieved' but 0%
-            // progress shown on screen.
             'current_saved' => $initialSaved,
             'target_date' => $this->target_date ?: null,
             'status' => $status,
         ]);
 
-        // A goal created already at (or past) its target should tell the
-        // student immediately, same as reaching it via Add Funds.
         if ($status === 'achieved') {
             try {
                 auth()->user()->notify(new SavingsGoalAchieved($goal));
@@ -97,6 +91,16 @@ class GoalsManager extends Component
         } else {
             app(SavingsGoalService::class)->checkAndNotifySavingsMilestone(auth()->user(), $goal);
         }
+
+        // NEW: financial event, no previous audit trail.
+        ActivityLog::create([
+            'user_id'    => auth()->id(),
+            'event_type' => 'savings_goal_created',
+            'ip_address' => request()->ip(),
+            'user_agent' => request()->userAgent(),
+            'details'    => "Created savings goal \"{$goal->target_name}\" (target ₱" . number_format($goal->target_amount, 2) . ')'
+                . ($initialSaved > 0 ? ', starting with ₱' . number_format($initialSaved, 2) . ' already saved' : ''),
+        ]);
 
         // A newly created goal lands on page 1 of the Active tab.
         $this->resetPage();
@@ -138,6 +142,10 @@ class GoalsManager extends Component
             'fund_amount.max' => 'Transfer halted! The amount exceeds either your remaining budget (₱' . number_format($currentBudget->remaining_allowance, 2) . ') or what is left to finish this goal (₱' . number_format($remainingNeeded, 2) . ').'
         ]);
 
+        // NOTE: the funds-transferred activity log is written inside
+        // SavingsGoalService::addFunds() itself, since SavingsWidget calls
+        // the same method — logging there instead of here avoids a
+        // duplicate/missing entry depending on which entry point was used.
         $result = app(SavingsGoalService::class)->addFunds(auth()->user(), $goal, (float) $this->fund_amount);
 
         $this->fundingGoalId = null;
@@ -164,6 +172,15 @@ class GoalsManager extends Component
         $goal->update(['status' => 'abandoned']);
         $this->confirmingAbandonId = null;
 
+        // NEW
+        ActivityLog::create([
+            'user_id'    => auth()->id(),
+            'event_type' => 'savings_goal_archived',
+            'ip_address' => request()->ip(),
+            'user_agent' => request()->userAgent(),
+            'details'    => "Archived savings goal \"{$goal->target_name}\"",
+        ]);
+
         session()->flash('success', 'Goal marked as archived.');
     }
 
@@ -174,6 +191,15 @@ class GoalsManager extends Component
             ->firstOrFail();
 
         $goal->update(['status' => 'active']);
+
+        // NEW
+        ActivityLog::create([
+            'user_id'    => auth()->id(),
+            'event_type' => 'savings_goal_unarchived',
+            'ip_address' => request()->ip(),
+            'user_agent' => request()->userAgent(),
+            'details'    => "Restored savings goal \"{$goal->target_name}\" to active",
+        ]);
 
         session()->flash('success', 'Savings goal successfully restored to your active dashboard!');
     }
@@ -191,10 +217,24 @@ class GoalsManager extends Component
             ->where('user_id', auth()->id())
             ->firstOrFail();
 
-        \Illuminate\Support\Facades\DB::transaction(function () use ($goal) {
+        // Captured before delete — nothing left to read from once gone.
+        $goalName  = $goal->target_name;
+        $goalSaved = (float) $goal->current_saved;
+
+        DB::transaction(function () use ($goal) {
             Expense::where('savings_goal_id', $goal->id)->delete();
             $goal->delete();
         });
+
+        // NEW: this is destructive (deletes linked expense rows too) and
+        // previously left no trace at all.
+        ActivityLog::create([
+            'user_id'    => auth()->id(),
+            'event_type' => 'savings_goal_deleted',
+            'ip_address' => request()->ip(),
+            'user_agent' => request()->userAgent(),
+            'details'    => "Permanently deleted savings goal \"{$goalName}\" (₱" . number_format($goalSaved, 2) . " saved) and its transaction logs",
+        ]);
 
         $this->confirmingDeleteId = null;
 

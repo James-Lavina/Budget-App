@@ -2,6 +2,7 @@
 
 namespace App\Http\Livewire\Student;
 
+use App\Models\ActivityLog;
 use Livewire\Component;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rule;
@@ -26,6 +27,7 @@ class Profile extends Component
     public function updateProfile()
     {
         $user = auth()->user();
+
         $isChangingEmail = ($this->email !== $user->email);
         $isChangingPassword = !empty($this->new_password);
 
@@ -54,6 +56,19 @@ class Profile extends Component
             }
         }
 
+        // FIX: capture what actually changed before overwriting, so the
+        // activity log records real before/after values.
+        $changes = [];
+        if ($user->name !== $this->name) {
+            $changes[] = "name: \"{$user->name}\" → \"{$this->name}\"";
+        }
+        if ($isChangingEmail) {
+            $changes[] = "email: \"{$user->email}\" → \"{$this->email}\"";
+        }
+        if ($user->school !== $this->school) {
+            $changes[] = "school: \"" . ($user->school ?? '—') . "\" → \"" . ($this->school ?? '—') . "\"";
+        }
+
         if ($isChangingPassword) {
             $user->password = Hash::make($this->new_password);
         }
@@ -62,6 +77,29 @@ class Profile extends Component
         $user->email = $this->email;
         $user->school = $this->school;
         $user->save();
+
+        // FIX: profile edits (name/email/school) had no audit trail at all.
+        if (!empty($changes)) {
+            ActivityLog::create([
+                'user_id'    => $user->id,
+                'event_type' => 'profile_updated',
+                'ip_address' => request()->ip(),
+                'user_agent' => request()->userAgent(),
+                'details'    => 'Updated profile: ' . implode(', ', $changes),
+            ]);
+        }
+
+        // FIX: a password change is security-sensitive and previously left
+        // no trace anywhere. Never logs the password value itself.
+        if ($isChangingPassword) {
+            ActivityLog::create([
+                'user_id'    => $user->id,
+                'event_type' => 'password_changed',
+                'ip_address' => request()->ip(),
+                'user_agent' => request()->userAgent(),
+                'details'    => 'Account password was changed.',
+            ]);
+        }
 
         $this->reset(['current_password', 'new_password', 'new_password_confirmation']);
 

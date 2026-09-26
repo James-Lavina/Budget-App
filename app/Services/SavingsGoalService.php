@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\ActivityLog;
 use App\Models\Expense;
 use App\Models\ExpenseCategory;
 use App\Models\SavingsGoal;
@@ -73,6 +74,18 @@ class SavingsGoalService
 
         $goal->refresh();
 
+        // NEW: single source of truth for both entry points (GoalsManager
+        // and SavingsWidget) — money moving from allowance to savings had
+        // no audit trail at all before this.
+        ActivityLog::create([
+            'user_id'    => $user->id,
+            'event_type' => 'savings_goal_funded',
+            'ip_address' => request()->ip(),
+            'user_agent' => request()->userAgent(),
+            'details'    => "Added ₱" . number_format($amount, 2) . " to savings goal \"{$goal->target_name}\""
+                . ($goalWasAchieved ? ' — goal reached!' : ''),
+        ]);
+
         if ($goalWasAchieved) {
             try {
                 $user->notify(new SavingsGoalAchieved($goal));
@@ -89,19 +102,12 @@ class SavingsGoalService
         return ['goal' => $goal, 'goalWasAchieved' => $goalWasAchieved];
     }
 
-    /**
-     * Made public (was private) so callers other than addFunds() — a goal
-     * created already partway funded, or a savings-linked expense edited up
-     * to a new milestone — can reuse this instead of duplicating the
-     * milestone math a third time.
-     */
     public function checkAndNotifySavingsMilestone($user, SavingsGoal $goal): void
     {
         if ($goal->target_amount <= 0) {
             return;
         }
 
-        // floor, not round: 74.6% must not announce 75%.
         $progress = (int) floor(($goal->current_saved / $goal->target_amount) * 100);
         $reached  = collect([25, 50, 75])->filter(fn ($m) => $progress >= $m)->max();
 

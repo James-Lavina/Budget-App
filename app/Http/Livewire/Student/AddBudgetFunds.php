@@ -2,6 +2,7 @@
 
 namespace App\Http\Livewire\Student;
 
+use App\Models\ActivityLog;
 use App\Models\WeeklyBudget;
 use Livewire\Component;
 
@@ -9,8 +10,6 @@ class AddBudgetFunds extends Component
 {
     public $amount;
 
-    // NEW: dynamic ceiling exposed to the view, same pattern as
-    // WhatIfSimulator::$purchaseCeiling.
     public $fundsCeiling = 10000.00;
 
     public function mount()
@@ -18,15 +17,6 @@ class AddBudgetFunds extends Component
         $this->refreshCeiling();
     }
 
-    /**
-     * NEW: caps a single top-up at 5x the student's default_allowance
-     * (falls back to their latest budget's total_allowance, then a flat
-     * ₱10,000 if neither exists yet). A weekly allowance top-up should
-     * never need to be an order of magnitude larger than the allowance
-     * itself — 5x covers legitimate cases (parent sends a semester's
-     * worth of pocket money at once) without allowing 999999-style
-     * garbage input that breaks chart scaling and ₱ formatting elsewhere.
-     */
     private function refreshCeiling()
     {
         $user = auth()->user();
@@ -68,8 +58,19 @@ class AddBudgetFunds extends Component
             return redirect()->route('student.dashboard');
         }
 
-        // Add funds directly to remaining allowance
         $budget->increment('remaining_allowance', (float) $this->amount);
+
+        // NEW: a student manually inflating their own allowance is exactly
+        // the kind of event an admin auditing a student's account would
+        // need to see. Previously invisible.
+        ActivityLog::create([
+            'user_id'    => auth()->id(),
+            'event_type' => 'budget_funds_added',
+            'ip_address' => request()->ip(),
+            'user_agent' => request()->userAgent(),
+            'details'    => 'Added ₱' . number_format($this->amount, 2) . ' to remaining budget',
+        ]);
+
         app(\App\Services\RiskDetectionService::class)->evaluateSpendingRisk(auth()->user());
 
         session()->flash('success', 'Successfully added ₱' . number_format($this->amount, 2) . ' to your remaining budget!');

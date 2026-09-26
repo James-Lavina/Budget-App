@@ -2,6 +2,7 @@
 
 namespace App\Http\Livewire\Auth;
 
+use App\Models\ActivityLog;
 use App\Models\AppSetting;
 use App\Models\User;
 use Illuminate\Support\Facades\Auth;
@@ -104,6 +105,17 @@ class Register extends Component
             'school' => $this->school,
             'password' => Hash::make($this->password),
             'role' => 'student',
+        ]);
+
+        // NEW: account creation had no audit trail. Logged against the new
+        // user's own id — first entry in their history, mirroring
+        // budget_setup_completed as "step 2" of onboarding.
+        ActivityLog::create([
+            'user_id'    => $user->id,
+            'event_type' => 'user_registered',
+            'ip_address' => request()->ip(),
+            'user_agent' => request()->userAgent(),
+            'details'    => "Created account ({$user->email})" . ($user->school ? " — {$user->school}" : ''),
         ]);
 
         Auth::login($user);

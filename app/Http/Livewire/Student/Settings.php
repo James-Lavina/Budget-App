@@ -2,6 +2,7 @@
 
 namespace App\Http\Livewire\Student;
 
+use App\Models\ActivityLog;
 use Livewire\Component;
 use App\Models\WeeklyBudget;
 use App\Services\RiskDetectionService;
@@ -33,6 +34,16 @@ class Settings extends Component
         $user = auth()->user();
         $currentBudget = WeeklyBudget::where('user_id', $user->id)->latest()->first();
 
+        // NEW: diff captured before mutation, same pattern used on the
+        // admin side (RiskRules, OcrAiSettings, adminSettings).
+        $changes = [];
+        if ((float) $user->default_allowance !== (float) $this->total_allowance) {
+            $changes[] = "weekly allowance: ₱" . number_format($user->default_allowance, 2) . " → ₱" . number_format($this->total_allowance, 2);
+        }
+        if ($user->default_reset_day !== $this->reset_day) {
+            $changes[] = "reset day: {$user->default_reset_day} → {$this->reset_day}";
+        }
+
         $user->update([
             'default_allowance' => (float) $this->total_allowance,
             'default_reset_day' => $this->reset_day,
@@ -51,13 +62,26 @@ class Settings extends Component
                 'reset_day'           => $this->reset_day,
             ]);
 
-            // FIX: raising the allowance to fix an overspending or low-
-            // allowance alert should clear it immediately here, not wait
-            // for the student's next logged expense.
+            $changes[] = 'applied immediately to current week';
+
             app(RiskDetectionService::class)->evaluateSpendingRisk($user);
 
             $this->update_current_week = false;
             $this->emit('refreshBudgetMetrics');
+        }
+
+        // NEW: changing allowance/reset day (a real financial parameter)
+        // previously had no audit trail. Only logs when something actually
+        // changed — a no-op Save produces no entry, matching the admin
+        // pages' convention.
+        if (!empty($changes)) {
+            ActivityLog::create([
+                'user_id'    => $user->id,
+                'event_type' => 'budget_settings_updated',
+                'ip_address' => request()->ip(),
+                'user_agent' => request()->userAgent(),
+                'details'    => 'Updated budget settings: ' . implode(', ', $changes),
+            ]);
         }
 
         session()->flash('success', 'Budget configurations and future cycle templates saved successfully.');

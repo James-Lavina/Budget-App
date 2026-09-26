@@ -264,8 +264,8 @@ class WhatIfSimulator extends Component
         $item = $this->simulatedItem;
         $this->isOfflineMode = false;
         $isLastDay = $this->daysRemaining === 1;
-
         $roundedCost = (int) (round($cost / 5) * 5);
+
         $cacheKey = sprintf(
             'simulator_ai:v3:%d:%s:%d:%d:%s',
             Auth::id(),
@@ -309,7 +309,6 @@ class WhatIfSimulator extends Component
                         ['role' => 'user', 'content' => $prompt],
                     ],
                     'temperature'           => $settings->groq_temperature,
-                    // Reasoning models spend tokens "thinking" before the answer; leave room for both.
                     'max_completion_tokens' => max((int) $settings->groq_max_tokens, 600),
                 ];
 
@@ -326,10 +325,20 @@ class WhatIfSimulator extends Component
                     $text   = trim($choice['message']['content'] ?? '');
                     $finish = $choice['finish_reason'] ?? 'stop';
 
-                    // Reject truncated or unfinished answers instead of showing half a sentence.
                     if ($text !== '' && $finish === 'stop' && preg_match('/[.!?]["”)]?$/u', $text)) {
                         $this->aiInsight = $text;
                         Cache::put($cacheKey, ['text' => $text, 'offline' => false], now()->addMinutes(3));
+
+                        // NEW: instruments the admin dashboard's "AI Forecast
+                        // Requests" card — previously always read 0.
+                        ActivityLog::create([
+                            'user_id'    => Auth::id(),
+                            'event_type' => 'ai_simulation_requested',
+                            'ip_address' => request()->ip(),
+                            'user_agent' => request()->userAgent(),
+                            'details'    => "AI insight generated for simulated purchase: {$item}",
+                        ]);
+
                         return;
                     }
 
@@ -342,7 +351,6 @@ class WhatIfSimulator extends Component
 
         // ---------- Offline fallback (no wifi, no key, API error, or bad answer) ----------
         $this->isOfflineMode = true;
-
         $daily     = number_format($this->newDailyQuota, 2);
         $remaining = number_format($this->newRemaining, 2);
 
