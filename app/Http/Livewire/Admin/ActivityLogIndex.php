@@ -105,6 +105,8 @@ class ActivityLogIndex extends Component
                 return 'Failed Login Attempt';
             case 'user_registered':
                 return 'Registered Account';
+            case 'notification_failed':
+                return 'Notification Delivery Failed';
             default:
                 return ucwords(str_replace('_', ' ', $eventType));
         }

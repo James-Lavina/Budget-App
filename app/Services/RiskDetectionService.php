@@ -145,12 +145,6 @@ class RiskDetectionService
     // RiskLog-backed alert lifecycle
     // ---------------------------------------------------------------------
 
-    /**
-     * Opens, keeps, re-opens or resolves a RiskLog-backed alert.
-     * $windowStart = start of today (per-day alerts) or cycle start (per-cycle alerts).
-     * Open alerts older than the window are stale and get resolved. A resolved alert
-     * inside the window is re-opened instead of stacking a duplicate.
-     */
     private function syncRiskAlert($user, string $type, bool $conditionHolds, Carbon $windowStart, callable $build): void
     {
         $this->resolveOpenLogs($user, $type, $windowStart);
@@ -167,13 +161,6 @@ class RiskDetectionService
         $openLog = (clone $inWindow)->where('resolved', false)->latest('id')->first();
 
         if ($openLog) {
-            // FIX: the RiskLog itself is still open and the condition is
-            // still true, but if the student deleted the notification for
-            // it, syncRiskAlert used to just return here forever — nothing
-            // would ever remind them again about a still-active alert
-            // until it resolved and re-triggered fresh. Re-send the
-            // notification for the still-open log instead of creating a
-            // duplicate RiskLog row.
             $notificationExists = DatabaseNotification::where('notifiable_id', $user->id)
                 ->where('notifiable_type', 'App\Models\User')
                 ->where('data->risk_log_id', $openLog->id)
@@ -199,7 +186,6 @@ class RiskDetectionService
             if ($notifications->isNotEmpty()) {
                 $notifications->each(fn ($n) => $this->markNotification($n, false));
             } else {
-                // Student dismissed the original; tell them again.
                 $this->notifyRisk($user, $reopen);
             }
 
@@ -224,7 +210,8 @@ class RiskDetectionService
         try {
             $user->notify(new BudgetRiskNotification($riskLog));
         } catch (\Throwable $e) {
-            \Log::warning('Email notification failed (possibly offline): ' . $e->getMessage());
+            // FIX: was \Log::warning() only — invisible to admins in-app.
+            NotificationLogger::logFailure($user, BudgetRiskNotification::class, $e, $riskLog->anomaly_type);
         }
     }
 
@@ -246,7 +233,6 @@ class RiskDetectionService
 
         RiskLog::whereIn('id', $ids)->update(['resolved' => true]);
 
-        // Exact JSON match on risk_log_id — no LIKE prefix collisions (1 vs 12 vs 123).
         DatabaseNotification::where('notifiable_id', $user->id)
             ->where('notifiable_type', 'App\Models\User')
             ->whereIn('data->risk_log_id', $ids->all())
@@ -266,7 +252,7 @@ class RiskDetectionService
         $attributes = ['data' => $data];
 
         if (!$resolved) {
-            $attributes['read_at'] = null; // re-surface a re-opened alert
+            $attributes['read_at'] = null;
         }
 
         $notification->update($attributes);
@@ -281,7 +267,6 @@ class RiskDetectionService
             ->get();
     }
 
-    // Alerts from earlier cycles can never be "active" again.
     private function expireBefore($user, string $type, Carbon $before): void
     {
         DatabaseNotification::where('notifiable_id', $user->id)
@@ -324,7 +309,8 @@ class RiskDetectionService
         try {
             $user->notify(new LowAllowanceWarning((int) round(($remaining / $pool) * 100), $remaining));
         } catch (\Throwable $e) {
-            \Log::warning('Notification failed: ' . $e->getMessage());
+            // FIX
+            NotificationLogger::logFailure($user, LowAllowanceWarning::class, $e);
         }
     }
 
@@ -345,7 +331,6 @@ class RiskDetectionService
         $dominant   = null;
         $percentage = 0;
 
-        // Only meaningful once at least 30% of the pool has been spent.
         if ($totalSpent >= 200 && $pool > 0 && ($totalSpent / $pool) >= 0.30) {
             $top = Expense::where('expenses.user_id', $user->id)
                 ->whereBetween('expenses.transaction_date', [$cycleStart, $cycleEnd])
@@ -374,7 +359,6 @@ class RiskDetectionService
             return;
         }
 
-        // A different category used to dominate: that alert no longer applies.
         $existing
             ->filter(fn ($n) => $isOpen($n) && ($n->data['category'] ?? null) !== $dominant->name)
             ->each(fn ($n) => $this->markNotification($n, true));
@@ -399,7 +383,8 @@ class RiskDetectionService
                 $totalSpent
             ));
         } catch (\Throwable $e) {
-            \Log::warning('Notification failed: ' . $e->getMessage());
+            // FIX
+            NotificationLogger::logFailure($user, CategoryConcentrationWarning::class, $e, $dominant->name);
         }
     }
 
@@ -446,11 +431,6 @@ class RiskDetectionService
             ->each(fn ($n) => $this->markNotification($n, true));
     }
 
-    /**
-     * Idempotent per expense: creates, refreshes or resolves the alert. Measured against
-     * the effective pool (base + rollover). $totalAllowance is accepted only so existing
-     * callers keep working.
-     */
     public function checkLargeTransaction($user, Expense $expense, $totalAllowance = null)
     {
         if ($expense->savings_goal_id) {
@@ -477,7 +457,7 @@ class RiskDetectionService
 
         if ($expense->amount < $pool * 0.30) {
             if ($existing) {
-                $this->markNotification($existing, true); // edited down below the threshold
+                $this->markNotification($existing, true);
             }
             return;
         }
@@ -490,14 +470,15 @@ class RiskDetectionService
         );
 
         if ($existing) {
-            $existing->update(['data' => $alert->toArray($user)]); // still large: refresh in place
+            $existing->update(['data' => $alert->toArray($user)]);
             return;
         }
 
         try {
             $user->notify($alert);
         } catch (\Throwable $e) {
-            \Log::warning('Notification failed: ' . $e->getMessage());
+            // FIX
+            NotificationLogger::logFailure($user, LargeTransactionAlert::class, $e, $expense->item_name);
         }
     }
 

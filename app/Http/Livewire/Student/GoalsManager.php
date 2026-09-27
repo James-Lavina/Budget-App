@@ -3,10 +3,11 @@
 namespace App\Http\Livewire\Student;
 
 use App\Models\ActivityLog;
+use App\Models\Expense;
 use App\Models\SavingsGoal;
 use App\Models\WeeklyBudget;
-use App\Models\Expense;
 use App\Notifications\SavingsGoalAchieved;
+use App\Services\NotificationLogger;
 use App\Services\SavingsGoalService;
 use Illuminate\Support\Facades\DB;
 use Livewire\Component;
@@ -86,7 +87,8 @@ class GoalsManager extends Component
             try {
                 auth()->user()->notify(new SavingsGoalAchieved($goal));
             } catch (\Throwable $e) {
-                \Log::warning('Notification failed: ' . $e->getMessage());
+                // FIX
+                NotificationLogger::logFailure(auth()->user(), SavingsGoalAchieved::class, $e, $goal->target_name);
             }
         } else {
             app(SavingsGoalService::class)->checkAndNotifySavingsMilestone(auth()->user(), $goal);

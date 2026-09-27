@@ -37,6 +37,7 @@
         'budget_funds_added'        => 'Added Budget Funds',
         'budget_settings_updated'   => 'Updated Budget Settings',
         'budget_setup_completed'    => 'Completed Budget Setup',
+        'notification_failed'       => 'Notification Delivery Failed',
     ];
 @endphp
 

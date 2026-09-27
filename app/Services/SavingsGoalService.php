@@ -2,25 +2,19 @@
 
 namespace App\Services;
 
-use App\Models\ActivityLog;
 use App\Models\Expense;
 use App\Models\ExpenseCategory;
 use App\Models\SavingsGoal;
 use App\Models\WeeklyBudget;
 use App\Notifications\SavingsGoalAchieved;
 use App\Notifications\SavingsMilestoneReached;
+use App\Models\ActivityLog;
 use Illuminate\Notifications\DatabaseNotification;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 class SavingsGoalService
 {
-    /**
-     * Single source of truth for "add funds to a savings goal" — used by both
-     * GoalsManager (full page) and SavingsWidget (dashboard quick-add).
-     *
-     * @throws ValidationException
-     */
     public function addFunds($user, SavingsGoal $goal, float $amount): array
     {
         $currentBudget = WeeklyBudget::where('user_id', $user->id)->latest()->first();
@@ -74,9 +68,6 @@ class SavingsGoalService
 
         $goal->refresh();
 
-        // NEW: single source of truth for both entry points (GoalsManager
-        // and SavingsWidget) — money moving from allowance to savings had
-        // no audit trail at all before this.
         ActivityLog::create([
             'user_id'    => $user->id,
             'event_type' => 'savings_goal_funded',
@@ -90,13 +81,13 @@ class SavingsGoalService
             try {
                 $user->notify(new SavingsGoalAchieved($goal));
             } catch (\Throwable $e) {
-                \Log::warning('Notification failed: ' . $e->getMessage());
+                // FIX
+                NotificationLogger::logFailure($user, SavingsGoalAchieved::class, $e, $goal->target_name);
             }
         } else {
             $this->checkAndNotifySavingsMilestone($user, $goal);
         }
 
-        // Also handles the low-remaining-budget alert.
         app(RiskDetectionService::class)->evaluateSpendingRisk($user);
 
         return ['goal' => $goal, 'goalWasAchieved' => $goalWasAchieved];
@@ -129,7 +120,8 @@ class SavingsGoalService
         try {
             $user->notify(new SavingsMilestoneReached($reached, $goal->target_name, $goal->id));
         } catch (\Throwable $e) {
-            \Log::warning('Notification failed: ' . $e->getMessage());
+            // FIX
+            NotificationLogger::logFailure($user, SavingsMilestoneReached::class, $e, $goal->target_name);
         }
     }
 }
