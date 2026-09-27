@@ -13,6 +13,23 @@ use Livewire\Component;
 
 class Dashboard extends Component
 {
+    /**
+     * FIX: mirrors ActivityLogIndex::statusFor() — the Recent Activities
+     * widget was hardcoding "Success" on every row regardless of
+     * event_type, so an auth_login_failed entry showed a green "Success"
+     * badge here while correctly showing red "FAILED" on the full
+     * Activity Logs page. Both views must use the same rule or they will
+     * disagree again the next time a new "..._failed" event type is added.
+     */
+    public function statusFor(string $eventType): array
+    {
+        if (strpos($eventType, 'failed') !== false) {
+            return ['label' => 'Failed', 'class' => 'bg-rose-50 text-rose-600'];
+        }
+
+        return ['label' => 'Success', 'class' => 'bg-emerald-50 text-emerald-700'];
+    }
+
     public function render()
     {
         $today          = Carbon::today();
@@ -74,10 +91,9 @@ class Dashboard extends Component
         // Receipts the OCR pipeline successfully turned into expenses.
         $ocrProcessed = Receipt::where('status', 'processed')->count();
 
-        // AI forecast/simulation calls. NOT YET INSTRUMENTED anywhere in
-        // SpendingForecastService or WhatIfSimulator — this will read 0
-        // until those services log an ActivityLog row on a successful
-        // Groq call. See the note at the bottom of this file.
+        // AI forecast/simulation calls — now instrumented via
+        // SpendingForecastService::fetchAiInsight() and
+        // WhatIfSimulator::generateSimulationInsight().
         $aiForecastRequests = ActivityLog::whereIn('event_type', [
             'ai_forecast_requested',
             'ai_simulation_requested',
@@ -156,34 +172,3 @@ class Dashboard extends Component
         ])->layout('layouts.admin');
     }
 }
-
-/*
- * OPTIONAL: to make "AI Forecast Requests" real, add one line each to:
- *
- * 1. App\Services\SpendingForecastService::fetchAiInsight(), right after
- *    a successful Groq response (inside the `if ($response->successful())`
- *    block, before returning):
- *
- *      ActivityLog::create([
- *          'user_id'    => $user->id,
- *          'event_type' => 'ai_forecast_requested',
- *          'ip_address' => request()->ip(),
- *          'user_agent' => request()->userAgent(),
- *          'details'    => 'Spending forecast AI tips generated.',
- *      ]);
- *
- * 2. App\Http\Livewire\Student\WhatIfSimulator::generateSimulationInsight(),
- *    right after `$this->aiInsight = trim($rawText);`:
- *
- *      ActivityLog::create([
- *          'user_id'    => Auth::id(),
- *          'event_type' => 'ai_simulation_requested',
- *          'ip_address' => request()->ip(),
- *          'user_agent' => request()->userAgent(),
- *          'details'    => "AI insight generated for simulated purchase: {$item}",
- *      ]);
- *
- * Both files already import/have access to what they need (User model in
- * the forecast service via the $user param, Auth facade already imported
- * in the simulator) — just add `use App\Models\ActivityLog;` to each.
- */

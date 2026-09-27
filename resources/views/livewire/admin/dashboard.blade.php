@@ -9,6 +9,10 @@
         'expense_edited'            => 'Updated Expense',
         'ai_forecast_requested'     => 'Requested AI Forecast',
         'ai_simulation_requested'   => 'Requested AI Simulation',
+        'auth_login'                => 'Logged In',
+        'auth_login_failed'         => 'Failed Login Attempt',
+        'auth_logout'               => 'Logged Out',
+        'user_registered'           => 'Registered Account',
         'user_edited'               => 'Edited User',
         'user_suspended'            => 'Suspended User',
         'user_reactivated'          => 'Reactivated User',
@@ -23,6 +27,16 @@
         'app_settings_updated'      => 'Updated Application Settings',
         'maintenance_mode_enabled'  => 'Enabled Maintenance Mode',
         'maintenance_mode_disabled' => 'Disabled Maintenance Mode',
+        'password_changed'          => 'Changed Password',
+        'profile_updated'           => 'Updated Profile',
+        'savings_goal_created'      => 'Created Savings Goal',
+        'savings_goal_funded'       => 'Funded Savings Goal',
+        'savings_goal_archived'     => 'Archived Savings Goal',
+        'savings_goal_unarchived'   => 'Restored Savings Goal',
+        'savings_goal_deleted'      => 'Deleted Savings Goal',
+        'budget_funds_added'        => 'Added Budget Funds',
+        'budget_settings_updated'   => 'Updated Budget Settings',
+        'budget_setup_completed'    => 'Completed Budget Setup',
     ];
 @endphp
 
@@ -215,9 +229,10 @@
                                 <td class="px-5 sm:px-6 py-3.5 text-slate-500">
                                     {{ $activity->created_at->format('M j, Y') }}
                                 </td>
+                                @php $status = $this->statusFor($activity->event_type); @endphp
                                 <td class="px-5 sm:px-6 py-3.5">
-                                    <span class="inline-flex items-center px-2.5 py-1 rounded-lg text-[10px] font-bold bg-emerald-50 text-emerald-700">
-                                        Success
+                                    <span class="inline-flex items-center px-2.5 py-1 rounded-lg text-[10px] font-bold {{ $status['class'] }}">
+                                        {{ $status['label'] }}
                                     </span>
                                 </td>
                             </tr>
