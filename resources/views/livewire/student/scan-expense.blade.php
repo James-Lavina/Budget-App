@@ -161,6 +161,9 @@
                         <label class="block text-xs font-bold text-slate-700">Date</label>
                         <input type="date" wire:model.defer="transaction_date"
                             class="w-full px-4 py-3 bg-slate-100/80 border-0 rounded-2xl text-slate-800 font-semibold text-sm focus:bg-white focus:ring-2 focus:ring-[rgba(var(--brand-rgb),0.2)] transition-all">
+                        @if($dateNotice)
+                            <span class="text-[11px] font-semibold text-amber-600 block mt-1">{{ $dateNotice }}</span>
+                        @endif
                         @error('transaction_date')
                             <span class="text-[11px] font-semibold text-rose-500 block mt-1">{{ $message }}</span>
                         @enderror

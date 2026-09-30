@@ -6,15 +6,15 @@ use App\Models\ActivityLog;
 use App\Models\Expense;
 use App\Models\ExpenseCategory;
 use App\Models\Receipt;
-use App\Models\RiskSetting;
 use App\Models\WeeklyBudget;
+use App\Services\BudgetCycleService;
 use App\Services\CategorySuggester;
 use App\Services\RiskDetectionService;
 use Carbon\Carbon;
-use Illuminate\Notifications\DatabaseNotification;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Livewire\Component;
 use Livewire\WithFileUploads;
 
@@ -33,6 +33,7 @@ class ScanExpense extends Component
     public $receiptId;
 
     public $usedBackupOcr = false;
+    public $dateNotice = null;
 
     protected $rules = [
         'receiptImage' => 'required|image|max:4096',
@@ -55,25 +56,29 @@ class ScanExpense extends Component
         $this->validate();
     }
 
-    /**
-     * Called from the Blade "Remove Image" / "Re-select image" buttons.
-     * Centralizes clearing the upload so the temp file reference is never
-     * left dangling on the component between renders.
-     */
     public function clearReceiptImage()
     {
         $this->receiptImage = null;
         $this->resetErrorBag('receiptImage');
     }
 
-    /**
-     * Fallback ("Other") category id, or the first selectable category if the admin
-     * hasn't designated one. Null only when no selectable category exists at all.
-     */
     private function defaultCategoryId()
     {
         return optional(ExpenseCategory::fallback())->id
             ?? optional(ExpenseCategory::selectable()->orderBy('name')->first())->id;
+    }
+
+    private function currentCycleStart(): ?string
+    {
+        $budget = WeeklyBudget::where('user_id', auth()->id())->latest()->first();
+
+        if (!$budget) {
+            return null;
+        }
+
+        return app(BudgetCycleService::class)
+            ->resolve($budget, auth()->user())['startDate']
+            ->format('Y-m-d');
     }
 
     public function processReceipt()
@@ -86,13 +91,14 @@ class ScanExpense extends Component
         $this->validate();
 
         $this->isProcessing = true;
+        $this->usedBackupOcr = false;
+        $this->dateNotice = null;
         $currentYear = Carbon::today()->format('Y');
 
         try {
             $settings = \App\Models\IntegrationSetting::current();
             $apiKey = $settings->groq_api_key ?: env('GROQ_API_KEY');
 
-            // Enabled, non-Savings categories only (includes the fallback "Other").
             $dbCategories = ExpenseCategory::selectable()->pluck('name')->toArray();
 
             if (empty($dbCategories)) {
@@ -111,7 +117,6 @@ class ScanExpense extends Component
 
             $this->receiptId = $receipt->id;
 
-            // Encode the image as base64 for the vision model
             $imageBinary = Storage::disk('public')->get($storedPath);
             $mimeType = Storage::disk('public')->mimeType($storedPath) ?? 'image/jpeg';
             $base64Image = base64_encode($imageBinary);
@@ -175,7 +180,7 @@ class ScanExpense extends Component
                     ]);
 
                     if ($extracted) {
-                        break; // success
+                        break;
                     }
 
                     $lastFailureReason = 'AI returned an unreadable response.';
@@ -194,23 +199,47 @@ class ScanExpense extends Component
                 }
             }
 
+            // Groq exhausted its attempts: fall back to OCR.space plain-text OCR.
+            // The Step 2 screen is fully editable, so a rough parse is safe.
             if (!$extracted || empty($extracted['items']) || !is_array($extracted['items'])) {
-                $receipt->update(['status' => 'failed']);
+                $ocrResult = $this->tryOcrSpaceFallback($imageBinary, $mimeType);
 
-                throw new \Exception(
-                    $lastFailureReason ?? 'Could not identify any line items on this receipt. Try a clearer, well-lit photo.'
-                );
+                if ($ocrResult && !empty($ocrResult['items'])) {
+                    $extracted = $ocrResult;
+                    $this->usedBackupOcr = true;
+
+                    \Illuminate\Support\Facades\Log::info('OCR.space fallback succeeded', [
+                        'items_found' => count($ocrResult['items']),
+                    ]);
+                } else {
+                    $receipt->update(['status' => 'failed']);
+
+                    throw new \Exception(
+                        $lastFailureReason ?? 'Could not identify any line items on this receipt. Try a clearer, well-lit photo.'
+                    );
+                }
             }
 
-            // Keep raw_ocr_text populated for reference/debugging
             $receipt->update(['raw_ocr_text' => json_encode($extracted)]);
 
             $this->merchant_name = $extracted['merchant_name'] ?? null;
 
-            $aiDate = $extracted['transaction_date'] ?? null;
-            $this->transaction_date = ($aiDate && preg_match('/^\d{4}-\d{2}-\d{2}$/', $aiDate))
-                ? $aiDate
-                : Carbon::today()->format('Y-m-d');
+            // Only accept a receipt date inside the current budget week; anything
+            // older would deduct from the balance but be invisible to cycle totals.
+            $aiDate     = $extracted['transaction_date'] ?? null;
+            $parsedDate = ($aiDate && preg_match('/^\d{4}-\d{2}-\d{2}$/', $aiDate)) ? $aiDate : null;
+            $minDate    = $this->currentCycleStart();
+            $todayStr   = Carbon::today()->format('Y-m-d');
+
+            if ($parsedDate && $parsedDate <= $todayStr && (!$minDate || $parsedDate >= $minDate)) {
+                $this->transaction_date = $parsedDate;
+            } else {
+                $this->transaction_date = $todayStr;
+
+                if ($parsedDate) {
+                    $this->dateNotice = "The receipt date ({$parsedDate}) is outside your current budget week, so today's date was used. Change it if needed.";
+                }
+            }
 
             $suggester  = app(CategorySuggester::class);
             $fallbackId = $this->defaultCategoryId();
@@ -219,8 +248,6 @@ class ScanExpense extends Component
                 $itemName = $row['item_name'] ?? 'Item';
                 $aiPick   = ExpenseCategory::selectable()->where('name', $row['category'] ?? '')->first();
 
-                // Trust Groq's pick when it names a specific category. If it returned
-                // "Other" or nothing valid, let history/keywords try before falling back.
                 if ($aiPick && !$aiPick->is_fallback) {
                     $categoryId = $aiPick->id;
                 } else {
@@ -237,20 +264,182 @@ class ScanExpense extends Component
 
             $this->isProcessing = false;
             $this->step = 2;
-
-            // IMPORTANT: the temp upload has now been persisted into
-            // storage/app/public/receipts via ->store() above. Null the
-            // property out so Step 1's Blade template never tries to call
-            // temporaryUrl() against a tmp file that may since have expired
-            // or been cleaned up — that call was the actual source of the
-            // FileNotFoundException, thrown during view rendering rather
-            // than inside this try/catch.
             $this->receiptImage = null;
         } catch (\Exception $e) {
             $this->isProcessing = false;
             $this->receiptImage = null;
             session()->flash('error', $e->getMessage());
         }
+    }
+
+    /**
+     * OCR.space fallback. Returns null on any failure (missing key, network
+     * error, no parseable text) so processReceipt() shows its normal error.
+     */
+    private function tryOcrSpaceFallback(string $imageBinary, string $mimeType): ?array
+    {
+        $apiKey = config('services.ocr_space.key');
+
+        if (empty($apiKey)) {
+            \Illuminate\Support\Facades\Log::warning('OCR.space fallback skipped: no API key configured.');
+            return null;
+        }
+
+        try {
+            [$ocrBinary, $ocrMime] = $this->shrinkForOcr($imageBinary, $mimeType);
+            $base64 = 'data:' . $ocrMime . ';base64,' . base64_encode($ocrBinary);
+
+            $response = Http::asForm()->timeout(30)->post('https://api.ocr.space/parse/image', [
+                'apikey' => $apiKey,
+                'base64Image' => $base64,
+                'language' => 'eng',
+                'isOverlayRequired' => 'false',
+                'OCREngine' => '2',
+                'scale' => 'true',
+            ]);
+
+            if (!$response->successful()) {
+                \Illuminate\Support\Facades\Log::warning('OCR.space request failed', [
+                    'status' => $response->status(),
+                ]);
+                return null;
+            }
+
+            $data = $response->json();
+
+            if (($data['IsErroredOnProcessing'] ?? true) === true) {
+                \Illuminate\Support\Facades\Log::warning('OCR.space processing error', [
+                    'message' => $data['ErrorMessage'][0] ?? ($data['ErrorMessage'] ?? 'unknown'),
+                ]);
+                return null;
+            }
+
+            $rawText = $data['ParsedResults'][0]['ParsedText'] ?? '';
+
+            if (trim($rawText) === '') {
+                return null;
+            }
+
+            return $this->parseReceiptText($rawText);
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::warning('OCR.space exception: ' . $e->getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * OCR.space's free tier rejects files over ~1MB. Downscales/recompresses
+     * photos above ~700KB to JPEG using GD. Returns the original untouched if
+     * it's already small or GD isn't installed.
+     */
+    private function shrinkForOcr(string $binary, string $mime): array
+    {
+        $limit = 700 * 1024;
+
+        if (strlen($binary) <= $limit || !function_exists('imagecreatefromstring')) {
+            return [$binary, $mime];
+        }
+
+        $src = @imagecreatefromstring($binary);
+
+        if (!$src) {
+            return [$binary, $mime];
+        }
+
+        $w       = imagesx($src);
+        $h       = imagesy($src);
+        $maxSide = 1800;
+        $quality = 80;
+        $out     = $binary;
+
+        for ($i = 0; $i < 5; $i++) {
+            $scale  = min(1, $maxSide / max($w, $h));
+            $nw     = max(1, (int) round($w * $scale));
+            $nh     = max(1, (int) round($h * $scale));
+            $canvas = imagecreatetruecolor($nw, $nh);
+
+            imagefill($canvas, 0, 0, imagecolorallocate($canvas, 255, 255, 255));
+            imagecopyresampled($canvas, $src, 0, 0, 0, 0, $nw, $nh, $w, $h);
+
+            ob_start();
+            imagejpeg($canvas, null, $quality);
+            $out = ob_get_clean();
+            imagedestroy($canvas);
+
+            if (strlen($out) <= $limit) {
+                break;
+            }
+
+            $maxSide = (int) ($maxSide * 0.8);
+            $quality = max(50, $quality - 10);
+        }
+
+        imagedestroy($src);
+
+        return [$out, 'image/jpeg'];
+    }
+
+    /**
+     * Heuristic line-item extraction from OCR.space's plain text output.
+     * Deliberately rough — the student verifies every field on the next screen.
+     */
+    private function parseReceiptText(string $text): array
+    {
+        $lines = preg_split('/\r\n|\r|\n/', $text);
+        $lines = array_values(array_filter(array_map('trim', $lines), fn ($l) => $l !== ''));
+
+        $skipKeywords = [
+            'subtotal', 'sub total', 'total', 'cash', 'change', 'vat', 'tax',
+            'tendered', 'balance', 'discount', 'qty', 'quantity', 'thank you',
+            'official receipt', 'vatable', 'vat-exempt', 'amount due', 'card',
+        ];
+
+        $merchantName = $lines[0] ?? null;
+        if ($merchantName && mb_strlen($merchantName) > 60) {
+            $merchantName = null;
+        }
+
+        $items = [];
+
+        foreach ($lines as $index => $line) {
+            $lower = Str::lower($line);
+
+            $skip = false;
+            foreach ($skipKeywords as $kw) {
+                if (str_contains($lower, $kw)) {
+                    $skip = true;
+                    break;
+                }
+            }
+            if ($skip) {
+                continue;
+            }
+
+            if (preg_match('/(?P<name>.+?)[\s:xX@\-]*\D*(?P<amount>\d{1,6}(?:[.,]\d{2}))\s*$/u', $line, $m)) {
+                $name = trim(preg_replace('/[^\p{L}\p{N}\s\'\-\.&]/u', ' ', $m['name']));
+                $name = trim(preg_replace('/\s+/', ' ', $name));
+                $amount = (float) str_replace(',', '.', $m['amount']);
+
+                if ($name === '' || $amount <= 0 || $amount > 999999) {
+                    continue;
+                }
+
+                if ($index === 0 && $name === $merchantName) {
+                    continue;
+                }
+
+                $items[] = [
+                    'item_name' => Str::limit($name, 255, ''),
+                    'amount' => $amount,
+                ];
+            }
+        }
+
+        return [
+            'merchant_name' => $merchantName,
+            'transaction_date' => null,
+            'items' => $items,
+        ];
     }
 
     public function addItem()
@@ -275,7 +464,16 @@ class ScanExpense extends Component
 
     public function saveVerifiedExpense()
     {
-        $this->validate($this->verifyRules());
+        $rules   = $this->verifyRules();
+        $minDate = $this->currentCycleStart();
+
+        if ($minDate) {
+            $rules['transaction_date'] .= '|after_or_equal:' . $minDate;
+        }
+
+        $this->validate($rules, [
+            'transaction_date.after_or_equal' => "That date is before your current budget week started, so it can't be logged.",
+        ]);
 
         $requestedIds = collect($this->items)->pluck('expense_category_id')->unique()->values();
         $allowedCount = ExpenseCategory::selectable()->whereIn('id', $requestedIds)->count();
@@ -348,7 +546,7 @@ class ScanExpense extends Component
             });
 
             $riskService = app(RiskDetectionService::class);
-            $riskService->evaluateSpendingRisk(auth()->user()); // includes the low-allowance alert
+            $riskService->evaluateSpendingRisk(auth()->user());
 
             foreach ($createdExpenses as $created) {
                 $riskService->checkLargeTransaction(auth()->user(), $created);
@@ -367,7 +565,6 @@ class ScanExpense extends Component
     public function render()
     {
         return view('livewire.student.scan-expense', [
-            // Enabled, non-Savings categories; the fallback ("Other") is listed last.
             'availableCategories' => ExpenseCategory::selectable()
                 ->orderBy('is_fallback')
                 ->orderBy('name', 'asc')

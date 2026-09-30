@@ -5,14 +5,11 @@ namespace App\Http\Livewire\Student;
 use App\Models\ActivityLog;
 use App\Models\Expense;
 use App\Models\ExpenseCategory;
-use App\Models\RiskSetting;
 use App\Models\WeeklyBudget;
-use App\Notifications\LowAllowanceWarning;
 use App\Services\BudgetCycleService;
 use App\Services\CategorySuggester;
 use App\Services\RiskDetectionService;
 use Carbon\Carbon;
-use Illuminate\Notifications\DatabaseNotification;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Livewire\Component;
@@ -23,20 +20,32 @@ class LogExpense extends Component
     public $item_name;
     public $amount;
     public $transaction_date;
+    public $minDate;
     public $sessionLog = [];
 
     // Category-mismatch state
     public $suggestedCategoryId = null;
     public $suggestedCategoryName = null;
-    public $categoryAutoPicked = false;    // true only while the category was chosen by the engine, not the student
-    public $mismatchAcknowledged = false;  // student pressed "Keep current" (or used their own history)
+    public $categoryAutoPicked = false;
+    public $mismatchAcknowledged = false;
 
-    protected $rules = [
-        'expense_category_id' => 'required|exists:expense_categories,id,status,enabled',
-        'item_name'           => 'required|string|max:255',
-        'amount'              => 'required|numeric|min:0.01|max:999999',
-        'transaction_date'    => 'required|date|before_or_equal:today',
-    ];
+    protected function rules()
+    {
+        $rules = [
+            'expense_category_id' => 'required|exists:expense_categories,id,status,enabled',
+            'item_name'           => 'required|string|max:255',
+            'amount'              => 'required|numeric|min:0.01|max:999999',
+            'transaction_date'    => 'required|date|before_or_equal:today',
+        ];
+
+        // A date before the current cycle would deduct from remaining_allowance
+        // but be invisible to every cycle-scoped total, corrupting the numbers.
+        if ($this->minDate) {
+            $rules['transaction_date'] .= '|after_or_equal:' . $this->minDate;
+        }
+
+        return $rules;
+    }
 
     protected $messages = [
         'expense_category_id.required'     => 'Please select an expense category.',
@@ -46,10 +55,26 @@ class LogExpense extends Component
         'amount.min'                       => 'Amount must be greater than zero.',
         'transaction_date.required'        => 'Please pick a transaction date.',
         'transaction_date.before_or_equal' => 'You cannot enter a future transaction.',
+        'transaction_date.after_or_equal'  => "That date is before your current budget week started, so it can't be logged here.",
     ];
+
+    // Recomputed on every call: the cycle can roll over while the page sits open.
+    private function currentCycleStart(): ?string
+    {
+        $budget = WeeklyBudget::where('user_id', auth()->id())->latest()->first();
+
+        if (!$budget) {
+            return null;
+        }
+
+        return app(BudgetCycleService::class)
+            ->resolve($budget, auth()->user())['startDate']
+            ->format('Y-m-d');
+    }
 
     public function mount()
     {
+        $this->minDate = $this->currentCycleStart();
         $this->transaction_date = Carbon::today()->format('Y-m-d');
 
         // Prefill when arriving from the What-If Simulator's "Add as Expense" button.
@@ -85,11 +110,6 @@ class LogExpense extends Component
         $this->evaluateCategory(false);
     }
 
-    /**
-     * @param bool $allowAutoPick When true, an empty (or previously auto-picked) category is
-     *                            filled in. A category the student picked manually is never
-     *                            overwritten — it can only trigger the nudge.
-     */
     private function evaluateCategory(bool $allowAutoPick): void
     {
         $this->clearSuggestion();
@@ -101,8 +121,6 @@ class LogExpense extends Component
         $match = app(CategorySuggester::class)->suggest(auth()->user(), $this->item_name);
 
         if (!$match) {
-            // The item name changed to something we can't classify: drop a stale auto-pick
-            // instead of leaving the previous item's category selected.
             if ($allowAutoPick && $this->categoryAutoPicked) {
                 $this->expense_category_id = null;
                 $this->categoryAutoPicked  = false;
@@ -157,7 +175,6 @@ class LogExpense extends Component
     // Speed-ups: frequent items + one-tap repeat
     // ---------------------------------------------------------------
 
-    // Top items across all categories with the last amount paid. Hidden once the student starts typing.
     public function getFrequentItemsProperty()
     {
         if (filled($this->item_name)) {
@@ -183,7 +200,6 @@ class LogExpense extends Component
         ]);
     }
 
-    // Fills item + category + last amount from one of the student's own past expenses.
     public function useFrequent($expenseId)
     {
         $past = Expense::where('id', $expenseId)->where('user_id', auth()->id())->first();
@@ -203,7 +219,7 @@ class LogExpense extends Component
         $this->expense_category_id  = $category->id;
         $this->amount               = round((float) $past->amount, 2);
         $this->categoryAutoPicked   = false;
-        $this->mismatchAcknowledged = true; // the student's own history — don't second-guess it
+        $this->mismatchAcknowledged = true;
         $this->clearSuggestion();
         $this->resetErrorBag();
         $this->dispatchBrowserEvent('focus-amount');
@@ -211,7 +227,6 @@ class LogExpense extends Component
         return true;
     }
 
-    // One tap: fill from history and log immediately for today.
     public function repeatExpense($expenseId)
     {
         $this->transaction_date = Carbon::today()->format('Y-m-d');
@@ -221,7 +236,6 @@ class LogExpense extends Component
         }
     }
 
-    // Recent distinct item names under the currently selected category.
     public function getRecentItemsProperty()
     {
         if (!$this->expense_category_id) {
@@ -250,17 +264,14 @@ class LogExpense extends Component
 
     private function persistExpense()
     {
+        $this->minDate = $this->currentCycleStart();
         $this->validate();
 
-        // The exists rule accepts any enabled category; also reject Savings via a tampered id.
         if (!ExpenseCategory::selectable()->whereKey($this->expense_category_id)->exists()) {
             $this->addError('expense_category_id', 'That category is no longer available. Please pick another one.');
             return null;
         }
 
-        // Save gate: re-check against the final values and block once if a specific
-        // category still disagrees and the student hasn't confirmed it. Picking the
-        // fallback ("Other") is never blocked — the nudge is shown but saving proceeds.
         $this->evaluateCategory(false);
 
         if ($this->suggestedCategoryId && !$this->mismatchAcknowledged && !$this->currentCategoryIsFallback()) {
@@ -333,7 +344,6 @@ class LogExpense extends Component
             'category_icon' => $category->icon ?? 'default',
         ];
 
-        // Next item starts clean: its category is re-detected from the new item name.
         $this->reset(['item_name', 'amount', 'expense_category_id']);
         $this->categoryAutoPicked   = false;
         $this->mismatchAcknowledged = false;
@@ -371,7 +381,6 @@ class LogExpense extends Component
     public function render()
     {
         return view('livewire.student.log-expense', [
-            // Fallback ("Other") is listed last.
             'categories'    => ExpenseCategory::selectable()->orderBy('is_fallback')->orderBy('name')->get(),
             'recentItems'   => $this->recentItems,
             'frequentItems' => $this->frequentItems,

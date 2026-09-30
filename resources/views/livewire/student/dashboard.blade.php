@@ -43,7 +43,9 @@
                     <x-heroicon-o-check-circle class="w-3.5 h-3.5" />
                     {{ $pill['label'] }}
                 </span>
-                <livewire:student.notification-center />
+                <div class="hidden lg:block">
+                    <livewire:student.notification-center />
+                </div>
             </div>
         </div>
 

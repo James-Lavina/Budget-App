@@ -38,6 +38,8 @@
         'budget_settings_updated'   => 'Updated Budget Settings',
         'budget_setup_completed'    => 'Completed Budget Setup',
         'notification_failed'       => 'Notification Delivery Failed',
+        'password_reset_requested'  => 'Requested Password Reset',
+        'password_reset_completed'  => 'Reset Password',
     ];
 @endphp
 

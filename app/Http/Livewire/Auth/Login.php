@@ -15,18 +15,27 @@ class Login extends Component
     public $password;
     public $lockoutSeconds = 0;
 
-    protected $message = [
+    protected $messages = [
         'email.required' => 'The email field cannot be blank.',
         'email.email' => 'Please enter a valid email address.',
         'password.required' => 'The password field is required.'
     ];
+
+    public function mount()
+    {
+        // Message flashed by EnsureUserIsActive when a live session was suspended.
+        if (session()->has('auth_error')) {
+            $this->addError('auth_failed', session('auth_error'));
+        }
+    }
 
     public function render()
     {
         return view('livewire.auth.login');
     }
 
-    public function loginUser() {
+    public function loginUser()
+    {
         $this->validate([
             'email' => 'required|email|string',
             'password' => 'required|string|min:8'
@@ -40,16 +49,27 @@ class Login extends Component
             return;
         }
 
-        if(Auth::attempt(['email' => $this->email, 'password' => $this->password])){
+        if (Auth::attempt(['email' => $this->email, 'password' => $this->password])) {
+
+            // Correct password, but the admin suspended this account.
+            if (auth()->user()->status === 'suspended') {
+                ActivityLog::create([
+                    'user_id'    => auth()->id(),
+                    'event_type' => 'auth_login_failed', // "failed" => shows red in both admin views
+                    'ip_address' => request()->ip(),
+                    'user_agent' => request()->userAgent(),
+                    'details'    => "Blocked login for {$this->email} (account is suspended)",
+                ]);
+
+                Auth::logout();
+                $this->addError('auth_failed', 'Your account has been suspended. Please contact an administrator.');
+                return;
+            }
+
             request()->session()->regenerate();
 
             RateLimiter::clear($throttleKey);
 
-            // NEW: activity_logs.user_id is nullable specifically to support
-            // logging failed attempts against no user — labelFor() in
-            // ActivityLogIndex already had 'auth_login'/'auth_login_failed'
-            // cases mapped, but nothing ever wrote either event. This was a
-            // dead audit trail, not an existing feature working elsewhere.
             ActivityLog::create([
                 'user_id'    => auth()->id(),
                 'event_type' => 'auth_login',
@@ -58,20 +78,15 @@ class Login extends Component
                 'details'    => 'Logged in successfully',
             ]);
 
-            if(in_array(auth()->user()->role, ['admin', 'super_admin'])) {
+            if (in_array(auth()->user()->role, ['admin', 'super_admin'])) {
                 return redirect()->route('admin.dashboard');
             }
-            
+
             return redirect()->route('student.dashboard');
         }
 
         RateLimiter::hit($throttleKey, 60);
 
-        // NEW: logged against no user (matching_user lookup below only for
-        // the details string, never for auth) since the credentials didn't
-        // match — user_id stays null, exactly what the migration's comment
-        // anticipated ("Nullable for tracking failed login attempts").
-        // Never logs the submitted password.
         $matchedUser = User::where('email', $this->email)->first();
 
         ActivityLog::create([

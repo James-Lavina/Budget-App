@@ -2,6 +2,7 @@
 
 namespace App\Http\Livewire\Student;
 
+use App\Models\ActivityLog;
 use App\Models\Expense;
 use App\Models\SavingsGoal;
 use App\Models\WeeklyBudget;

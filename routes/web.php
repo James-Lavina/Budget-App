@@ -9,8 +9,10 @@ use App\Http\Livewire\Admin\RiskRules;
 use App\Http\Livewire\Admin\UserManagement;
 use App\Http\Livewire\Admin\Settings as adminSettings;
 use App\Http\Livewire\Admin\AdminManagement;
+use App\Http\Livewire\Auth\ForgotPassword;
 use App\Http\Livewire\Auth\Login;
 use App\Http\Livewire\Auth\Register;
+use App\Http\Livewire\Auth\ResetPassword;
 use App\Http\Livewire\Student\AddBudgetFunds;
 use App\Http\Livewire\Student\AllExpenses;
 use App\Http\Livewire\Student\BudgetSetup;
@@ -30,17 +32,16 @@ use Illuminate\Support\Facades\Route;
 |--------------------------------------------------------------------------
 | Web Routes
 |--------------------------------------------------------------------------
-|
-| Here is where you can register web routes for your application. These
-| routes are loaded by the RouteServiceProvider within a group which
-| contains the "web" middleware group. Now create something great!
-|
 */
 
 // Guest Routes
 Route::middleware(['guest'])->group(function() {
     Route::get('/register', Register::class)->name('register');
     Route::get('/login', Login::class)->name('login');
+    // NEW: password reset flow — previously the "Forgot password?" link
+    // on the login page pointed at a route that never existed.
+    Route::get('/forgot-password', ForgotPassword::class)->name('password.request');
+    Route::get('/reset-password/{token}', ResetPassword::class)->name('password.reset');
     Route::get('/', function() {
         return view('welcome');
     });
@@ -51,31 +52,18 @@ Route::middleware(['auth', 'maintenance.check'])->group(function() {
     // Student Routes
     Route::name('student.')
         ->group(function() {
-            // Dashboard
             Route::get('/dashboard', studentDashboard::class)->name('dashboard');
-            // Budget Setup
             Route::get('/budget-setup', BudgetSetup::class)->name('budget-setup');
-            // Expense Log 
             Route::get('/expenses', AllExpenses::class)->name('expenses.index');
             Route::get('/expenses/create', LogExpense::class)->name('expenses.create');
             Route::get('/expenses/receipt-scanner', ScanExpense::class)->name('receipt-scanner');
             Route::get('/expenses/{id}/edit', EditExpense::class)->name('expenses.edit');
-            // Add BudgetFunds
             Route::get('/budget/add-funds', AddBudgetFunds::class)->name('budget.add');
-            // Forecasting 
             Route::get('/forecast', SpendingForecast::class)->name('forecast');
-            // Savings Goal 
             Route::get('/savings-goals', GoalsManager::class)->name('goals');
-            // What-If Simulation
             Route::get('/simulation', WhatIfSimulator::class)->name('simulation');
-            // Notification
-            // Route::get('/notifications', function() {
-            //     return view('student.notifications');
-            // })->name('notifications');
             Route::get('/notification', NotificationIndex::class)->name('notifications');
-            // Settings
             Route::get('/settings', Settings::class)->name('settings');
-            // Profile
             Route::get('/profile', Profile::class)->name('profile');
         });
 
@@ -84,7 +72,6 @@ Route::middleware(['auth', 'maintenance.check'])->group(function() {
             ->prefix('test')
             ->name('test.')
             ->group(function () {
-                // Usage: GET /test/fast-forward?date=2026-08-27
                 Route::get('/fast-forward', function (\Illuminate\Http\Request $request) {
                     $date = $request->query('date');
 
@@ -92,46 +79,37 @@ Route::middleware(['auth', 'maintenance.check'])->group(function() {
                         \Illuminate\Support\Carbon::setTestNow($date);
                         session(['test_fake_now' => $date]);
                     }
-    
+
                     return redirect()->back();
                 })->name('fast-forward');
-    
-                // Usage: GET /test/fast-forward/reset
+                
                 Route::get('/fast-forward/reset', function () {
                     \Illuminate\Support\Carbon::setTestNow(null);
                     session()->forget('test_fake_now');
-    
+
                     return redirect()->back();
                 })->name('fast-forward.reset');
             });
     }
-    
+
     // Admin Routes
     Route::middleware(['admin'])
         ->prefix('admin')
         ->name('admin.')
         ->group(function() {
-            // Dashboard
             Route::get('/dashboard', adminDashboard::class)->name('dashboard');
-            // User management
             Route::get('/users', UserManagement::class)->name('users');
-            // Expense Categories
             Route::get('/categories', ExpenseCategories::class)->name('categories');
-            // Risk Detection Rules
             Route::get('/risk-rules', RiskRules::class)->name('risk-rules');
-            // OCR AI Settings
             Route::get('/ocr-ai-settings', OcrAiSettings::class)->name('ocr-ai-settings');
-            // Reports
             Route::get('/reports', Reports::class)->name('reports');
-            // Activity log
             Route::get('/activity-logs', ActivityLogIndex::class)->name('activity-logs');
-            // Settings
             Route::get('/settings', adminSettings::class)->name('settings');
-            // Admin accounts
             Route::middleware(['super_admin'])->group(function () {
                 Route::get('/admin-accounts', AdminManagement::class)->name('accounts');
             });
     });
+
     // Global Routes
     Route::post('/', function() {
         if (auth()->check()) {
@@ -143,7 +121,7 @@ Route::middleware(['auth', 'maintenance.check'])->group(function() {
                 'details'    => 'Logged out',
             ]);
         }
-    
+
         auth()->logout();
         request()->session()->invalidate();
         request()->session()->regenerateToken();

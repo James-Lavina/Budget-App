@@ -9,6 +9,7 @@ use App\Models\SavingsGoal;
 use App\Models\WeeklyBudget;
 use App\Notifications\SavingsGoalAchieved;
 use App\Services\BudgetCycleService;
+use App\Services\NotificationLogger;
 use App\Services\RiskDetectionService;
 use App\Services\SavingsGoalService;
 use Carbon\Carbon;
@@ -19,18 +20,30 @@ class EditExpense extends Component
 {
     public $expenseId;
     public $expense_category_id;
-    public $merchant_name;
     public $item_name;
     public $amount;
     public $transaction_date;
-    public $isSavingsLinked = false; // true if this expense is a goal contribution
+    public $minDate;
+    public $isSavingsLinked = false;
 
-    protected $rules = [
-        'expense_category_id' => 'required|exists:expense_categories,id',
-        'item_name' => 'required|string|max:255',
-        'amount' => 'required|numeric|min:0.01|max:999999',
-        'transaction_date' => 'required|date|before_or_equal:today',
-        'merchant_name' => 'nullable|string|max:255',
+    protected function rules()
+    {
+        $rules = [
+            'expense_category_id' => 'required|exists:expense_categories,id',
+            'item_name' => 'required|string|max:255',
+            'amount' => 'required|numeric|min:0.01|max:999999',
+            'transaction_date' => 'required|date|before_or_equal:today',
+        ];
+
+        if ($this->minDate) {
+            $rules['transaction_date'] .= '|after_or_equal:' . $this->minDate;
+        }
+
+        return $rules;
+    }
+
+    protected $messages = [
+        'transaction_date.after_or_equal' => "That date is before your current budget week started, so it can't be used.",
     ];
 
     public function mount($id)
@@ -49,30 +62,29 @@ class EditExpense extends Component
             return;
         }
 
+        $this->minDate = $this->currentCycleStart($currentBudget);
+
         $this->expenseId = $expense->id;
         $this->expense_category_id = $expense->expense_category_id;
         $this->item_name = $expense->item_name;
         $this->amount = $expense->amount;
-        $this->merchant_name = $expense->merchant_name;
         $this->transaction_date = Carbon::parse($expense->transaction_date)->format('Y-m-d');
         $this->isSavingsLinked = !is_null($expense->savings_goal_id);
 
-        // If the expense's category was disabled by an admin since it was logged, the
-        // picker no longer lists it. Clear the selection so the student must pick a
-        // valid one instead of silently keeping a hidden category.
         if (!$this->isSavingsLinked && !ExpenseCategory::selectable()->whereKey($this->expense_category_id)->exists()) {
             $this->expense_category_id = null;
         }
     }
 
+    private function currentCycleStart(WeeklyBudget $budget): string
+    {
+        return app(BudgetCycleService::class)
+            ->resolve($budget, auth()->user())['startDate']
+            ->format('Y-m-d');
+    }
+
     public function updateExpense()
     {
-        $this->validate();
-
-        $expense = Expense::where('id', $this->expenseId)
-            ->where('user_id', auth()->id())
-            ->firstOrFail();
-
         $currentBudget = WeeklyBudget::where('user_id', auth()->id())
             ->latest()
             ->first();
@@ -82,15 +94,18 @@ class EditExpense extends Component
             return;
         }
 
+        $this->minDate = $this->currentCycleStart($currentBudget);
+        $this->validate();
+
+        $expense = Expense::where('id', $this->expenseId)
+            ->where('user_id', auth()->id())
+            ->firstOrFail();
+
         if (!app(BudgetCycleService::class)->isWithinCurrentCycle($currentBudget, auth()->user(), $expense->transaction_date)) {
             session()->flash('error', 'This expense belongs to a previous budget cycle and can no longer be edited.');
             return redirect()->route('student.expenses.index');
         }
 
-        // Regular expenses must use a category students can actually pick (enabled, not
-        // Savings). Never trust the client — a tampered id or a since-disabled category
-        // is rejected here. Savings-linked expenses are exempt: their category is forced
-        // back to the original below.
         if (!$this->isSavingsLinked && !ExpenseCategory::selectable()->whereKey($this->expense_category_id)->exists()) {
             $this->addError('expense_category_id', 'That category is no longer available. Please pick another one.');
             return;
@@ -106,20 +121,10 @@ class EditExpense extends Component
             return;
         }
 
-        // Defense in depth: even if the category picker is disabled in the
-        // UI for savings-linked expenses, never trust the client. Force the
-        // category back to the expense's original one for savings entries,
-        // so a goal contribution can never be silently recategorized and
-        // orphaned from its goal.
         $categoryIdToSave = $this->isSavingsLinked
             ? $expense->expense_category_id
             : $this->expense_category_id;
 
-        // FIX: capture the affected goal + whether this edit newly crossed
-        // 100%, so a student who bumps up a savings-linked expense enough
-        // to hit their target gets notified — previously the status/amount
-        // was mutated silently with no SavingsGoalAchieved /
-        // SavingsMilestoneReached notification at all.
         $affectedGoal      = null;
         $goalNewlyAchieved = false;
 
@@ -160,7 +165,6 @@ class EditExpense extends Component
 
             $expense->update([
                 'expense_category_id' => $categoryIdToSave,
-                'merchant_name' => $this->merchant_name ?: null,
                 'item_name' => $this->item_name,
                 'amount' => $this->amount,
                 'transaction_date' => $this->transaction_date . ' ' . Carbon::now()->format('H:i:s'),
@@ -180,7 +184,7 @@ class EditExpense extends Component
                 try {
                     auth()->user()->notify(new SavingsGoalAchieved($affectedGoal));
                 } catch (\Throwable $e) {
-                    \Log::warning('Notification failed: ' . $e->getMessage());
+                    NotificationLogger::logFailure(auth()->user(), SavingsGoalAchieved::class, $e, $affectedGoal->target_name);
                 }
             } else {
                 app(SavingsGoalService::class)->checkAndNotifySavingsMilestone(auth()->user(), $affectedGoal);
@@ -198,9 +202,6 @@ class EditExpense extends Component
     public function render()
     {
         return view('livewire.student.edit-expense', [
-            // Enabled, non-Savings categories only. Savings is never a selectable
-            // category — it's only ever applied automatically via a goal contribution.
-            // The fallback ("Other") is listed last.
             'categories' => ExpenseCategory::selectable()
                 ->orderBy('is_fallback')
                 ->orderBy('name', 'asc')

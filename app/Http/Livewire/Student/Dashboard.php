@@ -38,9 +38,13 @@ class Dashboard extends Component
             return redirect()->route('student.budget-setup');
         }
 
-        // Reset-and-rollover now happens inside BudgetCycleService::resolve(),
-        // called by computeBehavioralMetrics() below — not just here — so it
-        // fires no matter which page a student opens first in a new cycle.
+        // FIX: previously only SpendingForecast::mount() called this — a
+        // student who never visits /forecast could go stale-alerted for days
+        // just from time passing (same spend, fewer days left = worse pace)
+        // with no expense action to trigger a re-evaluation. The Dashboard is
+        // the page students actually land on, so alerts should refresh here too.
+        app(RiskDetectionService::class)->evaluateSpendingRisk(auth()->user());
+
         $this->computeBehavioralMetrics();
     }
 

@@ -14,7 +14,7 @@
                     <span class="inline-flex items-center text-xs font-bold px-3 py-1.5 bg-slate-100 text-slate-700 rounded-xl">
                         {{ $allExpenses->total() }} {{ Str::plural('Entry', $allExpenses->total()) }}
                     </span>
-                    <span class="inline-flex items-center text-xs font-bold px-3 py-1.5 bg-indigo-50 text-indigo-700 border border-indigo-100/80 rounded-xl">
+                    <span class="inline-flex items-center text-xs font-bold px-3 py-1.5 bg-[rgba(var(--brand-rgb),0.08)] text-[var(--brand)] border border-[rgba(var(--brand-rgb),0.18)] rounded-xl">
                         ₱{{ number_format($totalSpent, 2) }} Spent
                     </span>
                 </div>
@@ -27,14 +27,14 @@
                     <svg class="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"/>
                     </svg>
-                    <input type="text" wire:model.debounce.300ms="search" placeholder="Search purchase or merchant..."
-                        class="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-medium text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-600/20 focus:border-indigo-600 transition-all">
+                    <input type="text" wire:model.debounce.300ms="search" placeholder="Search purchases..."
+                        class="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-medium text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[rgba(var(--brand-rgb),0.2)] focus:border-[var(--brand)] transition-all">
                 </div>
 
                 <!-- Category Dropdown -->
                 <div class="w-full sm:w-48">
                     <select wire:model="selectedCategory"
-                        class="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-600/20 focus:border-indigo-600 transition-all">
+                        class="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-[rgba(var(--brand-rgb),0.2)] focus:border-[var(--brand)] transition-all">
                         <option value="">All Categories</option>
                         @foreach($categories as $cat)
                             <option value="{{ $cat->id }}">{{ $cat->name }}</option>
@@ -44,7 +44,7 @@
 
                 <!-- Select Page Toggle -->
                 <label class="flex items-center gap-2 px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-600 cursor-pointer whitespace-nowrap shrink-0 w-full sm:w-auto justify-center sm:justify-start">
-                    <input type="checkbox" wire:model="selectAll" class="h-3.5 w-3.5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500">
+                    <input type="checkbox" wire:model="selectAll" class="h-3.5 w-3.5 rounded border-slate-300 text-[var(--brand)] focus:ring-[var(--brand)]">
                     <span>Select page</span>
                 </label>
 
@@ -59,7 +59,7 @@
 
             <!-- Active Filter Indicator -->
             @if($search || $selectedCategory)
-                <div class="px-6 py-2.5 bg-indigo-50/50 border-b border-indigo-100 flex items-center gap-2 text-[11px] font-bold text-indigo-700">
+                <div class="px-6 py-2.5 bg-[rgba(var(--brand-rgb),0.05)] border-b border-[rgba(var(--brand-rgb),0.15)] flex items-center gap-2 text-[11px] font-bold text-[var(--brand)]">
                     <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M12 3c2.755 0 5.455.232 8.083.678.533.09.917.556.917 1.096v1.044a2.25 2.25 0 01-.659 1.591l-5.432 5.432a2.25 2.25 0 00-.659 1.591v2.927a2.25 2.25 0 01-1.244 2.013L9.75 21v-6.568a2.25 2.25 0 00-.659-1.591L3.659 7.409A2.25 2.25 0 013 5.818V4.774c0-.54.384-1.006.917-1.096A48.32 48.32 0 0112 3z" />
                     </svg>
@@ -72,8 +72,8 @@
 
             <!-- Bulk Action Bar -->
             @if(count($selected) > 0)
-                <div class="mx-6 mt-4 p-3 bg-indigo-50 border border-indigo-100 rounded-xl flex items-center justify-between gap-3">
-                    <span class="text-xs font-bold text-indigo-700">{{ count($selected) }} {{ Str::plural('item', count($selected)) }} selected</span>
+                <div class="mx-6 mt-4 p-3 bg-[rgba(var(--brand-rgb),0.08)] border border-[rgba(var(--brand-rgb),0.18)] rounded-xl flex items-center justify-between gap-3">
+                    <span class="text-xs font-bold text-[var(--brand)]">{{ count($selected) }} {{ Str::plural('item', count($selected)) }} selected</span>
                     <div class="flex items-center gap-2">
                         <button wire:click="$set('selected', [])" class="text-xs font-bold text-slate-500 hover:text-slate-700 px-2">
                             Clear
@@ -112,7 +112,7 @@
                         <p class="text-xs text-slate-500 leading-normal">
                             No expenses matched your active search or category filters.
                         </p>
-                        <button wire:click="clearFilters" class="mt-2 text-xs font-bold text-indigo-600 hover:text-indigo-700">
+                        <button wire:click="clearFilters" class="mt-2 text-xs font-bold text-[var(--brand)] hover:opacity-80">
                             Reset all filters
                         </button>
                     @else
@@ -132,9 +132,9 @@
                         <div class="flex items-start gap-3">
                             <input type="checkbox" wire:model="selected" value="{{ $expense->id }}"
                                 {{ $isLocked ? 'disabled' : '' }}
-                                class="mt-4 sm:mt-5 h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 shrink-0 disabled:opacity-30">
+                                class="mt-4 sm:mt-5 h-4 w-4 rounded border-slate-300 text-[var(--brand)] focus:ring-[var(--brand)] shrink-0 disabled:opacity-30">
                             <div class="flex-1 min-w-0">
-                                <x-expense-row :expense="$expense" :show-merchant="true" :locked="$isLocked" />
+                                <x-expense-row :expense="$expense" :locked="$isLocked" />
                             </div>
                         </div>
                     @endforeach

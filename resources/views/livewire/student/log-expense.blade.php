@@ -130,6 +130,7 @@
                 <div class="space-y-1.5">
                     <label for="transaction_date" class="block text-xs font-bold text-slate-700">Date</label>
                     <input id="transaction_date" type="date" wire:model.defer="transaction_date"
+                        min="{{ $minDate }}" max="{{ now()->format('Y-m-d') }}"
                         class="w-full px-4 py-3 bg-slate-100/80 border-0 rounded-2xl text-slate-800 font-semibold text-sm focus:bg-white focus:ring-2 focus:ring-[rgba(var(--brand-rgb),0.2)] transition-all">
                     @error('transaction_date')
                         <span class="text-[11px] font-semibold text-rose-500 block mt-1">{{ $message }}</span>

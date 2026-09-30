@@ -18,7 +18,7 @@
                     Item Name
                 </label>
                 <input id="item_name" type="text" wire:model.defer="item_name" placeholder="e.g., Chickenjoy Meal"
-                    class="w-full px-4 py-3 bg-slate-100/80 border-0 rounded-2xl text-slate-900 font-semibold text-sm placeholder-slate-400 focus:bg-white focus:ring-2 focus:ring-indigo-500 transition-all">
+                    class="w-full px-4 py-3 bg-slate-100/80 border-0 rounded-2xl text-slate-900 font-semibold text-sm placeholder-slate-400 focus:bg-white focus:ring-2 focus:ring-[rgba(var(--brand-rgb),0.2)] transition-all">
                 @error('item_name')
                     <span class="text-[11px] font-semibold text-rose-500 block mt-1">{{ $message }}</span>
                 @enderror
@@ -37,7 +37,7 @@
                         </span>
                         <input id="amount" type="number" step="0.01" min="0" wire:model.defer="amount" placeholder="0.00"
                             onblur="formatAmount(this)"
-                            class="w-full pl-9 pr-4 py-3 bg-slate-100/80 border-0 rounded-2xl text-slate-900 font-extrabold text-base placeholder-slate-400 focus:bg-white focus:ring-2 focus:ring-indigo-500 transition-all">
+                            class="w-full pl-9 pr-4 py-3 bg-slate-100/80 border-0 rounded-2xl text-slate-900 font-extrabold text-base placeholder-slate-400 focus:bg-white focus:ring-2 focus:ring-[rgba(var(--brand-rgb),0.2)] transition-all">
                     </div>
                     @error('amount')
                         <span class="text-[11px] font-semibold text-rose-500 block mt-1">{{ $message }}</span>
@@ -50,7 +50,8 @@
                         Date
                     </label>
                     <input id="transaction_date" type="date" wire:model.defer="transaction_date"
-                        class="w-full px-4 py-3 bg-slate-100/80 border-0 rounded-2xl text-slate-800 font-semibold text-sm focus:bg-white focus:ring-2 focus:ring-indigo-500 transition-all">
+                        min="{{ $minDate }}" max="{{ now()->format('Y-m-d') }}"
+                        class="w-full px-4 py-3 bg-slate-100/80 border-0 rounded-2xl text-slate-800 font-semibold text-sm focus:bg-white focus:ring-2 focus:ring-[rgba(var(--brand-rgb),0.2)] transition-all">
                     @error('transaction_date')
                         <span class="text-[11px] font-semibold text-rose-500 block mt-1">{{ $message }}</span>
                     @enderror
@@ -64,7 +65,7 @@
                 </label>
 
                 @if($isSavingsLinked)
-                    <div class="flex items-center gap-2 px-4 py-2.5 bg-indigo-50/70 border border-indigo-100 rounded-2xl text-xs font-bold text-indigo-700 w-fit">
+                    <div class="flex items-center gap-2 px-4 py-2.5 bg-[rgba(var(--brand-rgb),0.06)] border border-[rgba(var(--brand-rgb),0.18)] rounded-2xl text-xs font-bold text-[var(--brand)] w-fit">
                         <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z"/>
                         </svg>
@@ -76,7 +77,7 @@
                             @php $isSelected = $expense_category_id == $category->id; @endphp
                             <button type="button"
                                 wire:click="$set('expense_category_id', {{ $category->id }})"
-                                class="px-4 py-2 rounded-full text-xs font-bold flex items-center gap-2 transition-all duration-150 transform active:scale-95 {{ $isSelected ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200' : 'bg-slate-100 text-slate-600 hover:bg-slate-200/80' }}">
+                                class="px-4 py-2 rounded-full text-xs font-bold flex items-center gap-2 transition-all duration-150 transform active:scale-95 {{ $isSelected ? 'bg-[var(--brand)] text-white shadow-md shadow-[0_4px_12px_-2px_rgba(var(--brand-rgb),0.35)]' : 'bg-slate-100 text-slate-600 hover:bg-slate-200/80' }}">
                                 <x-category-icon :type="$category->icon" />
                                 <span>{{ $category->name }}</span>
                             </button>
@@ -97,7 +98,7 @@
                 </a>
 
                 <button type="submit" wire:loading.attr="disabled"
-                    class="px-8 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-full font-bold text-xs shadow-lg shadow-indigo-200 transition-all transform active:scale-95 disabled:opacity-50 flex items-center gap-2">
+                    class="px-8 py-3 bg-[var(--brand)] hover:opacity-90 text-white rounded-full font-bold text-xs shadow-lg shadow-[0_8px_16px_-4px_rgba(var(--brand-rgb),0.3)] transition-all transform active:scale-95 disabled:opacity-50 flex items-center gap-2">
                     <span wire:loading.remove wire:target="updateExpense">Update Expense</span>
                     <span wire:loading wire:target="updateExpense">Saving...</span>
                 </button>
@@ -111,8 +112,6 @@
     function formatAmount(input) {
         if (input.value !== '') {
             input.value = parseFloat(input.value).toFixed(2);
-
-            // Keep Livewire updated
             input.dispatchEvent(new Event('input', { bubbles: true }));
         }
     }

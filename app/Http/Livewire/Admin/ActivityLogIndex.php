@@ -107,6 +107,10 @@ class ActivityLogIndex extends Component
                 return 'Registered Account';
             case 'notification_failed':
                 return 'Notification Delivery Failed';
+            case 'password_reset_requested':
+                return 'Requested Password Reset';
+            case 'password_reset_completed':
+                return 'Reset Password';
             default:
                 return ucwords(str_replace('_', ' ', $eventType));
         }
