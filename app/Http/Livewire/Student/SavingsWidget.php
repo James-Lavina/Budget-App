@@ -47,11 +47,13 @@ class SavingsWidget extends Component
                 'required',
                 'numeric',
                 'min:0.01',
+                'regex:/^\d+(\.\d{1,2})?$/',
                 'max:' . $currentBudget->remaining_allowance,
                 'max:' . $remainingNeeded,
             ]
         ], [
-            'fund_amount.max' => 'Transfer halted! The amount exceeds either your remaining budget (₱' . number_format($currentBudget->remaining_allowance, 2) . ') or what is left to finish this goal (₱' . number_format($remainingNeeded, 2) . ').'
+            'fund_amount.max' => 'Transfer halted! The amount exceeds either your remaining budget (₱' . number_format($currentBudget->remaining_allowance, 2) . ') or what is left to finish this goal (₱' . number_format($remainingNeeded, 2) . ').',
+            'fund_amount.regex' => 'Use at most 2 decimal places.'
         ]);
 
         $result = app(SavingsGoalService::class)->addFunds(auth()->user(), $goal, (float) $this->fund_amount);

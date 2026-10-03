@@ -102,8 +102,8 @@ class Dashboard extends Component
         }
 
         DB::transaction(function () use ($expense) {
-            $this->currentBudget->remaining_allowance += $expense->amount;
-            $this->currentBudget->save();
+            $lockedBudget = WeeklyBudget::whereKey($this->currentBudget->id)->lockForUpdate()->first();
+            $lockedBudget->increment('remaining_allowance', $expense->amount);
 
             if ($expense->savings_goal_id) {
                 $goal = SavingsGoal::find($expense->savings_goal_id);

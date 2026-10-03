@@ -4,6 +4,7 @@ namespace App\Http\Livewire\Student;
 
 use App\Models\ActivityLog;
 use Livewire\Component;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rule;
 
@@ -12,6 +13,7 @@ class Profile extends Component
     public $name;
     public $email;
     public $school;
+
     public $current_password;
     public $new_password;
     public $new_password_confirmation;
@@ -19,6 +21,7 @@ class Profile extends Component
     public function mount()
     {
         $user = auth()->user();
+
         $this->name = $user->name;
         $this->email = $user->email;
         $this->school = $user->school;
@@ -56,15 +59,17 @@ class Profile extends Component
             }
         }
 
-        // FIX: capture what actually changed before overwriting, so the
-        // activity log records real before/after values.
+        // Capture what actually changed before overwriting, so the log records real before/after values.
         $changes = [];
+
         if ($user->name !== $this->name) {
             $changes[] = "name: \"{$user->name}\" → \"{$this->name}\"";
         }
+
         if ($isChangingEmail) {
             $changes[] = "email: \"{$user->email}\" → \"{$this->email}\"";
         }
+
         if ($user->school !== $this->school) {
             $changes[] = "school: \"" . ($user->school ?? '—') . "\" → \"" . ($this->school ?? '—') . "\"";
         }
@@ -78,7 +83,11 @@ class Profile extends Component
         $user->school = $this->school;
         $user->save();
 
-        // FIX: profile edits (name/email/school) had no audit trail at all.
+        // Invalidate every other session/device. The current session stays logged in.
+        if ($isChangingPassword) {
+            Auth::logoutOtherDevices($this->new_password);
+        }
+
         if (!empty($changes)) {
             ActivityLog::create([
                 'user_id'    => $user->id,
@@ -89,15 +98,14 @@ class Profile extends Component
             ]);
         }
 
-        // FIX: a password change is security-sensitive and previously left
-        // no trace anywhere. Never logs the password value itself.
+        // Password change is security-sensitive. Never logs the password value itself.
         if ($isChangingPassword) {
             ActivityLog::create([
                 'user_id'    => $user->id,
                 'event_type' => 'password_changed',
                 'ip_address' => request()->ip(),
                 'user_agent' => request()->userAgent(),
-                'details'    => 'Account password was changed.',
+                'details'    => 'Account password was changed. Other sessions were signed out.',
             ]);
         }
 

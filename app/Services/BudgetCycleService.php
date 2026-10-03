@@ -96,9 +96,19 @@ class BudgetCycleService
         }
 
         DB::transaction(function () use ($budget, $user, $startDate, $targetResetDay, $today) {
+            // Re-check under a row lock: a concurrent request may have already rolled this cycle.
+            $locked = WeeklyBudget::whereKey($budget->id)->lockForUpdate()->first();
+
+            if (!$locked || Carbon::parse($locked->cycle_start_date)->startOfDay()->ne($startDate)) {
+                return;
+            }
+
+            $budget = $locked;
+
             $endingResetDate = strtolower($startDate->format('l')) === strtolower($targetResetDay)
                 ? $startDate->copy()->addWeek()
                 : $startDate->copy()->next($targetResetDay);
+
             $endingEndDate = $endingResetDate->copy()->subSecond();
 
             $amountSpent = (float) Expense::where('user_id', $user->id)
@@ -141,7 +151,6 @@ class BudgetCycleService
             try {
                 $user->notify(new WeeklyBudgetReview($amountSpent, $unspent, $severity, $amountSaved));
             } catch (\Throwable $e) {
-                // FIX
                 NotificationLogger::logFailure($user, WeeklyBudgetReview::class, $e);
             }
 

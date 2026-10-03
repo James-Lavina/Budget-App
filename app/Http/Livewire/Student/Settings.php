@@ -14,8 +14,8 @@ class Settings extends Component
     public $update_current_week = false;
 
     protected $rules = [
-        'total_allowance' => 'required|numeric|min:1|max:999999',
-        'reset_day' => 'required|string|in:Monday,Tuesday,Wednesday,Thursday,Friday,Saturday,Sunday',
+        'total_allowance' => ['required', 'numeric', 'min:1', 'max:999999', 'regex:/^\d+(\.\d{1,2})?$/'],
+        'reset_day'       => 'required|string|in:Monday,Tuesday,Wednesday,Thursday,Friday,Saturday,Sunday',
     ];
 
     public function mount()

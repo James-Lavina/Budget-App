@@ -31,7 +31,7 @@ class EditExpense extends Component
         $rules = [
             'expense_category_id' => 'required|exists:expense_categories,id',
             'item_name' => 'required|string|max:255',
-            'amount' => 'required|numeric|min:0.01|max:999999',
+            'amount' => ['required', 'numeric', 'min:0.01', 'max:999999', 'regex:/^\d+(\.\d{1,2})?$/'],
             'transaction_date' => 'required|date|before_or_equal:today',
         ];
 
@@ -44,6 +44,7 @@ class EditExpense extends Component
 
     protected $messages = [
         'transaction_date.after_or_equal' => "That date is before your current budget week started, so it can't be used.",
+        'amount.regex' => 'Use at most 2 decimal places (e.g. 150.50).',
     ];
 
     public function mount($id)
@@ -95,6 +96,7 @@ class EditExpense extends Component
         }
 
         $this->minDate = $this->currentCycleStart($currentBudget);
+
         $this->validate();
 
         $expense = Expense::where('id', $this->expenseId)
@@ -114,11 +116,18 @@ class EditExpense extends Component
         $oldAmount = (float) $expense->amount;
         $newAmount = (float) $this->amount;
 
-        $availableForThisExpense = (float) $currentBudget->remaining_allowance + $oldAmount;
+        // Savings-linked: the entry cannot exceed what the goal still needs.
+        if ($this->isSavingsLinked && $expense->savings_goal_id) {
+            $linkedGoal = SavingsGoal::find($expense->savings_goal_id);
 
-        if ($newAmount > $availableForThisExpense) {
-            $this->addError('amount', 'Insufficient allowance. You only have ₱' . number_format($availableForThisExpense, 2) . ' available for this transaction.');
-            return;
+            if ($linkedGoal && $linkedGoal->status !== 'abandoned') {
+                $maxForGoal = $oldAmount + max(0, $linkedGoal->target_amount - $linkedGoal->current_saved);
+
+                if ($newAmount > $maxForGoal + 0.001) {
+                    $this->addError('amount', 'That is more than this goal still needs. Max for this entry is ₱' . number_format($maxForGoal, 2) . '.');
+                    return;
+                }
+            }
         }
 
         $categoryIdToSave = $this->isSavingsLinked
@@ -127,14 +136,23 @@ class EditExpense extends Component
 
         $affectedGoal      = null;
         $goalNewlyAchieved = false;
+        $insufficientLeft  = null;
 
-        DB::transaction(function () use ($expense, $currentBudget, $oldAmount, $newAmount, $categoryIdToSave, &$affectedGoal, &$goalNewlyAchieved) {
-            $adjustmentDelta = $oldAmount - $newAmount;
-            $currentBudget->remaining_allowance += $adjustmentDelta;
-            $currentBudget->save();
+        DB::transaction(function () use ($expense, $currentBudget, $oldAmount, $newAmount, $categoryIdToSave, &$affectedGoal, &$goalNewlyAchieved, &$insufficientLeft) {
+            $budget = WeeklyBudget::whereKey($currentBudget->id)->lockForUpdate()->first();
+
+            $available = (float) $budget->remaining_allowance + $oldAmount;
+
+            if ($newAmount > $available) {
+                $insufficientLeft = $available;
+                return;
+            }
+
+            $budget->remaining_allowance = $available - $newAmount;
+            $budget->save();
 
             if ($expense->savings_goal_id) {
-                $goal = SavingsGoal::find($expense->savings_goal_id);
+                $goal = SavingsGoal::lockForUpdate()->find($expense->savings_goal_id);
 
                 if ($goal && $goal->status !== 'abandoned') {
                     $wasAchieved = $goal->status === 'achieved';
@@ -153,7 +171,7 @@ class EditExpense extends Component
 
                     $goal->update([
                         'current_saved' => $newSaved,
-                        'status' => $isAchieved
+                        'status'        => $isAchieved
                             ? 'achieved'
                             : ($goal->status === 'achieved' ? 'active' : $goal->status),
                     ]);
@@ -165,9 +183,9 @@ class EditExpense extends Component
 
             $expense->update([
                 'expense_category_id' => $categoryIdToSave,
-                'item_name' => $this->item_name,
-                'amount' => $this->amount,
-                'transaction_date' => $this->transaction_date . ' ' . Carbon::now()->format('H:i:s'),
+                'item_name'           => $this->item_name,
+                'amount'              => $this->amount,
+                'transaction_date'    => $this->transaction_date . ' ' . Carbon::now()->format('H:i:s'),
             ]);
 
             ActivityLog::create([
@@ -178,6 +196,11 @@ class EditExpense extends Component
                 'details'    => "Edited \"{$expense->item_name}\": ₱" . number_format($oldAmount, 2) . " → ₱" . number_format($newAmount, 2),
             ]);
         });
+
+        if ($insufficientLeft !== null) {
+            $this->addError('amount', 'Insufficient allowance. You only have ₱' . number_format($insufficientLeft, 2) . ' available for this transaction.');
+            return;
+        }
 
         if ($affectedGoal) {
             if ($goalNewlyAchieved) {
@@ -196,6 +219,7 @@ class EditExpense extends Component
         $riskService->checkLargeTransaction(auth()->user(), $expense->fresh());
 
         session()->flash('success', 'Transaction modified. Limits calculated smoothly!');
+
         return redirect()->route('student.dashboard');
     }
 

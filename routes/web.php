@@ -38,10 +38,10 @@ use Illuminate\Support\Facades\Route;
 Route::middleware(['guest'])->group(function() {
     Route::get('/register', Register::class)->name('register');
     Route::get('/login', Login::class)->name('login');
-    // NEW: password reset flow — previously the "Forgot password?" link
-    // on the login page pointed at a route that never existed.
+
     Route::get('/forgot-password', ForgotPassword::class)->name('password.request');
     Route::get('/reset-password/{token}', ResetPassword::class)->name('password.reset');
+
     Route::get('/', function() {
         return view('welcome');
     });
@@ -49,8 +49,10 @@ Route::middleware(['guest'])->group(function() {
 
 // Authenticated Routes
 Route::middleware(['auth', 'maintenance.check'])->group(function() {
-    // Student Routes
-    Route::name('student.')
+
+    // Student Routes (admins/super admins are redirected to the admin dashboard)
+    Route::middleware('student')
+        ->name('student.')
         ->group(function() {
             Route::get('/dashboard', studentDashboard::class)->name('dashboard');
             Route::get('/budget-setup', BudgetSetup::class)->name('budget-setup');
@@ -82,7 +84,7 @@ Route::middleware(['auth', 'maintenance.check'])->group(function() {
 
                     return redirect()->back();
                 })->name('fast-forward');
-                
+
                 Route::get('/fast-forward/reset', function () {
                     \Illuminate\Support\Carbon::setTestNow(null);
                     session()->forget('test_fake_now');
@@ -105,10 +107,11 @@ Route::middleware(['auth', 'maintenance.check'])->group(function() {
             Route::get('/reports', Reports::class)->name('reports');
             Route::get('/activity-logs', ActivityLogIndex::class)->name('activity-logs');
             Route::get('/settings', adminSettings::class)->name('settings');
+
             Route::middleware(['super_admin'])->group(function () {
                 Route::get('/admin-accounts', AdminManagement::class)->name('accounts');
             });
-    });
+        });
 
     // Global Routes
     Route::post('/', function() {
@@ -125,6 +128,7 @@ Route::middleware(['auth', 'maintenance.check'])->group(function() {
         auth()->logout();
         request()->session()->invalidate();
         request()->session()->regenerateToken();
+
         return view('welcome');
     })->name('logout');
 });

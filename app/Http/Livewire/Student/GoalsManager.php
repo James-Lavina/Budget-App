@@ -137,11 +137,13 @@ class GoalsManager extends Component
                 'required',
                 'numeric',
                 'min:0.01',
+                'regex:/^\d+(\.\d{1,2})?$/',
                 'max:' . $currentBudget->remaining_allowance,
                 'max:' . $remainingNeeded,
             ]
         ], [
-            'fund_amount.max' => 'Transfer halted! The amount exceeds either your remaining budget (₱' . number_format($currentBudget->remaining_allowance, 2) . ') or what is left to finish this goal (₱' . number_format($remainingNeeded, 2) . ').'
+            'fund_amount.max' => 'Transfer halted! The amount exceeds either your remaining budget (₱' . number_format($currentBudget->remaining_allowance, 2) . ') or what is left to finish this goal (₱' . number_format($remainingNeeded, 2) . ').',
+            'fund_amount.regex' => 'Use at most 2 decimal places.'
         ]);
 
         // NOTE: the funds-transferred activity log is written inside
@@ -219,28 +221,51 @@ class GoalsManager extends Component
             ->where('user_id', auth()->id())
             ->firstOrFail();
 
-        // Captured before delete — nothing left to read from once gone.
-        $goalName  = $goal->target_name;
-        $goalSaved = (float) $goal->current_saved;
+        $goalName   = $goal->target_name;
+        $goalStatus = $goal->status;
+        $refund     = 0.0;
 
-        DB::transaction(function () use ($goal) {
+        DB::transaction(function () use ($goal, $goalStatus, &$refund) {
+            // Achieved goals count as money spent; everything else returns to the budget.
+            if ($goalStatus !== 'achieved') {
+                $refund = (float) Expense::where('savings_goal_id', $goal->id)->sum('amount');
+
+                if ($refund > 0) {
+                    $budget = WeeklyBudget::where('user_id', auth()->id())
+                        ->latest()
+                        ->lockForUpdate()
+                        ->first();
+
+                    if ($budget) {
+                        $budget->increment('remaining_allowance', $refund);
+                    } else {
+                        $refund = 0.0;
+                    }
+                }
+            }
+
             Expense::where('savings_goal_id', $goal->id)->delete();
             $goal->delete();
         });
 
-        // NEW: this is destructive (deletes linked expense rows too) and
-        // previously left no trace at all.
         ActivityLog::create([
             'user_id'    => auth()->id(),
             'event_type' => 'savings_goal_deleted',
             'ip_address' => request()->ip(),
             'user_agent' => request()->userAgent(),
-            'details'    => "Permanently deleted savings goal \"{$goalName}\" (₱" . number_format($goalSaved, 2) . " saved) and its transaction logs",
+            'details'    => "Permanently deleted savings goal \"{$goalName}\" and its transaction logs"
+                . ($refund > 0 ? ', ₱' . number_format($refund, 2) . ' refunded to budget' : ''),
         ]);
 
-        $this->confirmingDeleteId = null;
+        app(\App\Services\RiskDetectionService::class)->evaluateSpendingRisk(auth()->user());
 
-        session()->flash('success', 'Savings milestone and its associated transaction logs were completely cleared.');
+        $this->confirmingDeleteId = null;
+        $this->emit('refreshBudgetMetrics');
+        $this->emit('refreshNotifications');
+
+        session()->flash('success', $refund > 0
+            ? 'Savings goal deleted. ₱' . number_format($refund, 2) . ' was returned to your remaining budget.'
+            : 'Savings goal and its associated transaction logs were cleared.');
     }
 
     private function resetForm()

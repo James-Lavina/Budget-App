@@ -68,24 +68,14 @@ class AllExpenses extends Component
 
     public function updatedSelectAll($value)
     {
-        $page = $this->page ?: 1;
+        $page   = $this->page ?: 1;
+        $window = $this->cycleWindow();
 
-        $currentBudget = WeeklyBudget::where('user_id', auth()->id())->latest()->first();
-        $cycleService = app(BudgetCycleService::class);
-
-        $pageExpenses = $this->buildQuery()
+        $pageIds = $this->buildQuery()
             ->latest('transaction_date')
             ->forPage($page, 10)
-            ->get(['id', 'transaction_date']);
-
-        // Only current-cycle expenses are selectable via "Select page" —
-        // locked rows must never enter $selected, since that's what drives
-        // both the "N items selected" count and what bulkDelete() acts on.
-        $pageIds = $pageExpenses
-            ->filter(function ($expense) use ($currentBudget, $cycleService) {
-                return $currentBudget
-                    && $cycleService->isWithinCurrentCycle($currentBudget, auth()->user(), $expense->transaction_date);
-            })
+            ->get(['id', 'transaction_date'])
+            ->filter(fn ($expense) => $this->inWindow($window, $expense->transaction_date))
             ->pluck('id')
             ->map(fn ($id) => (string) $id)
             ->toArray();
@@ -103,21 +93,15 @@ class AllExpenses extends Component
             return;
         }
 
-        $currentBudget = WeeklyBudget::where('user_id', auth()->id())->latest()->first();
-        $cycleService = app(BudgetCycleService::class);
+        $window = $this->cycleWindow();
 
         $expenses = Expense::whereIn('id', $this->selected)
             ->where('user_id', auth()->id())
             ->get();
 
-        // Re-derive the actually-deletable set here too, so the confirmation
-        // modal's total matches what bulkDelete() will really remove.
-        $deletable = $expenses->filter(function ($expense) use ($currentBudget, $cycleService) {
-            return $currentBudget
-                && $cycleService->isWithinCurrentCycle($currentBudget, auth()->user(), $expense->transaction_date);
-        });
+        $deletable = $expenses->filter(fn ($expense) => $this->inWindow($window, $expense->transaction_date));
 
-        $this->bulkDeleteTotal = $deletable->sum('amount');
+        $this->bulkDeleteTotal  = $deletable->sum('amount');
         $this->confirmingBulkDelete = true;
     }
 
@@ -139,11 +123,8 @@ class AllExpenses extends Component
             return;
         }
 
-        $currentBudget = WeeklyBudget::where('user_id', auth()->id())
-            ->latest()
-            ->first();
-
-        $cycleService = app(BudgetCycleService::class);
+        $window        = $this->cycleWindow();
+        $currentBudget = $window['budget'] ?? null;
 
         // Split the selection into what's actually deletable (current cycle)
         // vs. locked (past cycle). Past-cycle expenses are silently skipped
@@ -153,7 +134,7 @@ class AllExpenses extends Component
         $lockedCount = 0;
 
         foreach ($expenses as $expense) {
-            if ($currentBudget && $cycleService->isWithinCurrentCycle($currentBudget, auth()->user(), $expense->transaction_date)) {
+            if ($currentBudget && $this->inWindow($window, $expense->transaction_date)) {
                 $deletable->push($expense);
             } else {
                 $lockedCount++;
@@ -259,8 +240,8 @@ class AllExpenses extends Component
 
         DB::transaction(function () use ($expense, $currentBudget) {
             // Refund allowance
-            $currentBudget->remaining_allowance += $expense->amount;
-            $currentBudget->save();
+            WeeklyBudget::whereKey($currentBudget->id)->lockForUpdate()->first()
+            ->increment('remaining_allowance', $expense->amount);
 
             // Rollback Savings Goal progress if linked
             if ($expense->savings_goal_id) {
@@ -301,6 +282,24 @@ class AllExpenses extends Component
 
         $this->emit('refreshSavings');
         session()->flash('success', 'Transaction removed. Balance safely adjusted!');
+    }
+
+    private function cycleWindow(): ?array
+    {
+        $budget = WeeklyBudget::where('user_id', auth()->id())->latest()->first();
+
+        if (!$budget) {
+            return null;
+        }
+
+        $cycle = app(BudgetCycleService::class)->resolve($budget, auth()->user());
+
+        return ['budget' => $budget, 'start' => $cycle['startDate'], 'end' => $cycle['endDate']];
+    }
+
+    private function inWindow(?array $window, $date): bool
+    {
+        return $window && Carbon::parse($date)->betweenIncluded($window['start'], $window['end']);
     }
 
     public function render()

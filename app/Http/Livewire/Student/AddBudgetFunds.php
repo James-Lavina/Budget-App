@@ -30,12 +30,13 @@ class AddBudgetFunds extends Component
     protected function rules()
     {
         return [
-            'amount' => 'required|numeric|min:1|max:' . $this->fundsCeiling,
+            'amount' => ['required', 'numeric', 'min:1', 'max:' . $this->fundsCeiling, 'regex:/^\d+(\.\d{1,2})?$/'],
         ];
     }
 
     protected $messages = [
         'amount.max' => 'That top-up is unusually large for a weekly allowance — max is ₱:max per addition.',
+        'amount.regex' => 'Use at most 2 decimal places.'
     ];
 
     public function updatedAmount()

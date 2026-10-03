@@ -38,13 +38,11 @@ class ForgotPassword extends Component
                     'details'    => 'Requested a password reset link',
                 ]);
             }
-
-            $this->status = 'A password reset link has been sent to your email.';
-            $this->email = '';
+            $this->status = 'If that email is registered, a password reset link has been sent.';
+            $this->email  = '';
         } elseif ($status === Password::INVALID_USER) {
-            // Deliberately vague to avoid confirming/denying an email exists —
-            // same principle Login::loginUser() already follows.
-            $this->addError('email', 'We could not find an account with that email address.');
+            $this->status = 'If that email is registered, a password reset link has been sent.';
+            $this->email  = '';
         } elseif ($status === Password::RESET_THROTTLED) {
             $this->addError('email', 'Please wait a moment before requesting another reset link.');
         } else {

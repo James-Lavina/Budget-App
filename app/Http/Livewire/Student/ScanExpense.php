@@ -17,6 +17,7 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Livewire\Component;
 use Livewire\WithFileUploads;
+use Illuminate\Support\Facades\RateLimiter;
 
 class ScanExpense extends Component
 {
@@ -46,7 +47,7 @@ class ScanExpense extends Component
             'transaction_date' => 'required|date|before_or_equal:today',
             'items' => 'required|array|min:1',
             'items.*.item_name' => 'required|string|max:255',
-            'items.*.amount' => 'required|numeric|min:0.01|max:999999',
+            'items.*.amount' => ['required', 'numeric', 'min:0.01', 'max:999999', 'regex:/^\d+(\.\d{1,2})?$/'],
             'items.*.expense_category_id' => 'required|exists:expense_categories,id,status,enabled',
         ];
     }
@@ -90,6 +91,15 @@ class ScanExpense extends Component
 
         $this->validate();
 
+        $throttleKey = 'receipt-scan|' . auth()->id();
+
+        if (RateLimiter::tooManyAttempts($throttleKey, 10)) {
+            session()->flash('error', 'Scan limit reached. Try again in ' . ceil(RateLimiter::availableIn($throttleKey) / 60) . ' minute(s).');
+            return;
+        }
+
+        RateLimiter::hit($throttleKey, 3600);
+
         $this->isProcessing = true;
         $this->usedBackupOcr = false;
         $this->dateNotice = null;
@@ -107,7 +117,7 @@ class ScanExpense extends Component
 
             $categoryListString = implode(', ', array_map(fn ($cat) => "'$cat'", $dbCategories));
 
-            $storedPath = $this->receiptImage->store('receipts', 'public');
+            $storedPath = $this->receiptImage->store('receipts', 'local');
 
             $receipt = Receipt::create([
                 'user_id' => auth()->id(),
@@ -117,8 +127,8 @@ class ScanExpense extends Component
 
             $this->receiptId = $receipt->id;
 
-            $imageBinary = Storage::disk('public')->get($storedPath);
-            $mimeType = Storage::disk('public')->mimeType($storedPath) ?? 'image/jpeg';
+            $imageBinary = Storage::disk('local')->get($storedPath);
+            $mimeType = Storage::disk('local')->mimeType($storedPath) ?? 'image/jpeg';
             $base64Image = base64_encode($imageBinary);
             $dataUri = "data:{$mimeType};base64,{$base64Image}";
 
@@ -145,7 +155,7 @@ class ScanExpense extends Component
                 . "  ]\n"
                 . "}\n\nRead the attached receipt image and extract the data.";
 
-            $maxAttempts = 2;
+            $maxAttempts = empty($apiKey) ? 0 : 2;
             $extracted = null;
             $lastFailureReason = null;
 
@@ -490,18 +500,20 @@ class ScanExpense extends Component
             return redirect()->route('student.budget-setup');
         }
 
-        $total = collect($this->items)->sum(fn ($i) => (float) $i['amount']);
-
-        if ($total > $currentBudget->remaining_allowance) {
-            $this->addError('items', 'Insufficient allowance. Total ₱' . number_format($total, 2) .
-                ' exceeds your remaining ₱' . number_format($currentBudget->remaining_allowance, 2) . '.');
-            return;
-        }
+        $total = round(collect($this->items)->sum(fn ($i) => (float) $i['amount']), 2);
 
         try {
             $createdExpenses = [];
+            $leftBalance     = null;
 
-            DB::transaction(function () use ($currentBudget, $total, &$createdExpenses) {
+            DB::transaction(function () use ($currentBudget, $total, &$createdExpenses, &$leftBalance) {
+                $budget = WeeklyBudget::whereKey($currentBudget->id)->lockForUpdate()->first();
+
+                if ($total > (float) $budget->remaining_allowance) {
+                    $leftBalance = (float) $budget->remaining_allowance;
+                    return;
+                }
+
                 $formattedDateTime = $this->transaction_date . ' ' . Carbon::now()->format('H:i:s');
                 $firstExpenseId    = null;
 
@@ -519,7 +531,8 @@ class ScanExpense extends Component
 
                     if ($firstExpenseId === null) {
                         $firstExpenseId = $expense->id;
-                        $receiptModel   = Receipt::find($this->receiptId);
+
+                        $receiptModel = Receipt::find($this->receiptId);
 
                         if ($receiptModel) {
                             $receiptModel->update([
@@ -530,7 +543,7 @@ class ScanExpense extends Component
                     }
                 }
 
-                $currentBudget->decrement('remaining_allowance', $total);
+                $budget->decrement('remaining_allowance', $total);
 
                 $itemNames = collect($this->items)->pluck('item_name')->take(5)->implode(', ');
 
@@ -544,6 +557,12 @@ class ScanExpense extends Component
                                     (count($this->items) > 5 ? '...' : ''),
                 ]);
             });
+
+            if ($leftBalance !== null) {
+                $this->addError('items', 'Insufficient allowance. Total ₱' . number_format($total, 2) .
+                    ' exceeds your remaining ₱' . number_format($leftBalance, 2) . '.');
+                return;
+            }
 
             $riskService = app(RiskDetectionService::class);
             $riskService->evaluateSpendingRisk(auth()->user());

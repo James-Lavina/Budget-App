@@ -34,7 +34,7 @@ class LogExpense extends Component
         $rules = [
             'expense_category_id' => 'required|exists:expense_categories,id,status,enabled',
             'item_name'           => 'required|string|max:255',
-            'amount'              => 'required|numeric|min:0.01|max:999999',
+            'amount' => ['required', 'numeric', 'min:0.01', 'max:999999', 'regex:/^\d+(\.\d{1,2})?$/'],
             'transaction_date'    => 'required|date|before_or_equal:today',
         ];
 
@@ -53,6 +53,7 @@ class LogExpense extends Component
         'item_name.required'               => 'Please provide an item description.',
         'amount.required'                  => 'Please specify the amount spent.',
         'amount.min'                       => 'Amount must be greater than zero.',
+        'amount.regex' => 'Use at most 2 decimal places (e.g. 150.50).',
         'transaction_date.required'        => 'Please pick a transaction date.',
         'transaction_date.before_or_equal' => 'You cannot enter a future transaction.',
         'transaction_date.after_or_equal'  => "That date is before your current budget week started, so it can't be logged here.",
@@ -265,6 +266,7 @@ class LogExpense extends Component
     private function persistExpense()
     {
         $this->minDate = $this->currentCycleStart();
+
         $this->validate();
 
         if (!ExpenseCategory::selectable()->whereKey($this->expense_category_id)->exists()) {
@@ -280,18 +282,23 @@ class LogExpense extends Component
         }
 
         $currentBudget = WeeklyBudget::where('user_id', auth()->id())->latest()->first();
+
         if (!$currentBudget) {
             session()->flash('error', 'No active budget found. Set up your allowance first.');
             return null;
         }
 
-        if ($this->amount > $currentBudget->remaining_allowance) {
-            $this->addError('amount', 'Insufficient allowance. You only have ₱' . number_format($currentBudget->remaining_allowance, 2) . ' left.');
-            return null;
-        }
+        $newExpense  = null;
+        $leftBalance = null;
 
-        $newExpense = null;
-        DB::transaction(function () use ($currentBudget, &$newExpense) {
+        DB::transaction(function () use ($currentBudget, &$newExpense, &$leftBalance) {
+            $budget = WeeklyBudget::whereKey($currentBudget->id)->lockForUpdate()->first();
+
+            if ((float) $this->amount > (float) $budget->remaining_allowance) {
+                $leftBalance = (float) $budget->remaining_allowance;
+                return;
+            }
+
             $newExpense = Expense::create([
                 'user_id'             => auth()->id(),
                 'expense_category_id' => $this->expense_category_id,
@@ -301,8 +308,7 @@ class LogExpense extends Component
                 'tracking_type'       => 'manual',
             ]);
 
-            $currentBudget->remaining_allowance -= $this->amount;
-            $currentBudget->save();
+            $budget->decrement('remaining_allowance', $this->amount);
 
             ActivityLog::create([
                 'user_id'    => auth()->id(),
@@ -313,10 +319,17 @@ class LogExpense extends Component
             ]);
         });
 
+        if (!$newExpense) {
+            $this->addError('amount', 'Insufficient allowance. You only have ₱' . number_format($leftBalance ?? 0, 2) . ' left.');
+            return null;
+        }
+
         $riskService = app(RiskDetectionService::class);
         $riskService->evaluateSpendingRisk(auth()->user());
         $riskService->checkLargeTransaction(auth()->user(), $newExpense, $currentBudget->total_allowance);
         $riskService->resolveNoExpenseLogsAlert(auth()->user());
+
+        $this->emit('refreshNotifications');
 
         return $newExpense;
     }
@@ -333,9 +346,11 @@ class LogExpense extends Component
     public function storeAndAddAnother()
     {
         $expense = $this->persistExpense();
+
         if (!$expense) return;
 
         $category = ExpenseCategory::find($expense->expense_category_id);
+
         $this->sessionLog[] = [
             'id'            => $expense->id,
             'item_name'     => $expense->item_name,
@@ -349,12 +364,15 @@ class LogExpense extends Component
         $this->mismatchAcknowledged = false;
         $this->clearSuggestion();
         $this->resetErrorBag();
+
+        $this->emit('refreshNotifications');
         $this->dispatchBrowserEvent('expense-added');
     }
 
     public function removeFromSessionLog($expenseId)
     {
         $expense = Expense::where('id', $expenseId)->where('user_id', auth()->id())->first();
+
         if (!$expense) return;
 
         $currentBudget = WeeklyBudget::where('user_id', auth()->id())->latest()->first();
@@ -366,16 +384,28 @@ class LogExpense extends Component
 
         DB::transaction(function () use ($expense, $currentBudget) {
             if ($currentBudget) {
-                $currentBudget->remaining_allowance += $expense->amount;
-                $currentBudget->save();
+                $budget = WeeklyBudget::whereKey($currentBudget->id)->lockForUpdate()->first();
+                $budget->increment('remaining_allowance', $expense->amount);
             }
+
+            ActivityLog::create([
+                'user_id'    => auth()->id(),
+                'event_type' => 'expense_deleted',
+                'ip_address' => request()->ip(),
+                'user_agent' => request()->userAgent(),
+                'details'    => "Deleted \"{$expense->item_name}\" (₱" . number_format($expense->amount, 2) . ") dated " . Carbon::parse($expense->transaction_date)->format('Y-m-d'),
+            ]);
+
             $expense->delete();
         });
 
         $this->sessionLog = array_values(array_filter($this->sessionLog, fn ($e) => $e['id'] !== $expenseId));
+
         $riskService = app(RiskDetectionService::class);
         $riskService->evaluateSpendingRisk(auth()->user());
         $riskService->resolveLargeTransactionAlert(auth()->user(), $expenseId);
+
+        $this->emit('refreshNotifications');
     }
 
     public function render()

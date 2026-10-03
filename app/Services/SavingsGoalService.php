@@ -17,38 +17,43 @@ class SavingsGoalService
 {
     public function addFunds($user, SavingsGoal $goal, float $amount): array
     {
-        $currentBudget = WeeklyBudget::where('user_id', $user->id)->latest()->first();
-
-        if (!$currentBudget) {
-            throw ValidationException::withMessages([
-                'fund_amount' => 'No active budget cycle found to draw funds from.',
-            ]);
-        }
-
-        $remainingNeeded = $goal->target_amount - $goal->current_saved;
-
-        if ($amount <= 0 || $amount > $currentBudget->remaining_allowance || $amount > $remainingNeeded) {
-            throw ValidationException::withMessages([
-                'fund_amount' => 'Transfer halted! The amount exceeds either your remaining budget (₱'
-                    . number_format($currentBudget->remaining_allowance, 2) . ') or what is left to finish this goal (₱'
-                    . number_format($remainingNeeded, 2) . ').',
-            ]);
-        }
-
         $goalWasAchieved = false;
+        $error           = null;
 
-        DB::transaction(function () use ($goal, $currentBudget, $amount, $user, &$goalWasAchieved) {
-            $newSavedBalance = $goal->current_saved + $amount;
-            $status          = $goal->status;
+        DB::transaction(function () use ($user, $goal, $amount, &$goalWasAchieved, &$error) {
+            $budget = WeeklyBudget::where('user_id', $user->id)->latest()->lockForUpdate()->first();
+            $locked = SavingsGoal::where('id', $goal->id)->where('user_id', $user->id)->lockForUpdate()->first();
 
-            if ($newSavedBalance >= $goal->target_amount) {
+            if (!$budget) {
+                $error = 'No active budget cycle found to draw funds from.';
+                return;
+            }
+
+            if (!$locked || $locked->status !== 'active') {
+                $error = 'Only active goals can receive funds.';
+                return;
+            }
+
+            $remainingNeeded = round($locked->target_amount - $locked->current_saved, 2);
+
+            if ($amount <= 0 || $amount > (float) $budget->remaining_allowance || $amount > $remainingNeeded) {
+                $error = 'Transfer halted! The amount exceeds either your remaining budget (₱'
+                    . number_format($budget->remaining_allowance, 2) . ') or what is left to finish this goal (₱'
+                    . number_format($remainingNeeded, 2) . ').';
+                return;
+            }
+
+            $newSavedBalance = $locked->current_saved + $amount;
+            $status          = $locked->status;
+
+            if ($newSavedBalance >= $locked->target_amount) {
                 $status          = 'achieved';
-                $newSavedBalance = $goal->target_amount;
+                $newSavedBalance = $locked->target_amount;
                 $goalWasAchieved = true;
             }
 
-            $goal->update(['current_saved' => $newSavedBalance, 'status' => $status]);
-            $currentBudget->decrement('remaining_allowance', $amount);
+            $locked->update(['current_saved' => $newSavedBalance, 'status' => $status]);
+            $budget->decrement('remaining_allowance', $amount);
 
             $savingsCategory = ExpenseCategory::firstOrCreate(
                 ['name' => 'Savings'],
@@ -58,13 +63,17 @@ class SavingsGoalService
             Expense::create([
                 'user_id'             => $user->id,
                 'expense_category_id' => $savingsCategory->id,
-                'savings_goal_id'     => $goal->id,
-                'item_name'           => $goal->target_name,
+                'savings_goal_id'     => $locked->id,
+                'item_name'           => $locked->target_name,
                 'amount'              => $amount,
                 'transaction_date'    => now(),
                 'tracking_type'       => 'manual',
             ]);
         });
+
+        if ($error) {
+            throw ValidationException::withMessages(['fund_amount' => $error]);
+        }
 
         $goal->refresh();
 
@@ -81,7 +90,6 @@ class SavingsGoalService
             try {
                 $user->notify(new SavingsGoalAchieved($goal));
             } catch (\Throwable $e) {
-                // FIX
                 NotificationLogger::logFailure($user, SavingsGoalAchieved::class, $e, $goal->target_name);
             }
         } else {

@@ -20,6 +20,12 @@
         @endif
     </div>
 
+    @if (session()->has('error'))
+        <div class="p-4 bg-rose-50 border border-rose-100 rounded-2xl text-rose-800 text-xs font-bold">
+            {{ session('error') }}
+        </div>
+    @endif
+
     {{-- Notification List --}}
     <div class="bg-white rounded-3xl border border-slate-200/70 shadow-sm overflow-hidden">
         @forelse($notifications as $notification)
@@ -97,6 +103,7 @@
                     default:
                         $link = null;
                 }
+                $stillActive = in_array($type, \App\Http\Livewire\Student\NotificationIndex::RESURFACING_ALERTS, true) && !$isResolved;
             @endphp
 
             <div class="p-5 border-b border-slate-100 last:border-b-0 transition-colors flex items-start justify-between gap-4 {{ $isResolved ? 'opacity-60' : ($isUnread ? 'bg-[rgba(var(--brand-rgb),0.04)]' : 'hover:bg-slate-50/60') }}">
@@ -144,14 +151,16 @@
                             </svg>
                         </button>
                     @endif
-                    <button
-                        wire:click="delete('{{ $notification->id }}')"
-                        title="Delete"
-                        class="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-14v4M1 7h22"/>
-                        </svg>
-                    </button>
+                    @if(!$stillActive)
+                        <button
+                            wire:click="delete('{{ $notification->id }}')"
+                            title="Delete"
+                            class="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-14v4M1 7h22"/>
+                            </svg>
+                        </button>
+                    @endif
                 </div>
             </div>
         @empty
