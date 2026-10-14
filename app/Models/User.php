@@ -12,11 +12,6 @@ class User extends Authenticatable
 {
     use HasApiTokens, HasFactory, Notifiable;
 
-    /**
-     * The attributes that are mass assignable.
-     *
-     * @var array<int, string>
-     */
     protected $fillable = [
         'name',
         'email',
@@ -26,25 +21,17 @@ class User extends Authenticatable
         'role',
         'default_allowance',
         'default_reset_day',
+        'email_notifications_enabled',
     ];
 
-    /**
-     * The attributes that should be hidden for serialization.
-     *
-     * @var array<int, string>
-     */
     protected $hidden = [
         'password',
         'remember_token',
     ];
 
-    /**
-     * The attributes that should be cast.
-     *
-     * @var array<string, string>
-     */
     protected $casts = [
-        'email_verified_at' => 'datetime',
+        'email_verified_at'           => 'datetime',
+        'email_notifications_enabled' => 'boolean',
     ];
 
     // One-to-Many: A user can track multiple weekly budget cycles over time
@@ -97,5 +84,12 @@ class User extends Authenticatable
     public function isSuperAdmin(): bool
     {
         return $this->role === 'super_admin';
+    }
+
+    // Email only goes out when both the admin's global switch and the student's own preference are on.
+    public function wantsEmail(): bool
+    {
+        return (bool) $this->email_notifications_enabled
+            && (bool) AppSetting::current()->email_notifications_enabled;
     }
 }

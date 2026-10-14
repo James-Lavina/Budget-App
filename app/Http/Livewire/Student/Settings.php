@@ -18,6 +18,10 @@ class Settings extends Component
         'reset_day'       => 'required|string|in:Monday,Tuesday,Wednesday,Thursday,Friday,Saturday,Sunday',
     ];
 
+    protected $messages = [
+        'total_allowance.regex' => 'Use at most 2 decimal places (e.g. 2000.00).',
+    ];
+
     public function mount()
     {
         $user = auth()->user();
@@ -34,12 +38,12 @@ class Settings extends Component
         $user = auth()->user();
         $currentBudget = WeeklyBudget::where('user_id', $user->id)->latest()->first();
 
-        // NEW: diff captured before mutation, same pattern used on the
-        // admin side (RiskRules, OcrAiSettings, adminSettings).
         $changes = [];
+
         if ((float) $user->default_allowance !== (float) $this->total_allowance) {
             $changes[] = "weekly allowance: ₱" . number_format($user->default_allowance, 2) . " → ₱" . number_format($this->total_allowance, 2);
         }
+
         if ($user->default_reset_day !== $this->reset_day) {
             $changes[] = "reset day: {$user->default_reset_day} → {$this->reset_day}";
         }
@@ -53,7 +57,8 @@ class Settings extends Component
             $oldTotalBaseline = (float) $currentBudget->total_allowance;
             $newTotalBaseline = (float) $this->total_allowance;
             $currentRemaining = (float) $currentBudget->remaining_allowance;
-            $difference = $newTotalBaseline - $oldTotalBaseline;
+
+            $difference     = $newTotalBaseline - $oldTotalBaseline;
             $finalRemaining = max(0.00, $currentRemaining + $difference);
 
             $currentBudget->update([
@@ -70,10 +75,6 @@ class Settings extends Component
             $this->emit('refreshBudgetMetrics');
         }
 
-        // NEW: changing allowance/reset day (a real financial parameter)
-        // previously had no audit trail. Only logs when something actually
-        // changed — a no-op Save produces no entry, matching the admin
-        // pages' convention.
         if (!empty($changes)) {
             ActivityLog::create([
                 'user_id'    => $user->id,

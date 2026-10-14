@@ -2,6 +2,7 @@
 
 namespace App\Exports;
 
+use App\Support\CsvSafe;
 use Illuminate\Support\Collection;
 use Maatwebsite\Excel\Concerns\FromCollection;
 use Maatwebsite\Excel\Concerns\WithHeadings;
@@ -31,7 +32,6 @@ class ExpenseReportExport implements
 
     public function title(): string
     {
-        // Sheet tab name — Excel disallows some characters, keep it plain.
         return 'Expense Report';
     }
 
@@ -42,12 +42,14 @@ class ExpenseReportExport implements
 
     public function collection()
     {
+        // Student-typed text starting with = + - @ would run as a formula in Excel,
+        // so every text column goes through CsvSafe.
         return $this->expenses->map(function ($expense) {
             return [
                 $expense->transaction_date->format('Y-m-d'),
-                $expense->user->name ?? 'Unknown',
-                $expense->category->name ?? 'Uncategorized',
-                $expense->item_name,
+                CsvSafe::cell($expense->user->name ?? 'Unknown'),
+                CsvSafe::cell($expense->category->name ?? 'Uncategorized'),
+                CsvSafe::cell($expense->item_name),
                 (float) $expense->amount,
             ];
         });
@@ -67,10 +69,11 @@ class ExpenseReportExport implements
     public function columnFormats(): array
     {
         return [
-            'A' => NumberFormat::FORMAT_TEXT, // Force date column to plain text — prevents
+            // Plain text stops Excel from reformatting dates by the opening machine's locale.
+            'A' => NumberFormat::FORMAT_TEXT,
+            'B' => NumberFormat::FORMAT_TEXT,
+            'C' => NumberFormat::FORMAT_TEXT,
             'D' => NumberFormat::FORMAT_TEXT,
-                                            // Excel from silently reformatting it based
-                                            // on the opening machine's locale settings.
             'E' => '"₱"#,##0.00',
         ];
     }
@@ -79,7 +82,6 @@ class ExpenseReportExport implements
     {
         $lastRow = $this->expenses->count() + 1; // +1 for header row
 
-        // Bold, shaded header row
         $sheet->getStyle('A1:E1')->applyFromArray([
             'font' => ['bold' => true, 'color' => ['rgb' => 'FFFFFF']],
             'fill' => [

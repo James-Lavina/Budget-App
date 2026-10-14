@@ -252,6 +252,7 @@
                     {{-- FALLBACK --}}
                     <label class="flex items-start gap-3 p-3 bg-slate-50 border border-slate-200 rounded-xl cursor-pointer select-none">
                         <input type="checkbox" wire:model.defer="edit_is_fallback" class="h-4 w-4 mt-0.5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 shrink-0">
+                        @error('edit_is_fallback') <span class="text-[10px] font-bold text-rose-600 block">{{ $message }}</span> @enderror
                         <span class="space-y-0.5">
                             <span class="text-xs font-bold text-slate-800 block">Use as the catch-all ("Other") category</span>
                             <span class="text-[10px] font-medium text-slate-400 block leading-snug">Never auto-suggested and never blocks saving. Only one category can be the fallback — this replaces the current one.</span>

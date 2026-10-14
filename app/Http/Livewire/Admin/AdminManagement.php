@@ -2,15 +2,17 @@
 
 namespace App\Http\Livewire\Admin;
 
+use App\Http\Livewire\Concerns\EnsuresAdmin;
 use App\Models\ActivityLog;
 use App\Models\User;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Livewire\Component;
 use Livewire\WithPagination;
 
 class AdminManagement extends Component
 {
-    use WithPagination;
+    use WithPagination, EnsuresAdmin;
 
     protected $paginationTheme = 'tailwind';
 
@@ -24,14 +26,19 @@ class AdminManagement extends Component
     public $confirmingDeleteId = null;
 
     protected $rules = [
-        'create_name'                  => 'required|string|max:255',
-        'create_email'                 => 'required|email|max:255|unique:users,email',
-        'create_password'              => 'required|string|min:8|confirmed',
+        'create_name'     => 'required|string|max:255',
+        'create_email'    => 'required|email|max:255|unique:users,email',
+        'create_password' => 'required|string|min:8|confirmed',
     ];
 
     protected $messages = [
         'create_password.confirmed' => 'Password confirmation does not match.',
     ];
+
+    protected function allowedRoles(): array
+    {
+        return ['super_admin'];
+    }
 
     public function openCreate()
     {
@@ -49,11 +56,6 @@ class AdminManagement extends Component
     {
         $this->validate();
 
-        \Log::info('AdminManagement::store() reached — validation passed', [
-            'name' => $this->create_name,
-            'email' => $this->create_email,
-        ]);
-
         try {
             $newAdmin = User::create([
                 'name'     => $this->create_name,
@@ -62,8 +64,6 @@ class AdminManagement extends Component
                 'role'     => 'admin',
                 'status'   => 'active',
             ]);
-
-            \Log::info('New admin created', ['id' => $newAdmin->id, 'role' => $newAdmin->role]);
 
             ActivityLog::create([
                 'user_id'    => auth()->id(),
@@ -82,8 +82,6 @@ class AdminManagement extends Component
         session()->flash('success', "\"{$newAdmin->name}\" was granted admin access.");
     }
 
-    // --- Demote back to student (safety valve — never hard-delete an
-    // admin's underlying account data by default) ---
     public function confirmDemote($id)
     {
         $this->confirmingDemoteId = $id;
@@ -101,6 +99,7 @@ class AdminManagement extends Component
         }
 
         $admin = User::where('role', 'admin')->findOrFail($this->confirmingDemoteId);
+
         $admin->update(['role' => 'student']);
 
         ActivityLog::create([
@@ -115,7 +114,6 @@ class AdminManagement extends Component
         session()->flash('success', "{$admin->name}'s admin access was revoked.");
     }
 
-    // --- Permanent delete ---
     public function confirmDelete($id)
     {
         $this->confirmingDeleteId = $id;
@@ -132,10 +130,25 @@ class AdminManagement extends Component
             return;
         }
 
-        $admin = User::where('role', 'admin')->findOrFail($this->confirmingDeleteId);
-        $name = $admin->name;
-        $email = $admin->email;
-        $admin->delete();
+        $admin   = User::where('role', 'admin')->findOrFail($this->confirmingDeleteId);
+        $name    = $admin->name;
+        $email   = $admin->email;
+        $adminId = $admin->id;
+
+        DB::transaction(function () use ($admin, $name, $email, $adminId) {
+            // activity_logs.user_id cascades on delete, which would erase this admin's audit trail.
+            // Detach the rows first and keep the admin's identity in the details text.
+            DB::update(
+                "UPDATE activity_logs SET user_id = NULL, details = CONCAT(COALESCE(details, ''), ?) WHERE user_id = ?",
+                [" [by former admin: {$name}, ID {$adminId}]", $adminId]
+            );
+
+            $admin->notifications()->delete();
+            $admin->tokens()->delete();
+            DB::table('password_resets')->where('email', $email)->delete();
+
+            $admin->delete();
+        });
 
         ActivityLog::create([
             'user_id'    => auth()->id(),
@@ -146,15 +159,12 @@ class AdminManagement extends Component
         ]);
 
         $this->confirmingDeleteId = null;
+
         session()->flash('success', "{$name}'s admin account was permanently deleted.");
     }
 
     public function render()
     {
-        // Super admins are intentionally excluded from this list — this
-        // page manages regular admin accounts, not other super admins.
-        // Demoting/deleting a super admin (including yourself) isn't
-        // exposed here at all.
         $admins = User::where('role', 'admin')
             ->latest()
             ->paginate(10);

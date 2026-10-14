@@ -26,8 +26,10 @@ class AllExpenses extends Component
 
     public $selected = [];
     public $selectAll = false;
+
     public $confirmingBulkDelete = false;
     public $bulkDeleteTotal = 0;
+
     public $confirmingDeleteId = null;
 
     public function updatingSearch()
@@ -56,14 +58,31 @@ class AllExpenses extends Component
     {
         return Expense::where('user_id', auth()->id())
             ->with('category')
-            // Item-name-only search now that merchant_name no longer exists.
             ->when(filled($this->search), function ($q) {
                 $q->where('item_name', 'like', '%' . trim($this->search) . '%');
             })
-            // Target the actual foreign key column 'expense_category_id'
             ->when(filled($this->selectedCategory), function ($q) {
                 $q->where('expense_category_id', $this->selectedCategory);
             });
+    }
+
+    // Resolves the cycle once per request instead of once per expense row.
+    private function cycleWindow(): ?array
+    {
+        $budget = WeeklyBudget::where('user_id', auth()->id())->latest()->first();
+
+        if (!$budget) {
+            return null;
+        }
+
+        $cycle = app(BudgetCycleService::class)->resolve($budget, auth()->user());
+
+        return ['budget' => $budget, 'start' => $cycle['startDate'], 'end' => $cycle['endDate']];
+    }
+
+    private function inWindow(?array $window, $date): bool
+    {
+        return $window && Carbon::parse($date)->betweenIncluded($window['start'], $window['end']);
     }
 
     public function updatedSelectAll($value)
@@ -71,6 +90,7 @@ class AllExpenses extends Component
         $page   = $this->page ?: 1;
         $window = $this->cycleWindow();
 
+        // Only current-cycle expenses are selectable; locked rows must never enter $selected.
         $pageIds = $this->buildQuery()
             ->latest('transaction_date')
             ->forPage($page, 10)
@@ -101,7 +121,7 @@ class AllExpenses extends Component
 
         $deletable = $expenses->filter(fn ($expense) => $this->inWindow($window, $expense->transaction_date));
 
-        $this->bulkDeleteTotal  = $deletable->sum('amount');
+        $this->bulkDeleteTotal      = $deletable->sum('amount');
         $this->confirmingBulkDelete = true;
     }
 
@@ -126,11 +146,8 @@ class AllExpenses extends Component
         $window        = $this->cycleWindow();
         $currentBudget = $window['budget'] ?? null;
 
-        // Split the selection into what's actually deletable (current cycle)
-        // vs. locked (past cycle). Past-cycle expenses are silently skipped
-        // rather than blocking the whole batch — the student still gets the
-        // ones they can delete.
-        $deletable = collect();
+        // Past-cycle expenses are skipped rather than blocking the whole batch.
+        $deletable   = collect();
         $lockedCount = 0;
 
         foreach ($expenses as $expense) {
@@ -149,27 +166,31 @@ class AllExpenses extends Component
             return;
         }
 
-        $count = $deletable->count();
+        $count        = $deletable->count();
         $deletedTotal = $deletable->sum('amount');
-        $itemNames = $deletable->pluck('item_name')->take(5)->implode(', ');
+        $itemNames    = $deletable->pluck('item_name')->take(5)->implode(', ');
         $deletableIds = $deletable->pluck('id');
 
         DB::transaction(function () use ($deletable, $currentBudget, $count, $deletedTotal, $itemNames) {
-            foreach ($deletable as $expense) {
-                // Refund allowance
-                $currentBudget->remaining_allowance += $expense->amount;
+            $lockedBudget = WeeklyBudget::whereKey($currentBudget->id)->lockForUpdate()->first();
 
-                // Rollback Savings Goal progress if linked
+            foreach ($deletable as $expense) {
+                $lockedBudget->remaining_allowance += $expense->amount;
+
                 if ($expense->savings_goal_id) {
                     $goal = SavingsGoal::find($expense->savings_goal_id);
+
                     if ($goal && $goal->status !== 'abandoned') {
                         $goal->current_saved -= $expense->amount;
+
                         if ($goal->current_saved < 0) {
                             $goal->current_saved = 0.00;
                         }
+
                         if ($goal->status === 'achieved' && $goal->current_saved < $goal->target_amount) {
                             $goal->status = 'active';
                         }
+
                         $goal->save();
                     }
                 }
@@ -177,7 +198,7 @@ class AllExpenses extends Component
                 $expense->delete();
             }
 
-            $currentBudget->save();
+            $lockedBudget->save();
 
             ActivityLog::create([
                 'user_id'    => auth()->id(),
@@ -186,15 +207,11 @@ class AllExpenses extends Component
                 'user_agent' => request()->userAgent(),
                 'details'    => "Bulk deleted {$count} expenses (₱" . number_format($deletedTotal, 2) . " total): {$itemNames}" . ($count > 5 ? '...' : ''),
             ]);
-
-            // NOTE: no longer wiping today's RiskLog entries here — see
-            // deleteExpense() below for the same rationale.
         });
 
         $riskService = app(RiskDetectionService::class);
         $riskService->evaluateSpendingRisk(auth()->user());
-        // NEW: resolve any large-transaction alerts tied to the deleted
-        // expenses — the flagged purchases no longer exist.
+
         foreach ($deletableIds as $expenseId) {
             $riskService->resolveLargeTransactionAlert(auth()->user(), $expenseId);
         }
@@ -202,12 +219,16 @@ class AllExpenses extends Component
         $this->selected = [];
         $this->selectAll = false;
         $this->confirmingBulkDelete = false;
+
         $this->emit('refreshSavings');
+        $this->emit('refreshNotifications');
 
         $message = "{$count} " . Str::plural('transaction', $count) . " removed. Balance safely adjusted!";
+
         if ($lockedCount > 0) {
             $message .= " {$lockedCount} " . Str::plural('item', $lockedCount) . " from a previous cycle " . ($lockedCount === 1 ? 'was' : 'were') . " skipped.";
         }
+
         session()->flash('success', $message);
     }
 
@@ -239,21 +260,23 @@ class AllExpenses extends Component
         }
 
         DB::transaction(function () use ($expense, $currentBudget) {
-            // Refund allowance
             WeeklyBudget::whereKey($currentBudget->id)->lockForUpdate()->first()
-            ->increment('remaining_allowance', $expense->amount);
+                ->increment('remaining_allowance', $expense->amount);
 
-            // Rollback Savings Goal progress if linked
             if ($expense->savings_goal_id) {
                 $goal = SavingsGoal::find($expense->savings_goal_id);
+
                 if ($goal && $goal->status !== 'abandoned') {
                     $goal->current_saved -= $expense->amount;
+
                     if ($goal->current_saved < 0) {
                         $goal->current_saved = 0.00;
                     }
+
                     if ($goal->status === 'achieved' && $goal->current_saved < $goal->target_amount) {
                         $goal->status = 'active';
                     }
+
                     $goal->save();
                 }
             }
@@ -266,40 +289,17 @@ class AllExpenses extends Component
                 'details'    => "Deleted \"{$expense->item_name}\" (₱" . number_format($expense->amount, 2) . ") dated " . Carbon::parse($expense->transaction_date)->format('Y-m-d'),
             ]);
 
-            // Delete transaction. NOTE: we no longer wipe today's RiskLog
-            // entries here — evaluateSpendingRisk() replaces only the
-            // matching anomaly_type in place if it still applies, so a
-            // blanket delete of all today's logs was erasing unrelated,
-            // still-valid warnings whenever any single expense was removed.
             $expense->delete();
 
             $riskService = app(RiskDetectionService::class);
             $riskService->evaluateSpendingRisk(auth()->user());
-            // NEW: resolve any large-transaction alert tied to this
-            // specific expense — the flagged purchase no longer exists.
             $riskService->resolveLargeTransactionAlert(auth()->user(), $expense->id);
         });
 
         $this->emit('refreshSavings');
+        $this->emit('refreshNotifications');
+
         session()->flash('success', 'Transaction removed. Balance safely adjusted!');
-    }
-
-    private function cycleWindow(): ?array
-    {
-        $budget = WeeklyBudget::where('user_id', auth()->id())->latest()->first();
-
-        if (!$budget) {
-            return null;
-        }
-
-        $cycle = app(BudgetCycleService::class)->resolve($budget, auth()->user());
-
-        return ['budget' => $budget, 'start' => $cycle['startDate'], 'end' => $cycle['endDate']];
-    }
-
-    private function inWindow(?array $window, $date): bool
-    {
-        return $window && Carbon::parse($date)->betweenIncluded($window['start'], $window['end']);
     }
 
     public function render()
@@ -312,25 +312,21 @@ class AllExpenses extends Component
                 $query->where('name', 'LIKE', '%Savings%');
             })
             ->sum('amount');
+
         $allExpenses = $query->latest('transaction_date')->paginate(10);
+
         $categories = ExpenseCategory::orderBy('name')->get();
 
-        $currentBudget = WeeklyBudget::where('user_id', auth()->id())->latest()->first();
-        $cycleStart = null;
-        $cycleEnd = null;
-
-        if ($currentBudget) {
-            $cycle = app(BudgetCycleService::class)->resolve($currentBudget, auth()->user());
-            $cycleStart = $cycle['startDate'];
-            $cycleEnd = $cycle['endDate'];
-        }
+        $window     = $this->cycleWindow();
+        $cycleStart = $window['start'] ?? null;
+        $cycleEnd   = $window['end'] ?? null;
 
         return view('livewire.student.all-expenses', [
             'allExpenses' => $allExpenses,
-            'totalSpent' => $totalSpent,
-            'categories' => $categories,
-            'cycleStart' => $cycleStart,
-            'cycleEnd' => $cycleEnd,
+            'totalSpent'  => $totalSpent,
+            'categories'  => $categories,
+            'cycleStart'  => $cycleStart,
+            'cycleEnd'    => $cycleEnd,
         ])->layout('layouts.student');
     }
 }

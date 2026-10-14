@@ -176,7 +176,7 @@ class Dashboard extends Component
         $dailyVelocity       = $totalSpent / $daysElapsed;
         $futureDaysRemaining = $cycle['daysRemaining'];
 
-        $isFinalDay          = $daysElapsed >= 7;
+        $isFinalDay          = $daysElapsed >= 7 || $futureDaysRemaining <= 1;
         $projectedRemaining  = $isFinalDay
             ? (float) $this->currentBudget->remaining_allowance
             : max(0, $this->currentBudget->remaining_allowance - ($dailyVelocity * $futureDaysRemaining));
@@ -188,7 +188,7 @@ class Dashboard extends Component
             : $this->currentBudget->remaining_allowance;
 
         $isDepleted     = $this->currentBudget->remaining_allowance <= 0;
-        $isPaceCritical = !$isDepleted && ($projectedDaysLeft < $this->daysRemaining);
+        $isPaceCritical = !$isDepleted && !$isFinalDay && ($projectedDaysLeft < $this->daysRemaining);
         $isQuotaHitRaw  = !$isDepleted && !$isPaceCritical && ($this->safeToSpend <= 0);
         $isSavingsLocked = $isQuotaHitRaw && $hasSavingsToday;
         $isDailyQuotaHit = $isQuotaHitRaw && !$hasSavingsToday;

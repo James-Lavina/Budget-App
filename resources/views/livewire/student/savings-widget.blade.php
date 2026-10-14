@@ -50,8 +50,8 @@
                         <label class="block text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">Savings Amount (₱)</label>
                         <div class="relative">
                             <span class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400 font-bold text-xs">₱</span>
-                            <input type="number" step="1" wire:model.defer="fund_amount" autofocus placeholder="0.00"
-                                class="block w-full pl-8 pr-3.5 py-2.5 border border-slate-200 bg-slate-50/50 text-xs font-bold rounded-2xl text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:border-[var(--brand)] focus:ring-[rgba(var(--brand-rgb),0.2)] transition-all">
+                            <input type="number" step="0.01" wire:model.defer="fund_amount" autofocus placeholder="0.00"
+                            class="block w-full pl-8 pr-3.5 py-2.5 border border-slate-200 bg-slate-50/50 text-xs font-bold rounded-2xl text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:border-[var(--brand)] focus:ring-[rgba(var(--brand-rgb),0.2)] transition-all">
                         </div>
                         @error('fund_amount') <span class="text-[10px] font-bold text-rose-600 block mt-1">{{ $message }}</span> @enderror
                     </div>

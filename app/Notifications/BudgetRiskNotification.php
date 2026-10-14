@@ -4,7 +4,6 @@ namespace App\Notifications;
 
 use App\Models\RiskLog;
 use Illuminate\Bus\Queueable;
-use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
 
@@ -23,7 +22,7 @@ class BudgetRiskNotification extends Notification
     {
         $channels = ['database'];
 
-        if (\App\Models\AppSetting::current()->email_notifications_enabled) {
+        if ($notifiable->wantsEmail()) {
             $channels[] = 'mail';
         }
 

@@ -153,7 +153,11 @@
                         @elseif($hasNoSpendingYet)
                             You haven't logged anything yet — about ₱{{ number_format($safeToSpend, 2) }}/day if spent evenly.
                         @else
-                            You can spend up to ₱{{ number_format($dailyQuota, 2) }} a day and still finish the week on budget.
+                            @if($spentToday > 0)
+                                You have ₱{{ number_format($safeToSpend, 2) }} left to spend today (₱{{ number_format($dailyQuota, 2) }} daily budget).
+                            @else
+                                You can spend up to ₱{{ number_format($dailyQuota, 2) }} a day and still finish the week on budget.
+                            @endif
                         @endif
                     </p>
                 </div>

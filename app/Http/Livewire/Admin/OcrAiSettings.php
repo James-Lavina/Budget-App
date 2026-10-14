@@ -2,6 +2,7 @@
 
 namespace App\Http\Livewire\Admin;
 
+use App\Http\Livewire\Concerns\EnsuresAdmin;
 use App\Models\ActivityLog;
 use App\Models\IntegrationSetting;
 use Illuminate\Support\Facades\Http;
@@ -9,24 +10,25 @@ use Livewire\Component;
 
 class OcrAiSettings extends Component
 {
+    use EnsuresAdmin;
+
+    // Write-only. Public properties are serialized into the page and every Livewire
+    // round trip, so the stored key must never be loaded into this one.
     public $groq_api_key;
+
     public $groq_vision_model;
     public $groq_text_model;
     public $groq_temperature;
     public $groq_max_tokens;
 
-    // CHANGED: split into two independent pairs — one per model — instead
-    // of a single shared $testStatus/$testMessage. Each model now has its
-    // own "Test" button and result, since a passing text-model test used
-    // to mask a broken vision model (or vice versa).
     public $visionTestStatus = null; // 'success' | 'error' | null
     public $visionTestMessage = '';
 
-    public $textTestStatus = null; // 'success' | 'error' | null
+    public $textTestStatus = null;   // 'success' | 'error' | null
     public $textTestMessage = '';
 
     protected $rules = [
-        'groq_api_key'      => 'nullable|string',
+        'groq_api_key'      => 'nullable|string|max:500',
         'groq_vision_model' => 'required|string|max:255',
         'groq_text_model'   => 'required|string|max:255',
         'groq_temperature'  => 'required|numeric|min:0|max:2',
@@ -36,7 +38,7 @@ class OcrAiSettings extends Component
     public function mount()
     {
         $s = IntegrationSetting::current();
-        $this->groq_api_key      = $s->groq_api_key; // already decrypted by the cast
+
         $this->groq_vision_model = $s->groq_vision_model;
         $this->groq_text_model   = $s->groq_text_model;
         $this->groq_temperature  = $s->groq_temperature;
@@ -47,18 +49,21 @@ class OcrAiSettings extends Component
     {
         $this->validate();
 
-        $s = IntegrationSetting::current();
+        $s       = IntegrationSetting::current();
         $changes = [];
+        $data    = [
+            'groq_vision_model' => $this->groq_vision_model,
+            'groq_text_model'   => $this->groq_text_model,
+            'groq_temperature'  => $this->groq_temperature,
+            'groq_max_tokens'   => $this->groq_max_tokens,
+        ];
 
-        // Never log the key value itself — only whether it was changed/cleared/set.
-        if ($this->groq_api_key !== $s->groq_api_key) {
-            if (empty($s->groq_api_key) && !empty($this->groq_api_key)) {
-                $changes[] = 'API key: set';
-            } elseif (!empty($s->groq_api_key) && empty($this->groq_api_key)) {
-                $changes[] = 'API key: cleared';
-            } else {
-                $changes[] = 'API key: changed';
-            }
+        // A blank field means "keep the current key". Only a typed value replaces it.
+        $newKey = trim((string) $this->groq_api_key);
+
+        if ($newKey !== '') {
+            $changes[]            = empty($s->groq_api_key) ? 'API key: set' : 'API key: changed';
+            $data['groq_api_key'] = $newKey;
         }
 
         if ($s->groq_vision_model !== $this->groq_vision_model) {
@@ -77,15 +82,9 @@ class OcrAiSettings extends Component
             $changes[] = "Max Tokens: {$s->groq_max_tokens} → {$this->groq_max_tokens}";
         }
 
-        $s->update($this->only([
-            'groq_api_key', 'groq_vision_model', 'groq_text_model',
-            'groq_temperature', 'groq_max_tokens',
-        ]));
-
+        $s->update($data);
         IntegrationSetting::flush();
 
-        // Only write an ActivityLog row when something actually changed —
-        // a no-op Save click produces no audit entry at all.
         if (!empty($changes)) {
             ActivityLog::create([
                 'user_id'    => auth()->id(),
@@ -96,78 +95,102 @@ class OcrAiSettings extends Component
             ]);
         }
 
+        $this->groq_api_key     = null;
         $this->visionTestStatus = null;
-        $this->textTestStatus = null;
+        $this->textTestStatus   = null;
+
         session()->flash('success', 'AI settings saved successfully.');
     }
 
-    /**
-     * Tests only the Vision Model (Receipt Scanner) — independent of the
-     * Text Model test below. Uses whatever is currently typed into the
-     * field, not necessarily the saved value, so an admin can validate a
-     * model name before committing to Save.
-     */
-    public function testVisionConnection()
+    public function clearApiKey()
     {
-        $this->visionTestStatus = null;
-        $this->visionTestMessage = '';
+        $s = IntegrationSetting::current();
 
-        if (empty($this->groq_api_key)) {
-            $this->visionTestStatus = 'error';
-            $this->visionTestMessage = 'Enter an API key first.';
+        if (empty($s->groq_api_key)) {
             return;
         }
 
-        $result = $this->pingModel($this->groq_vision_model);
+        $s->update(['groq_api_key' => null]);
+        IntegrationSetting::flush();
 
-        $this->visionTestStatus = $result['ok'] ? 'success' : 'error';
+        $this->groq_api_key = null;
+
+        ActivityLog::create([
+            'user_id'    => auth()->id(),
+            'event_type' => 'ocr_ai_settings_updated',
+            'ip_address' => request()->ip(),
+            'user_agent' => request()->userAgent(),
+            'details'    => 'Updated OCR & AI settings: API key: cleared',
+        ]);
+
+        session()->flash('success', 'Saved API key removed.');
+    }
+
+    // The key typed in the field wins; otherwise the stored one is used for tests.
+    private function activeKey(): ?string
+    {
+        $typed = trim((string) $this->groq_api_key);
+
+        if ($typed !== '') {
+            return $typed;
+        }
+
+        return IntegrationSetting::current()->groq_api_key ?: null;
+    }
+
+    public function testVisionConnection()
+    {
+        $this->visionTestStatus  = null;
+        $this->visionTestMessage = '';
+
+        $key = $this->activeKey();
+
+        if (empty($key)) {
+            $this->visionTestStatus  = 'error';
+            $this->visionTestMessage = 'No API key saved or entered.';
+            return;
+        }
+
+        $result = $this->pingModel($this->groq_vision_model, $key);
+
+        $this->visionTestStatus  = $result['ok'] ? 'success' : 'error';
         $this->visionTestMessage = $result['ok']
             ? 'Connected — ' . $this->groq_vision_model . ' responded successfully.'
             : $result['message'];
     }
 
-    /**
-     * Tests only the Text Model (AI Coach) — independent of the Vision
-     * Model test above.
-     */
     public function testTextConnection()
     {
-        $this->textTestStatus = null;
+        $this->textTestStatus  = null;
         $this->textTestMessage = '';
 
-        if (empty($this->groq_api_key)) {
-            $this->textTestStatus = 'error';
-            $this->textTestMessage = 'Enter an API key first.';
+        $key = $this->activeKey();
+
+        if (empty($key)) {
+            $this->textTestStatus  = 'error';
+            $this->textTestMessage = 'No API key saved or entered.';
             return;
         }
 
-        $result = $this->pingModel($this->groq_text_model);
+        $result = $this->pingModel($this->groq_text_model, $key);
 
-        $this->textTestStatus = $result['ok'] ? 'success' : 'error';
+        $this->textTestStatus  = $result['ok'] ? 'success' : 'error';
         $this->textTestMessage = $result['ok']
             ? 'Connected — ' . $this->groq_text_model . ' responded successfully.'
             : $result['message'];
     }
 
-    /**
-     * Sends a minimal text-only chat completion to the given model to
-     * verify the API key + model name are valid and reachable. Shared by
-     * both testVisionConnection() and testTextConnection() — Groq's vision
-     * models are multimodal chat models and accept plain text-only
-     * messages fine, so there's no need to upload a real image just to
-     * test connectivity.
-     */
-    private function pingModel(string $model): array
+    private function pingModel(?string $model, string $key): array
     {
         if (empty($model)) {
             return ['ok' => false, 'message' => 'No model name entered.'];
         }
 
         try {
-            $response = Http::withToken($this->groq_api_key)
+            $response = Http::withToken($key)
                 ->timeout(10)
                 ->post('https://api.groq.com/openai/v1/chat/completions', [
-                    'model' => $model,
+                    'model'    => $model,
                     'messages' => [
                         ['role' => 'user', 'content' => 'Reply with the single word: OK'],
                     ],
@@ -179,7 +202,7 @@ class OcrAiSettings extends Component
             }
 
             return [
-                'ok' => false,
+                'ok'      => false,
                 'message' => 'Groq returned HTTP ' . $response->status() . '. Check the model name.',
             ];
         } catch (\Exception $e) {
@@ -189,6 +212,8 @@ class OcrAiSettings extends Component
 
     public function render()
     {
-        return view('livewire.admin.ocr-ai-settings')->layout('layouts.admin');
+        return view('livewire.admin.ocr-ai-settings', [
+            'hasKey' => !empty(IntegrationSetting::current()->groq_api_key),
+        ])->layout('layouts.admin');
     }
 }

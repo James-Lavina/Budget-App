@@ -22,21 +22,35 @@
         </div>
 
         <div class="space-y-1.5">
-            <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider">API Key</label>
+            <div class="flex items-center justify-between">
+                <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider">API Key</label>
+                @if($hasKey)
+                    <span class="text-[10px] font-bold text-emerald-600 uppercase tracking-wide">Key saved</span>
+                @else
+                    <span class="text-[10px] font-bold text-amber-600 uppercase tracking-wide">No key saved</span>
+                @endif
+            </div>
+
             <input type="password" wire:model.defer="groq_api_key" autocomplete="new-password"
-                placeholder="{{ $groq_api_key ? '••••••••••••••••' : 'sk-...' }}"
+                placeholder="{{ $hasKey ? '•••••••••••••••• (leave blank to keep)' : 'gsk_...' }}"
                 class="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm font-mono focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all">
-            <p class="text-[11px] text-slate-400">Stored encrypted at rest. Leave blank and save to keep the current key.</p>
-            @error('groq_api_key') <span class="text-xs text-rose-500 font-semibold">{{ $message }}</span> @enderror
+
+            <p class="text-[11px] text-slate-400">Stored encrypted and never sent back to the browser. Leave blank to keep the current key.</p>
+
+            @if($hasKey)
+                <button type="button" wire:click="clearApiKey" class="text-[11px] font-bold text-rose-600 hover:text-rose-700">Remove saved key</button>
+            @endif
+
+            @error('groq_api_key') <span class="text-xs text-rose-500 font-semibold block">{{ $message }}</span> @enderror
         </div>
 
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-6 pt-2">
-
             {{-- Vision Model --}}
             <div class="p-4 bg-slate-50 rounded-2xl space-y-3">
                 <h4 class="text-xs font-extrabold text-slate-700 uppercase tracking-wider">
                     Vision Model <span class="font-normal text-slate-400 normal-case">(Receipt Scanner)</span>
                 </h4>
+
                 <input type="text" wire:model.defer="groq_vision_model"
                     class="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs font-mono bg-white focus:ring-2 focus:ring-indigo-500">
                 @error('groq_vision_model') <span class="text-xs text-rose-500 font-semibold">{{ $message }}</span> @enderror
@@ -59,6 +73,7 @@
                 <h4 class="text-xs font-extrabold text-slate-700 uppercase tracking-wider">
                     Text Model <span class="font-normal text-slate-400 normal-case">(AI Coach)</span>
                 </h4>
+
                 <input type="text" wire:model.defer="groq_text_model"
                     class="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs font-mono bg-white focus:ring-2 focus:ring-indigo-500">
                 @error('groq_text_model') <span class="text-xs text-rose-500 font-semibold">{{ $message }}</span> @enderror
@@ -70,6 +85,7 @@
                             class="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs bg-white focus:ring-2 focus:ring-indigo-500">
                         @error('groq_temperature') <span class="text-[10px] text-rose-500 font-semibold">{{ $message }}</span> @enderror
                     </div>
+
                     <div class="space-y-1">
                         <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">Max Tokens</label>
                         <input type="number" min="50" max="4000" wire:model.defer="groq_max_tokens"

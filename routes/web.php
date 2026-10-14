@@ -4,6 +4,7 @@ use App\Http\Livewire\Admin\ActivityLogIndex;
 use App\Http\Livewire\Admin\Dashboard as adminDashboard;
 use App\Http\Livewire\Admin\ExpenseCategories;
 use App\Http\Livewire\Admin\OcrAiSettings;
+use App\Http\Livewire\Admin\Profile as adminProfile;
 use App\Http\Livewire\Admin\Reports;
 use App\Http\Livewire\Admin\RiskRules;
 use App\Http\Livewire\Admin\UserManagement;
@@ -107,6 +108,7 @@ Route::middleware(['auth', 'maintenance.check'])->group(function() {
             Route::get('/reports', Reports::class)->name('reports');
             Route::get('/activity-logs', ActivityLogIndex::class)->name('activity-logs');
             Route::get('/settings', adminSettings::class)->name('settings');
+            Route::get('/profile', adminProfile::class)->name('profile');
 
             Route::middleware(['super_admin'])->group(function () {
                 Route::get('/admin-accounts', AdminManagement::class)->name('accounts');

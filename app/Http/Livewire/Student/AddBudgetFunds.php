@@ -9,7 +9,6 @@ use Livewire\Component;
 class AddBudgetFunds extends Component
 {
     public $amount;
-
     public $fundsCeiling = 10000.00;
 
     public function mount()
@@ -35,8 +34,8 @@ class AddBudgetFunds extends Component
     }
 
     protected $messages = [
-        'amount.max' => 'That top-up is unusually large for a weekly allowance — max is ₱:max per addition.',
-        'amount.regex' => 'Use at most 2 decimal places.'
+        'amount.max'   => 'That top-up is unusually large for a weekly allowance — max is ₱:max per addition.',
+        'amount.regex' => 'Use at most 2 decimal places.',
     ];
 
     public function updatedAmount()
@@ -61,9 +60,6 @@ class AddBudgetFunds extends Component
 
         $budget->increment('remaining_allowance', (float) $this->amount);
 
-        // NEW: a student manually inflating their own allowance is exactly
-        // the kind of event an admin auditing a student's account would
-        // need to see. Previously invisible.
         ActivityLog::create([
             'user_id'    => auth()->id(),
             'event_type' => 'budget_funds_added',

@@ -89,7 +89,7 @@ class SpendingForecastService
         }
 
         // ---- Projection --------------------------------------------------------------------
-        $isFinalDay = $daysElapsed >= 7;
+        $isFinalDay = $daysElapsed >= 7 || $daysRemaining <= 1;
         $pace       = $daysElapsed > 0 ? $totalSpent / $daysElapsed : 0.0;
         $futureDays = $isFinalDay ? 0 : 7 - $daysElapsed;
 

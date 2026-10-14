@@ -2,6 +2,7 @@
 
 namespace App\Http\Livewire\Admin;
 
+use App\Http\Livewire\Concerns\EnsuresAdmin;
 use App\Models\ActivityLog;
 use App\Models\Expense;
 use App\Models\ExpenseCategory;
@@ -11,6 +12,8 @@ use Livewire\Component;
 
 class ExpenseCategories extends Component
 {
+    use EnsuresAdmin;
+
     public const PALETTE = [
         'amber'   => ['label' => 'Amber',   'value' => 'bg-amber-50 text-amber-700',       'swatch' => 'bg-amber-600'],
         'orange'  => ['label' => 'Orange',  'value' => 'bg-orange-50 text-orange-700',     'swatch' => 'bg-orange-600'],
@@ -65,7 +68,6 @@ class ExpenseCategories extends Component
 
     private function iconRule()
     {
-        // Valid = 'food' (special-cased) OR any name that exists in the installed icon package.
         return function ($attribute, $value, $fail) {
             if ($value !== 'food' && !HeroiconRegistry::exists($value)) {
                 $fail('Please choose a valid icon.');
@@ -73,8 +75,12 @@ class ExpenseCategories extends Component
         };
     }
 
-    // Only one category can be the fallback. Query-builder updates skip model events,
-    // so the detection cache is flushed explicitly.
+    // The cycle math, dashboard totals and risk checks all match names with LIKE '%Savings%'.
+    private function isSavingsCategory(ExpenseCategory $cat): bool
+    {
+        return stripos($cat->name, 'savings') !== false;
+    }
+
     private function clearOtherFallbacks($exceptId = null): void
     {
         ExpenseCategory::where('is_fallback', true)
@@ -85,6 +91,7 @@ class ExpenseCategories extends Component
     }
 
     // --- Create ---
+
     public function openCreate()
     {
         $this->reset(['create_name', 'create_description', 'create_keywords', 'create_is_fallback', 'create_icon_search']);
@@ -109,6 +116,11 @@ class ExpenseCategories extends Component
             'create_icon'        => ['required', 'string', $this->iconRule()],
             'create_color'       => 'required|string|in:' . implode(',', array_keys(self::PALETTE)),
         ]);
+
+        if (stripos($this->create_name, 'savings') !== false) {
+            $this->addError('create_name', 'Names containing "Savings" are reserved for the system savings category.');
+            return;
+        }
 
         if ($this->create_is_fallback) {
             $this->clearOtherFallbacks();
@@ -140,6 +152,7 @@ class ExpenseCategories extends Component
     }
 
     // --- Edit ---
+
     public function openEdit($id)
     {
         $cat = ExpenseCategory::findOrFail($id);
@@ -172,6 +185,21 @@ class ExpenseCategories extends Component
         ]);
 
         $cat = ExpenseCategory::findOrFail($this->editingId);
+
+        if ($this->isSavingsCategory($cat) && $this->edit_name !== $cat->name) {
+            $this->addError('edit_name', "The system Savings category can't be renamed. You can still change its icon and color.");
+            return;
+        }
+
+        if ($this->isSavingsCategory($cat) && $this->edit_is_fallback) {
+            $this->addError('edit_is_fallback', "The Savings category can't be the catch-all.");
+            return;
+        }
+
+        if (!$this->isSavingsCategory($cat) && stripos($this->edit_name, 'savings') !== false) {
+            $this->addError('edit_name', 'Names containing "Savings" are reserved for the system savings category.');
+            return;
+        }
 
         $changes = [];
 
@@ -229,6 +257,7 @@ class ExpenseCategories extends Component
     }
 
     // --- Enable / Disable ---
+
     public function toggleStatus($id)
     {
         $cat = ExpenseCategory::findOrFail($id);
@@ -251,6 +280,7 @@ class ExpenseCategories extends Component
     }
 
     // --- Delete ---
+
     public function confirmDelete($id)
     {
         $this->confirmingDeleteId = $id;
@@ -269,6 +299,12 @@ class ExpenseCategories extends Component
 
         $cat = ExpenseCategory::findOrFail($this->confirmingDeleteId);
 
+        if ($this->isSavingsCategory($cat)) {
+            $this->confirmingDeleteId = null;
+            session()->flash('error', "The system Savings category can't be deleted.");
+            return;
+        }
+
         $inUseCount = Expense::where('expense_category_id', $cat->id)->count();
 
         if ($inUseCount > 0) {
@@ -279,6 +315,7 @@ class ExpenseCategories extends Component
 
         $name  = $cat->name;
         $catId = $cat->id;
+
         $cat->delete();
 
         ActivityLog::create([

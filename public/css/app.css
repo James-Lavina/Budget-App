@@ -5824,6 +5824,9 @@ input:where([type='file']):focus {
   --tw-scale-y: 1.05;
   transform: translate(var(--tw-translate-x), var(--tw-translate-y)) rotate(var(--tw-rotate)) skewX(var(--tw-skew-x)) skewY(var(--tw-skew-y)) scaleX(var(--tw-scale-x)) scaleY(var(--tw-scale-y));
 }
+.peer:checked ~ .peer-checked\:bg-\[var\(--brand\)\] {
+  background-color: var(--brand);
+}
 .peer:checked ~ .peer-checked\:bg-\[var\(--brand-primary\)\] {
   background-color: var(--brand-primary);
 }

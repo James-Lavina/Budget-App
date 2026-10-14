@@ -22,14 +22,13 @@ class CheckMaintenanceMode
             return $next($request);
         }
 
-        // Always let logout through — a locked-out student must still be
-        // able to sign out, even if every other route is blocked.
+        // Always let logout through so a locked-out student can still sign out.
         if ($request->routeIs('logout') || $request->routeIs('maintenance')) {
             return $next($request);
         }
 
         return response()->view('maintenance', [
             'appSettings' => $settings,
-        ]);
+        ], 503);
     }
 }

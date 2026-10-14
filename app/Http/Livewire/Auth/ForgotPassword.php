@@ -19,14 +19,14 @@ class ForgotPassword extends Component
     public function sendResetLink()
     {
         $this->validate();
+
         $this->status = '';
 
-        // Looked up before sendResetLink() runs purely so a successful
-        // send can be attributed to a real user_id in the activity log —
-        // Password::sendResetLink() itself never exposes the User model.
         $matchedUser = User::where('email', $this->email)->first();
 
         $status = Password::sendResetLink(['email' => $this->email]);
+
+        $genericMessage = 'If that email is registered, a password reset link has been sent.';
 
         if ($status === Password::RESET_LINK_SENT) {
             if ($matchedUser) {
@@ -38,10 +38,12 @@ class ForgotPassword extends Component
                     'details'    => 'Requested a password reset link',
                 ]);
             }
-            $this->status = 'If that email is registered, a password reset link has been sent.';
+
+            $this->status = $genericMessage;
             $this->email  = '';
         } elseif ($status === Password::INVALID_USER) {
-            $this->status = 'If that email is registered, a password reset link has been sent.';
+            // Same response as success so registered emails can't be enumerated.
+            $this->status = $genericMessage;
             $this->email  = '';
         } elseif ($status === Password::RESET_THROTTLED) {
             $this->addError('email', 'Please wait a moment before requesting another reset link.');

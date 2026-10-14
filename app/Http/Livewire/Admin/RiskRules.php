@@ -2,24 +2,23 @@
 
 namespace App\Http\Livewire\Admin;
 
+use App\Http\Livewire\Concerns\EnsuresAdmin;
+use App\Models\ActivityLog;
 use App\Models\RiskSetting;
 use Livewire\Component;
-use App\Models\ActivityLog;
 
 class RiskRules extends Component
 {
+    use EnsuresAdmin;
+
     public $overspending_enabled;
     public $overspending_threshold;
-
     public $daily_safe_to_spend_enabled;
     public $daily_safe_to_spend_threshold;
-
     public $rapid_spending_enabled;
     public $rapid_spending_count;
-
     public $no_expense_logs_enabled;
     public $no_expense_logs_days;
-
     public $low_remaining_budget_enabled;
     public $low_remaining_budget_threshold;
 
@@ -34,15 +33,16 @@ class RiskRules extends Component
     public function mount()
     {
         $s = RiskSetting::current();
-        $this->overspending_enabled          = $s->overspending_enabled;
-        $this->overspending_threshold        = $s->overspending_threshold;
-        $this->daily_safe_to_spend_enabled   = $s->daily_safe_to_spend_enabled;
-        $this->daily_safe_to_spend_threshold = $s->daily_safe_to_spend_threshold;
-        $this->rapid_spending_enabled        = $s->rapid_spending_enabled;
-        $this->rapid_spending_count          = $s->rapid_spending_count;
-        $this->no_expense_logs_enabled       = $s->no_expense_logs_enabled;
-        $this->no_expense_logs_days          = $s->no_expense_logs_days;
-        $this->low_remaining_budget_enabled  = $s->low_remaining_budget_enabled;
+
+        $this->overspending_enabled           = $s->overspending_enabled;
+        $this->overspending_threshold         = $s->overspending_threshold;
+        $this->daily_safe_to_spend_enabled    = $s->daily_safe_to_spend_enabled;
+        $this->daily_safe_to_spend_threshold  = $s->daily_safe_to_spend_threshold;
+        $this->rapid_spending_enabled         = $s->rapid_spending_enabled;
+        $this->rapid_spending_count           = $s->rapid_spending_count;
+        $this->no_expense_logs_enabled        = $s->no_expense_logs_enabled;
+        $this->no_expense_logs_days           = $s->no_expense_logs_days;
+        $this->low_remaining_budget_enabled   = $s->low_remaining_budget_enabled;
         $this->low_remaining_budget_threshold = $s->low_remaining_budget_threshold;
     }
 
@@ -79,9 +79,10 @@ class RiskRules extends Component
         ];
 
         $changes = [];
+
         foreach ($newValues as $key => $newVal) {
             $oldVal = $s->{$key};
-            // Booleans stored/cast may compare loosely across form <-> DB types; normalize before diffing.
+
             $oldNormalized = is_bool($oldVal) ? ($oldVal ? '1' : '0') : (string) $oldVal;
             $newNormalized = is_bool($newVal) ? ($newVal ? '1' : '0') : (string) $newVal;
 
@@ -96,11 +97,6 @@ class RiskRules extends Component
 
         $s->update($newValues);
 
-        // CHANGED: only write an ActivityLog row when something actually
-        // changed. A no-op Save click (admin opened the screen, touched
-        // nothing, clicked Save) no longer produces an audit entry at all —
-        // previously this always logged, just switching the message to
-        // "no field changes detected".
         if (!empty($changes)) {
             ActivityLog::create([
                 'user_id'    => auth()->id(),

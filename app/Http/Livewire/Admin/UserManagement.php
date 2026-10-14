@@ -2,6 +2,7 @@
 
 namespace App\Http\Livewire\Admin;
 
+use App\Http\Livewire\Concerns\EnsuresAdmin;
 use App\Models\ActivityLog;
 use App\Models\Expense;
 use App\Models\RiskLog;
@@ -9,22 +10,18 @@ use App\Models\SavingsGoal;
 use App\Models\User;
 use App\Services\BudgetCycleService;
 use Illuminate\Notifications\DatabaseNotification;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Livewire\Component;
 use Livewire\WithPagination;
 
 class UserManagement extends Component
 {
-    use WithPagination;
+    use WithPagination, EnsuresAdmin;
 
     protected $paginationTheme = 'tailwind';
 
-    /**
-     * Notification types that are alerts but never write a risk_logs row.
-     * BudgetRiskNotification is deliberately excluded: it is always created
-     * from a RiskLog, so counting it here would double count the same alert.
-     * Success-type notifications (goal achieved, milestone, weekly review)
-     * are not alerts and are also excluded.
-     */
+    // Notification types that are alerts but never write a risk_logs row.
     private const NOTIFICATION_ALERT_TYPES = [
         'low_allowance_threshold',
         'category_concentration',
@@ -58,6 +55,7 @@ class UserManagement extends Component
     }
 
     // --- View ---
+
     public function viewUser($id)
     {
         $this->viewingUserId = $id;
@@ -69,13 +67,15 @@ class UserManagement extends Component
     }
 
     // --- Edit ---
+
     public function openEdit($id)
     {
         $user = User::where('role', 'student')->findOrFail($id);
-        $this->editingUserId = $user->id;
-        $this->edit_name = $user->name;
-        $this->edit_email = $user->email;
-        $this->edit_school = $user->school;
+
+        $this->editingUserId          = $user->id;
+        $this->edit_name              = $user->name;
+        $this->edit_email             = $user->email;
+        $this->edit_school            = $user->school;
         $this->edit_default_allowance = $user->default_allowance;
         $this->edit_default_reset_day = $user->default_reset_day ?? 'Monday';
         $this->resetErrorBag();
@@ -89,36 +89,43 @@ class UserManagement extends Component
     public function saveEdit()
     {
         $this->validate([
-            'edit_name' => 'required|string|max:255',
-            'edit_email' => 'required|email|max:255|unique:users,email,' . $this->editingUserId,
-            'edit_school' => 'nullable|string|max:255',
-            'edit_default_allowance' => 'required|numeric|min:1|max:999999',
+            'edit_name'              => 'required|string|max:255',
+            'edit_email'             => 'required|email|max:255|unique:users,email,' . $this->editingUserId,
+            'edit_school'            => 'nullable|string|max:255',
+            'edit_default_allowance' => ['required', 'numeric', 'min:1', 'max:999999', 'regex:/^\d+(\.\d{1,2})?$/'],
             'edit_default_reset_day' => 'required|string|in:Monday,Tuesday,Wednesday,Thursday,Friday,Saturday,Sunday',
+        ], [
+            'edit_default_allowance.regex' => 'Use at most 2 decimal places.',
         ]);
 
         $user = User::where('role', 'student')->findOrFail($this->editingUserId);
 
         $changes = [];
+
         if ($user->name !== $this->edit_name) {
             $changes[] = "name: \"{$user->name}\" → \"{$this->edit_name}\"";
         }
+
         if ($user->email !== $this->edit_email) {
             $changes[] = "email: \"{$user->email}\" → \"{$this->edit_email}\"";
         }
+
         if ($user->school !== $this->edit_school) {
             $changes[] = "school: \"" . ($user->school ?? '—') . "\" → \"" . ($this->edit_school ?? '—') . "\"";
         }
+
         if ((float) $user->default_allowance !== (float) $this->edit_default_allowance) {
             $changes[] = "default allowance: ₱" . number_format($user->default_allowance, 2) . " → ₱" . number_format($this->edit_default_allowance, 2);
         }
+
         if ($user->default_reset_day !== $this->edit_default_reset_day) {
             $changes[] = "reset day: {$user->default_reset_day} → {$this->edit_default_reset_day}";
         }
 
         $user->update([
-            'name' => $this->edit_name,
-            'email' => $this->edit_email,
-            'school' => $this->edit_school,
+            'name'              => $this->edit_name,
+            'email'             => $this->edit_email,
+            'school'            => $this->edit_school,
             'default_allowance' => $this->edit_default_allowance,
             'default_reset_day' => $this->edit_default_reset_day,
         ]);
@@ -136,6 +143,7 @@ class UserManagement extends Component
     }
 
     // --- Suspend / Reactivate ---
+
     public function confirmSuspend($id)
     {
         $this->confirmingSuspendId = $id;
@@ -153,8 +161,8 @@ class UserManagement extends Component
         }
 
         $user = User::where('role', 'student')->findOrFail($this->confirmingSuspendId);
-        $wasActive = $user->status !== 'suspended';
 
+        $wasActive    = $user->status !== 'suspended';
         $user->status = $wasActive ? 'suspended' : 'active';
         $user->save();
 
@@ -167,12 +175,14 @@ class UserManagement extends Component
         ]);
 
         $this->confirmingSuspendId = null;
+
         session()->flash('success', $user->status === 'suspended'
             ? "{$user->name} has been suspended."
             : "{$user->name} has been reactivated.");
     }
 
     // --- Delete ---
+
     public function confirmDelete($id)
     {
         $this->confirmingDeleteId = $id;
@@ -189,15 +199,28 @@ class UserManagement extends Component
             return;
         }
 
-        $user = User::where('role', 'student')->findOrFail($this->confirmingDeleteId);
-        $name = $user->name;
-        $email = $user->email;
-        $userId = $user->id;
+        $user         = User::where('role', 'student')->findOrFail($this->confirmingDeleteId);
+        $name         = $user->name;
+        $email        = $user->email;
+        $userId       = $user->id;
+        $receiptPaths = $user->receipts()->pluck('image_path')->filter()->values()->all();
 
-        $user->delete(); // cascades to expenses/budgets/goals/logs via FK constraints
+        DB::transaction(function () use ($user, $email) {
+            // No FK on these, so the user cascade doesn't remove them.
+            $user->notifications()->delete();
+            $user->tokens()->delete();
+            DB::table('password_resets')->where('email', $email)->delete();
 
-        // The activity is logged against the admin who acted (auth()->id()),
-        // not the deleted student, since that user row no longer exists.
+            // Cascades: weekly_budgets, expenses, receipts, savings_goals, what_if_simulations, risk_logs, activity_logs.
+            $user->delete();
+        });
+
+        if (!empty($receiptPaths)) {
+            Storage::disk('local')->delete($receiptPaths);
+            Storage::disk('public')->delete($receiptPaths);
+        }
+
+        // Logged against the admin who acted, since the student row no longer exists.
         ActivityLog::create([
             'user_id'    => auth()->id(),
             'event_type' => 'user_deleted',
@@ -207,20 +230,10 @@ class UserManagement extends Component
         ]);
 
         $this->confirmingDeleteId = null;
+
         session()->flash('success', "{$name} and all associated records were permanently deleted.");
     }
 
-    /**
-     * Active alerts for the current cycle, combining both alert sources:
-     *  1. Unresolved risk_logs (pace check, overspending threshold,
-     *     daily safe-to-spend, rapid spending).
-     *  2. Unresolved notification-only alerts (low allowance, category
-     *     concentration, large transaction, no expense logs).
-     *
-     * Only alerts created since the cycle start are counted, so old
-     * never-resolved rows from previous weeks don't inflate the number.
-     * Note: a notification the student deleted no longer counts.
-     */
     private function activeAlertsFor(User $user, $cycle): array
     {
         $riskQuery = RiskLog::where('user_id', $user->id)->where('resolved', false);
@@ -254,12 +267,15 @@ class UserManagement extends Component
         $total  = $tiers->count();
 
         $parts = [];
+
         if ($high > 0) {
             $parts[] = "{$high} high";
         }
+
         if ($medium > 0) {
             $parts[] = "{$medium} medium";
         }
+
         if ($low > 0) {
             $parts[] = "{$low} low";
         }
@@ -279,11 +295,6 @@ class UserManagement extends Component
         ];
     }
 
-    /**
-     * Pace-based forecast, mirroring the student Dashboard's ranked state
-     * (depleted -> pace critical -> fresh start -> on track) so the admin
-     * and the student never see contradicting labels.
-     */
     private function forecastFor(User $user, $budget, $cycle): array
     {
         if (!$budget || !$cycle) {
@@ -297,10 +308,8 @@ class UserManagement extends Component
         $remaining     = (float) $budget->remaining_allowance;
         $daysElapsed   = max(1, (int) $cycle['daysElapsed']);
         $daysRemaining = max(1, (int) $cycle['daysRemaining']);
-        $isFinalDay    = $daysElapsed >= 7;
+        $isFinalDay    = $daysElapsed >= 7 || $daysRemaining <= 1;
 
-        // Same spend definition as the student Dashboard: up to the evaluation
-        // date, excluding savings-goal transfers and the Savings category.
         $totalSpent = (float) Expense::where('user_id', $user->id)
             ->whereBetween('transaction_date', [$cycle['startDate'], $cycle['evalDate']->copy()->endOfDay()])
             ->whereNull('savings_goal_id')
@@ -350,6 +359,7 @@ class UserManagement extends Component
             ->with('latestWeeklyBudget')
             ->when(filled($this->search), function ($q) {
                 $term = '%' . trim($this->search) . '%';
+
                 $q->where(function ($sub) use ($term) {
                     $sub->where('name', 'like', $term)
                         ->orWhere('email', 'like', $term)
@@ -362,7 +372,7 @@ class UserManagement extends Component
             ->latest()
             ->paginate(10);
 
-        $viewingUser = null;
+        $viewingUser   = null;
         $viewingExtras = null;
 
         if ($this->viewingUserId) {
@@ -371,12 +381,7 @@ class UserManagement extends Component
             if ($viewingUser) {
                 $budget = $viewingUser->latestWeeklyBudget;
 
-                // FIX: readOnly = true — an admin opening this modal was
-                // previously able to trigger the STUDENT's weekly reset
-                // just by viewing their profile, since resolve() now
-                // persists a rollover as a side effect. Admin views must
-                // only inspect the cycle, never mutate it on the
-                // student's behalf.
+                // readOnly = true: viewing a profile must never trigger the student's weekly reset.
                 $cycle = $budget ? app(BudgetCycleService::class)->resolve($budget, $viewingUser, true) : null;
 
                 $topGoal = SavingsGoal::where('user_id', $viewingUser->id)
@@ -384,15 +389,12 @@ class UserManagement extends Component
                     ->orderByDesc('target_amount')
                     ->first();
 
-                // Effective allowance = base + rollover, the same figure the
-                // student sees as "Total Available This Week". total_allowance
-                // alone excludes rollover and can be lower than remaining.
                 $effectiveAllowance = $cycle
                     ? (float) $cycle['effectiveTotalAllowance']
                     : (float) ($viewingUser->default_allowance ?? 0);
 
-                // Same formula as the student Dashboard's "% used".
                 $percentUsed = 0;
+
                 if ($budget && $effectiveAllowance > 0) {
                     $percentUsed = (int) max(0, min(100, round(
                         (1 - ((float) $budget->remaining_allowance / $effectiveAllowance)) * 100
@@ -400,7 +402,7 @@ class UserManagement extends Component
                 }
 
                 $forecast = $this->forecastFor($viewingUser, $budget, $cycle);
-                $alerts = $this->activeAlertsFor($viewingUser, $cycle);
+                $alerts   = $this->activeAlertsFor($viewingUser, $cycle);
 
                 $viewingExtras = [
                     'topGoal'            => $topGoal,
@@ -419,8 +421,8 @@ class UserManagement extends Component
         }
 
         return view('livewire.admin.user-management', [
-            'users' => $users,
-            'viewingUser' => $viewingUser,
+            'users'         => $users,
+            'viewingUser'   => $viewingUser,
             'viewingExtras' => $viewingExtras,
         ])->layout('layouts.admin');
     }

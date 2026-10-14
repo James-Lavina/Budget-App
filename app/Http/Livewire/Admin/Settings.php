@@ -2,15 +2,16 @@
 
 namespace App\Http\Livewire\Admin;
 
+use App\Http\Livewire\Concerns\EnsuresAdmin;
+use App\Models\ActivityLog;
 use App\Models\AppSetting;
 use Illuminate\Support\Facades\Storage;
 use Livewire\Component;
 use Livewire\WithFileUploads;
-use App\Models\ActivityLog;
 
 class Settings extends Component
 {
-    use WithFileUploads;
+    use WithFileUploads, EnsuresAdmin;
 
     public const COLOR_PRESETS = [
         'indigo'  => ['label' => 'Indigo',  'value' => '#4f39fa'],
@@ -25,22 +26,16 @@ class Settings extends Component
     public $primary_color;
     public $logo;
     public $existing_logo_path;
-
     public $email_notifications_enabled;
     public $maintenance_mode_enabled;
-
-    protected $rules = [
-        'application_name' => 'required|string|max:255',
-        'primary_color'    => 'required|string|max:7|in:' . '', // set dynamically below
-        'logo'             => 'nullable|image|max:2048',
-    ];
 
     protected function rules()
     {
         return [
             'application_name' => 'required|string|max:255',
             'primary_color'    => 'required|string|in:' . implode(',', array_column(self::COLOR_PRESETS, 'value')),
-            'logo'             => 'nullable|image|max:2048',
+            // SVG is excluded on purpose: an SVG opened directly from /storage can run scripts.
+            'logo'             => 'nullable|image|mimes:jpg,jpeg,png,webp|max:2048',
         ];
     }
 
@@ -58,6 +53,7 @@ class Settings extends Component
     public function removeLogo()
     {
         $s = AppSetting::current();
+
         if ($s->logo_path) {
             Storage::disk('public')->delete($s->logo_path);
             $s->update(['logo_path' => null]);
@@ -74,6 +70,7 @@ class Settings extends Component
 
         $this->logo = null;
         $this->existing_logo_path = null;
+
         session()->flash('success', 'Logo removed.');
     }
 
@@ -82,6 +79,7 @@ class Settings extends Component
         $this->validate();
 
         $s = AppSetting::current();
+
         $changes = [];
 
         if ($s->application_name !== $this->application_name) {
@@ -96,9 +94,9 @@ class Settings extends Component
             $changes[] = 'Email Notifications: ' . ($s->email_notifications_enabled ? 'On' : 'Off') . ' → ' . ($this->email_notifications_enabled ? 'On' : 'Off');
         }
 
-        $maintenanceWasEnabled = (bool) $s->maintenance_mode_enabled;
+        $maintenanceWasEnabled    = (bool) $s->maintenance_mode_enabled;
         $maintenanceWillBeEnabled = (bool) $this->maintenance_mode_enabled;
-        $maintenanceChanged = $maintenanceWasEnabled !== $maintenanceWillBeEnabled;
+        $maintenanceChanged       = $maintenanceWasEnabled !== $maintenanceWillBeEnabled;
 
         if ($maintenanceChanged) {
             $changes[] = 'Maintenance Mode: ' . ($maintenanceWasEnabled ? 'On' : 'Off') . ' → ' . ($maintenanceWillBeEnabled ? 'On' : 'Off');
@@ -115,6 +113,7 @@ class Settings extends Component
             if ($s->logo_path) {
                 Storage::disk('public')->delete($s->logo_path);
             }
+
             $data['logo_path'] = $this->logo->store('branding', 'public');
             $changes[] = 'Application logo replaced';
         }
@@ -122,10 +121,6 @@ class Settings extends Component
         $s->update($data);
         AppSetting::flush();
 
-        // CHANGED: only write an ActivityLog row when something actually
-        // changed (including a logo replacement). A no-op Save click no
-        // longer produces an audit entry at all — previously this always
-        // logged, just switching the message to "no field changes detected".
         if (!empty($changes)) {
             ActivityLog::create([
                 'user_id'    => auth()->id(),
@@ -140,6 +135,7 @@ class Settings extends Component
 
         $this->logo = null;
         $this->existing_logo_path = $s->fresh()->logo_path;
+
         session()->flash('success', 'Settings saved successfully.');
     }
 

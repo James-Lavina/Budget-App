@@ -2,6 +2,7 @@
 
 namespace App\Http\Livewire\Admin;
 
+use App\Http\Livewire\Concerns\EnsuresAdmin;
 use App\Models\ActivityLog;
 use App\Models\Expense;
 use App\Models\Receipt;
@@ -13,14 +14,8 @@ use Livewire\Component;
 
 class Dashboard extends Component
 {
-    /**
-     * FIX: mirrors ActivityLogIndex::statusFor() — the Recent Activities
-     * widget was hardcoding "Success" on every row regardless of
-     * event_type, so an auth_login_failed entry showed a green "Success"
-     * badge here while correctly showing red "FAILED" on the full
-     * Activity Logs page. Both views must use the same rule or they will
-     * disagree again the next time a new "..._failed" event type is added.
-     */
+    use EnsuresAdmin;
+
     public function statusFor(string $eventType): array
     {
         if (strpos($eventType, 'failed') !== false) {
@@ -38,45 +33,38 @@ class Dashboard extends Component
         $startLastWeek  = $startOfWeek->copy()->subWeek();
         $endLastWeek    = $endOfWeek->copy()->subWeek();
 
-        // ---------------------------------------------------------------
-        // Stat cards
-        // ---------------------------------------------------------------
-
-        // Total registered students, with week-over-week signup growth.
         $totalUsers   = User::where('role', 'student')->count();
+
         $newThisWeek  = User::where('role', 'student')
             ->whereBetween('created_at', [$startOfWeek, $endOfWeek])
             ->count();
+
         $newLastWeek  = User::where('role', 'student')
             ->whereBetween('created_at', [$startLastWeek, $endLastWeek])
             ->count();
+
         $userGrowthPct = $newLastWeek > 0
             ? round((($newThisWeek - $newLastWeek) / $newLastWeek) * 100, 1)
             : ($newThisWeek > 0 ? 100.0 : 0.0);
 
         // "Active today" = distinct students who logged a real expense today.
-        // (activity_logs only fires on edit/delete, not on create, so it
-        // would undercount routine usage — expenses.transaction_date is the
-        // more honest signal for "did someone actually use the app today".)
         $activeToday = Expense::whereDate('transaction_date', $today)
             ->distinct()
             ->count('user_id');
+
         $activeYesterday = Expense::whereDate('transaction_date', $today->copy()->subDay())
             ->distinct()
             ->count('user_id');
+
         $activeChangePct = $activeYesterday > 0
             ? round((($activeToday - $activeYesterday) / $activeYesterday) * 100, 1)
             : ($activeToday > 0 ? 100.0 : 0.0);
 
-        // Total expenses ever logged, system-wide.
         $totalExpenses = Expense::count();
 
-        // Budget alerts fired this calendar week. RiskDetectionService only
-        // writes to risk_logs for the pacing/velocity check — low-allowance,
-        // category-concentration, and large-transaction alerts only ever hit
-        // the notifications table, so both sources need counting or this
-        // number badly undercounts real alert volume.
+        // Alerts are split across risk_logs and notification-only types, so count both.
         $riskLogAlerts = RiskLog::whereBetween('created_at', [$startOfWeek, $endOfWeek])->count();
+
         $notificationAlerts = DB::table('notifications')
             ->where('notifiable_type', 'App\\Models\\User')
             ->whereIn('type', [
@@ -86,24 +74,19 @@ class Dashboard extends Component
             ])
             ->whereBetween('created_at', [$startOfWeek, $endOfWeek])
             ->count();
+
         $weeklyAlerts = $riskLogAlerts + $notificationAlerts;
 
-        // Receipts the OCR pipeline successfully turned into expenses.
         $ocrProcessed = Receipt::where('status', 'processed')->count();
 
-        // AI forecast/simulation calls — now instrumented via
-        // SpendingForecastService::fetchAiInsight() and
-        // WhatIfSimulator::generateSimulationInsight().
         $aiForecastRequests = ActivityLog::whereIn('event_type', [
             'ai_forecast_requested',
             'ai_simulation_requested',
         ])->count();
 
-        // ---------------------------------------------------------------
-        // Weekly User Registrations (rolling last 7 days, daily counts)
-        // ---------------------------------------------------------------
         $registrationLabels = [];
         $registrationCounts = [];
+
         for ($i = 6; $i >= 0; $i--) {
             $date = $today->copy()->subDays($i);
             $registrationLabels[] = $date->format('D');
@@ -112,9 +95,6 @@ class Dashboard extends Component
                 ->count();
         }
 
-        // ---------------------------------------------------------------
-        // Expense Category Distribution (this month, excluding Savings)
-        // ---------------------------------------------------------------
         $categoryRows = Expense::join('expense_categories', 'expenses.expense_category_id', '=', 'expense_categories.id')
             ->whereMonth('transaction_date', $today->month)
             ->whereYear('transaction_date', $today->year)
@@ -126,6 +106,7 @@ class Dashboard extends Component
             ->get();
 
         $categoryGrandTotal = $categoryRows->sum('total');
+
         $categoryDistribution = $categoryRows->map(function ($row) use ($categoryGrandTotal) {
             return [
                 'name'       => $row->name,
@@ -135,20 +116,15 @@ class Dashboard extends Component
             ];
         })->values();
 
-        // ---------------------------------------------------------------
-        // Daily Expense Activity (last 7 days, transaction counts)
-        // ---------------------------------------------------------------
         $activityLabels = [];
         $activityCounts = [];
+
         for ($i = 6; $i >= 0; $i--) {
             $date = $today->copy()->subDays($i);
             $activityLabels[] = $date->format('D');
             $activityCounts[] = Expense::whereDate('transaction_date', $date)->count();
         }
 
-        // ---------------------------------------------------------------
-        // Recent Activities feed
-        // ---------------------------------------------------------------
         $recentActivities = ActivityLog::with('user')
             ->latest()
             ->take(8)

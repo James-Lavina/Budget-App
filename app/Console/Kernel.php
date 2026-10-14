@@ -13,6 +13,14 @@ class Kernel extends ConsoleKernel
             ->dailyAt('08:00')
             ->timezone('Asia/Manila')
             ->withoutOverlapping();
+
+        $schedule->command('logs:prune-activity --days=180')
+            ->dailyAt('02:00')
+            ->timezone('Asia/Manila');
+
+        $schedule->command('auth:clear-resets')
+            ->dailyAt('02:30')
+            ->timezone('Asia/Manila');
     }
 
     protected function commands()

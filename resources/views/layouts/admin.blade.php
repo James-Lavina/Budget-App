@@ -99,6 +99,13 @@
                         <span data-sidebar-label>Activity Logs</span>
                     </a>
 
+                    <a href="{{ route('admin.profile') }}" title="My Profile" data-sidebar-nav-item
+                        @if(request()->routeIs('admin.profile')) style="background-color: color-mix(in srgb, var(--brand-primary) 10%, white); color: var(--brand-primary);" @endif
+                        class="flex items-center gap-3 px-4 py-3 rounded-2xl font-semibold text-sm transition-all {{ request()->routeIs('admin.profile') ? '' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-100/70' }}">
+                        <x-heroicon-o-user-circle class="w-5 h-5 shrink-0" />
+                        <span data-sidebar-label>My Profile</span>
+                    </a>
+
                     <a href="{{ route('admin.settings') }}" title="Settings" data-sidebar-nav-item
                         @if(request()->routeIs('admin.settings')) style="background-color: color-mix(in srgb, var(--brand-primary) 10%, white); color: var(--brand-primary);" @endif
                         class="flex items-center gap-3 px-4 py-3 rounded-2xl font-semibold text-sm transition-all {{ request()->routeIs('admin.settings') ? '' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-100/70' }}">

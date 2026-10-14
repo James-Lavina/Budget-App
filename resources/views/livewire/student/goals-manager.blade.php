@@ -130,7 +130,7 @@
                             <span class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400 font-bold text-xs">₱</span>
                             <input
                             type="number"
-                            step="1.00"
+                            step="0.01"
                             min="0"
                             wire:model.defer="target_amount"
                             placeholder="0.00"
@@ -182,7 +182,7 @@
                             <span class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400 font-bold text-xs">₱</span>
                             <input
                             type="number"
-                            step="1"
+                            step="0.01"
                             wire:model.defer="fund_amount"
                             autofocus
                             placeholder="0.00"

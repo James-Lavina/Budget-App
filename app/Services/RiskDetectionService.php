@@ -98,12 +98,12 @@ class RiskDetectionService
         $this->syncRiskAlert($user, 'overspending_threshold',
             $settings->overspending_enabled && $percentUsed >= $settings->overspending_threshold,
             $cycleStart->copy()->startOfDay(),
-            function () use ($percentUsed, $spent, $pool, $daysLeftInclToday, $safePerDay) {
+            function () use ($percentUsed, $spent, $pool, $daysLeftInclToday, $remaining) {
                 return ['high',
                     "Budget Alert 🚨: You've used " . round($percentUsed) . "% of this week's allowance (₱"
                     . number_format($spent, 2) . ' of ₱' . number_format($pool, 2) . ') with '
                     . $daysLeftInclToday . ' ' . Str::plural('day', $daysLeftInclToday)
-                    . ' left. Keep it to about ₱' . number_format($safePerDay, 2) . '/day to finish on budget.',
+                    . ' left. Keep it to about ₱' . number_format($remaining / $daysLeftInclToday, 2) . '/day to finish on budget.',
                 ];
             }
         );
@@ -296,6 +296,15 @@ class RiskDetectionService
         }
 
         if ($open->isNotEmpty()) {
+            $latest = $open->sortByDesc('created_at')->first();
+            $fresh  = (new LowAllowanceWarning((int) round(($remaining / $pool) * 100), $remaining))->toArray($user);
+            $data   = $latest->data;
+        
+            if (($data['description'] ?? null) !== $fresh['description']) {
+                $data['description'] = $fresh['description'];
+                $latest->update(['data' => $data]);
+            }
+        
             return;
         }
 
@@ -369,9 +378,24 @@ class RiskDetectionService
             ->first();
 
         if ($same) {
+            $fresh = (new CategoryConcentrationWarning(
+                $dominant->name,
+                $percentage,
+                (float) $dominant->total,
+                $totalSpent
+            ))->toArray($user);
+        
+            $data = $same->data;
+        
+            if (($data['description'] ?? null) !== $fresh['description']) {
+                $data['description'] = $fresh['description'];
+                $same->update(['data' => $data]);
+            }
+        
             if (!$isOpen($same)) {
                 $this->markNotification($same, false);
             }
+        
             return;
         }
 

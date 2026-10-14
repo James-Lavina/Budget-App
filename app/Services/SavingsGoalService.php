@@ -2,13 +2,13 @@
 
 namespace App\Services;
 
+use App\Models\ActivityLog;
 use App\Models\Expense;
 use App\Models\ExpenseCategory;
 use App\Models\SavingsGoal;
 use App\Models\WeeklyBudget;
 use App\Notifications\SavingsGoalAchieved;
 use App\Notifications\SavingsMilestoneReached;
-use App\Models\ActivityLog;
 use Illuminate\Notifications\DatabaseNotification;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -128,7 +128,6 @@ class SavingsGoalService
         try {
             $user->notify(new SavingsMilestoneReached($reached, $goal->target_name, $goal->id));
         } catch (\Throwable $e) {
-            // FIX
             NotificationLogger::logFailure($user, SavingsMilestoneReached::class, $e, $goal->target_name);
         }
     }

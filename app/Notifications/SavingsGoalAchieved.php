@@ -21,7 +21,7 @@ class SavingsGoalAchieved extends Notification
     {
         $channels = ['database'];
 
-        if (\App\Models\AppSetting::current()->email_notifications_enabled) {
+        if ($notifiable->wantsEmail()) {
             $channels[] = 'mail';
         }
 
