@@ -6,6 +6,7 @@ use App\Models\ActivityLog;
 use Illuminate\Auth\Events\PasswordReset;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Password;
+use Illuminate\Support\Str;
 use Livewire\Component;
 
 class ResetPassword extends Component
@@ -46,11 +47,12 @@ class ResetPassword extends Component
             ],
             function ($user, $password) {
                 $user->forceFill([
-                    'password' => Hash::make($password),
+                    'password'       => Hash::make($password),
+                    'remember_token' => Str::random(60),
                 ])->save();
-
+            
                 event(new PasswordReset($user));
-
+            
                 ActivityLog::create([
                     'user_id'    => $user->id,
                     'event_type' => 'password_reset_completed',

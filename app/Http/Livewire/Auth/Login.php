@@ -66,7 +66,7 @@ class Login extends Component
                 return;
             }
 
-            request()->session()->regenerate();
+            session()->regenerate();
 
             RateLimiter::clear($throttleKey);
 

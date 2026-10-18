@@ -306,7 +306,7 @@ class Dashboard extends Component
             $chartColors[] = $categoryColorMap[$cat] ?? $appSettings->primary_color;
         }
 
-        $rolloverAmount = max(0, $totalAllowance - $this->currentBudget->total_allowance);
+        $rolloverAmount = max(0, $totalAllowance - (float) $this->currentBudget->total_allowance - (float) $this->currentBudget->added_funds);
 
         // NEW: aggregate savings-goal figures for the "Savings Progress"
         // card. Achieved goals count toward the saved total and percentage

@@ -4,6 +4,7 @@ namespace App\Http\Livewire\Student;
 
 use App\Models\ActivityLog;
 use App\Models\WeeklyBudget;
+use Illuminate\Support\Facades\DB;
 use Livewire\Component;
 
 class AddBudgetFunds extends Component
@@ -58,7 +59,14 @@ class AddBudgetFunds extends Component
             return redirect()->route('student.dashboard');
         }
 
-        $budget->increment('remaining_allowance', (float) $this->amount);
+        $amount = round((float) $this->amount, 2);
+
+        DB::transaction(function () use ($budget, $amount) {
+            $locked = WeeklyBudget::whereKey($budget->id)->lockForUpdate()->first();
+            $locked->remaining_allowance += $amount;
+            $locked->added_funds         += $amount;
+            $locked->save();
+        });
 
         ActivityLog::create([
             'user_id'    => auth()->id(),

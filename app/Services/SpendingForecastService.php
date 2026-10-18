@@ -33,6 +33,7 @@ class SpendingForecastService
         $endDate       = $cycle['endDate'];
         $daysElapsed   = (int) $cycle['daysElapsed'];
         $daysRemaining = max(1, (int) $cycle['daysRemaining']);
+        $cycleLength   = max(1, (int) $startDate->diffInDays($cycle['nextResetDate']));
         $resetDay      = $cycle['targetResetDay'];
 
         $remaining = (float) $budget->remaining_allowance;
@@ -74,7 +75,7 @@ class SpendingForecastService
         $totalSpent = 0.0;
         $running    = 0.0;
 
-        for ($i = 0; $i < 7; $i++) {
+        for ($i = 0; $i < $cycleLength; $i++) {
             $date     = $startDate->copy()->addDays($i);
             $key      = $date->format('Y-m-d');
             $labels[] = $date->format('D');
@@ -89,16 +90,16 @@ class SpendingForecastService
         }
 
         // ---- Projection --------------------------------------------------------------------
-        $isFinalDay = $daysElapsed >= 7 || $daysRemaining <= 1;
+        $isFinalDay = $daysElapsed >= $cycleLength || $daysRemaining <= 1;
         $pace       = $daysElapsed > 0 ? $totalSpent / $daysElapsed : 0.0;
-        $futureDays = $isFinalDay ? 0 : 7 - $daysElapsed;
+        $futureDays = $isFinalDay ? 0 : $cycleLength - $daysElapsed;
 
         $projectedSpend     = $pace * $futureDays;
         $projectedRemaining = max(0, $remaining - $projectedSpend);
         $shortfall          = max(0, $projectedSpend - $remaining);
 
         $projected = [];
-        for ($i = 0; $i < 7; $i++) {
+        for ($i = 0; $i < $cycleLength; $i++) {
             $day = $i + 1;
             if ($isFinalDay || $day < $daysElapsed) {
                 $projected[] = null;
@@ -121,7 +122,7 @@ class SpendingForecastService
             $covered      = (int) floor($remaining / $pace);
             $firstMissing = $daysElapsed + $covered + 1; // 1-based day index with no money
             $runsOutLabel = $startDate->copy()->addDays($firstMissing - 1)->format('l');
-            $shortDays    = max(1, 8 - $firstMissing);
+            $shortDays    = max(1, ($cycleLength + 1) - $firstMissing);
         }
 
         // ---- Single verdict ----------------------------------------------------------------
@@ -278,7 +279,7 @@ class SpendingForecastService
 
         try {
             $settings = IntegrationSetting::current();
-            $apiKey   = $settings->groq_api_key ?: env('GROQ_API_KEY');
+            $apiKey   = $settings->groq_api_key ?: config('services.groq.key');
 
             if (empty($apiKey)) {
                 return $fallback;
@@ -295,7 +296,7 @@ class SpendingForecastService
                 ->timeout(6)
                 ->post('https://api.groq.com/openai/v1/chat/completions', [
                     'model'      => $settings->groq_text_model,
-                    'max_tokens' => 600,
+                    'max_tokens' => 800,
                     'messages'   => [
                         [
                             'role'    => 'system',
@@ -309,7 +310,9 @@ class SpendingForecastService
                         ],
                         ['role' => 'user', 'content' => $userPrompt],
                     ],
-                ]);
+                ] + (str_contains(strtolower((string) $settings->groq_text_model), 'gpt-oss')
+                    ? ['reasoning_effort' => 'low']
+                    : []));
 
             if (!$response->successful()) {
                 Log::warning('Spending Forecast: Groq request failed', [

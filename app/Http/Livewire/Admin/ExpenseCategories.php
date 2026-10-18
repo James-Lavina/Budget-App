@@ -309,7 +309,7 @@ class ExpenseCategories extends Component
 
         if ($inUseCount > 0) {
             $this->confirmingDeleteId = null;
-            session()->flash('error', "Can't delete \"{$cat->name}\" — it's used by {$inUseCount} logged " . str('expense')->plural($inUseCount) . ". Disable it instead to hide it from new entries.");
+            session()->flash('error', "Can't delete \"{$cat->name}\" — it's used by {$inUseCount} logged " . \Illuminate\Support\Str::plural('expense', $inUseCount) . ". Disable it instead to hide it from new entries.");
             return;
         }
 

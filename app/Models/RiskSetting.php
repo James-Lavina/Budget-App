@@ -28,7 +28,7 @@ class RiskSetting extends Model
     // thresholds live, instead of the ~4 hardcoded copies today.
     public static function current(): self
     {
-        return Cache::rememberForever('risk_settings', fn () => self::firstOrCreate([]));
+        return Cache::rememberForever('risk_settings', fn () => self::firstOrCreate([])->fresh());
     }
 
     protected static function booted()

@@ -65,17 +65,22 @@ class BudgetSetup extends Component
      */
     public function getFirstCycleProperty(): array
     {
-        $today = Carbon::today();
-        $nextReset = strtolower($today->format('l')) === strtolower($this->reset_day)
-            ? $today->copy()->addWeek()
-            : $today->copy()->next($this->reset_day);
+        $days     = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+        $resetDay = in_array($this->reset_day, $days, true) ? $this->reset_day : 'Monday';
 
-        $days = max(1, min(7, (int) $today->diffInDays($nextReset)));
+        $today = Carbon::today();
+
+        $nextReset = strtolower($today->format('l')) === strtolower($resetDay)
+            ? $today->copy()->addWeek()
+            : $today->copy()->next($resetDay);
+
+        $dayCount = max(1, min(7, (int) $today->diffInDays($nextReset)));
+
         $perDay = is_numeric($this->total_allowance) && $this->total_allowance > 0
-            ? round($this->total_allowance / $days, 2)
+            ? round($this->total_allowance / $dayCount, 2)
             : 0.00;
 
-        return ['days' => $days, 'nextReset' => $nextReset, 'perDay' => $perDay];
+        return ['days' => $dayCount, 'nextReset' => $nextReset, 'perDay' => $perDay];
     }
 
     public function next()

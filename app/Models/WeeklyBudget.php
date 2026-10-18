@@ -13,6 +13,7 @@ class WeeklyBudget extends Model
         'user_id',
         'total_allowance',
         'remaining_allowance',
+        'added_funds',
         'reset_day',
         'cycle_start_date',
     ];
@@ -21,6 +22,7 @@ class WeeklyBudget extends Model
         'cycle_start_date' => 'date',
         'total_allowance' => 'float',
         'remaining_allowance' => 'float',
+        'added_funds' => 'float'
     ];
 
     // Inverse: This budget baseline belongs strictly to one student

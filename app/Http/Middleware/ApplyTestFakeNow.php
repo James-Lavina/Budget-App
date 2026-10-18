@@ -30,16 +30,21 @@ class ApplyTestFakeNow
 {
     public function handle(Request $request, Closure $next)
     {
+        $applied = false;
+
         if (app()->environment('local') && session()->has('test_fake_now')) {
             Carbon::setTestNow(session('test_fake_now'));
+            $applied = true;
         }
 
-        $response = $next($request);
-
-        // Restore real time before this bubbles up to StartSession's
-        // cookie-expiration / session-save logic.
-        Carbon::setTestNow(null);
-
-        return $response;
+        try {
+            return $next($request);
+        } finally {
+            // Restore real time before StartSession computes cookie expiry,
+            // but only if this middleware is the one that faked it.
+            if ($applied) {
+                Carbon::setTestNow(null);
+            }
+        }
     }
 }

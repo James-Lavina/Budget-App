@@ -142,6 +142,7 @@ class BudgetCycleService
             $budget->update([
                 'total_allowance'     => $nextCycleBaseline,
                 'remaining_allowance' => $newWeeklyTotal,
+                'added_funds'         => 0,
                 'reset_day'           => $nextCycleResetDay,
                 'cycle_start_date'    => $newCycleStart,
             ]);

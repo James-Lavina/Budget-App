@@ -23,7 +23,7 @@ class AppSetting extends Model
     public static function current(): self
     {
         return Cache::rememberForever('app_settings', function () {
-            return static::firstOrCreate(['id' => 1], [
+            return static::first() ?? static::create([
                 'application_name'            => 'BudgetWise',
                 'primary_color'               => '#4f39fa',
                 'email_notifications_enabled' => true,

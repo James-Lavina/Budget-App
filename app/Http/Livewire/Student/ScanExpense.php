@@ -37,7 +37,7 @@ class ScanExpense extends Component
     public $dateNotice = null;
 
     protected $rules = [
-        'receiptImage' => 'required|image|max:4096',
+        'receiptImage' => 'required|mimes:jpg,jpeg,png,webp|max:4096',
     ];
 
     protected function verifyRules()
@@ -104,15 +104,17 @@ class ScanExpense extends Component
         $this->usedBackupOcr = false;
         $this->dateNotice = null;
         $currentYear = Carbon::today()->format('Y');
+        $receipt     = null;
+        $storedPath  = null;
 
         try {
             $settings = \App\Models\IntegrationSetting::current();
-            $apiKey = $settings->groq_api_key ?: env('GROQ_API_KEY');
+            $apiKey = $settings->groq_api_key ?: config('services.groq.key');
 
             $dbCategories = ExpenseCategory::selectable()->pluck('name')->toArray();
 
             if (empty($dbCategories)) {
-                throw new \Exception('Please seed your expense_categories table first.');
+                throw new \DomainException('Receipt scanning is unavailable right now. Please log the expense manually.');
             }
 
             $categoryListString = implode(', ', array_map(fn ($cat) => "'$cat'", $dbCategories));
@@ -159,33 +161,50 @@ class ScanExpense extends Component
             $extracted = null;
             $lastFailureReason = null;
 
+            $maxAttempts       = empty($apiKey) ? 0 : 2;
+            $extracted         = null;
+            $lastFailureReason = null;
+
             for ($attempt = 1; $attempt <= $maxAttempts; $attempt++) {
-                $groqResponse = Http::withHeaders([
-                    'Authorization' => 'Bearer ' . $apiKey,
-                ])->timeout(45)->post('https://api.groq.com/openai/v1/chat/completions', [
-                    'model' => $settings->groq_vision_model,
-                    'messages' => [
-                        ['role' => 'system', 'content' => $systemInstruction],
-                        [
-                            'role' => 'user',
-                            'content' => [
-                                ['type' => 'text', 'text' => $userText],
-                                ['type' => 'image_url', 'image_url' => ['url' => $dataUri]],
+                try {
+                    $groqResponse = Http::withHeaders([
+                        'Authorization' => 'Bearer ' . $apiKey,
+                    ])->timeout(45)->post('https://api.groq.com/openai/v1/chat/completions', [
+                        'model' => $settings->groq_vision_model,
+                        'messages' => [
+                            ['role' => 'system', 'content' => $systemInstruction],
+                            [
+                                'role' => 'user',
+                                'content' => [
+                                    ['type' => 'text', 'text' => $userText],
+                                    ['type' => 'image_url', 'image_url' => ['url' => $dataUri]],
+                                ],
                             ],
                         ],
-                    ],
-                    'temperature' => 0.0,
-                    'response_format' => ['type' => 'json_object'],
-                ]);
+                        'temperature' => 0.0,
+                        'response_format' => ['type' => 'json_object'],
+                    ]);
+                } catch (\Illuminate\Http\Client\ConnectionException $e) {
+                    \Illuminate\Support\Facades\Log::warning('Groq Vision connection failed', [
+                        'attempt' => $attempt,
+                        'message' => $e->getMessage(),
+                    ]);
+                    $lastFailureReason = 'The AI vision service timed out.';
+
+                    if ($attempt < $maxAttempts) {
+                        sleep(3);
+                    }
+                    continue;
+                }
 
                 if ($groqResponse->successful()) {
                     $groqData = $groqResponse->json();
                     $aiOutput = $groqData['choices'][0]['message']['content'] ?? '';
-                    $cleanJson = trim(preg_replace('/^```json|```$/m', '', $aiOutput));
+                    $cleanJson = trim(preg_replace('/```json|```/m', '', $aiOutput));
                     $extracted = json_decode($cleanJson, true);
 
                     \Illuminate\Support\Facades\Log::info('Groq Vision success', [
-                        'attempt' => $attempt,
+                        'attempt'    => $attempt,
                         'raw_output' => $aiOutput,
                     ]);
 
@@ -197,8 +216,8 @@ class ScanExpense extends Component
                 } else {
                     \Illuminate\Support\Facades\Log::error('Groq Vision error', [
                         'attempt' => $attempt,
-                        'status' => $groqResponse->status(),
-                        'body' => $groqResponse->body(),
+                        'status'  => $groqResponse->status(),
+                        'body'    => $groqResponse->body(),
                     ]);
 
                     $lastFailureReason = 'AI vision service returned an error (HTTP ' . $groqResponse->status() . ').';
@@ -222,9 +241,7 @@ class ScanExpense extends Component
                         'items_found' => count($ocrResult['items']),
                     ]);
                 } else {
-                    $receipt->update(['status' => 'failed']);
-
-                    throw new \Exception(
+                    throw new \DomainException(
                         $lastFailureReason ?? 'Could not identify any line items on this receipt. Try a clearer, well-lit photo.'
                     );
                 }
@@ -275,10 +292,27 @@ class ScanExpense extends Component
             $this->isProcessing = false;
             $this->step = 2;
             $this->receiptImage = null;
-        } catch (\Exception $e) {
-            $this->isProcessing = false;
-            $this->receiptImage = null;
+        } catch (\DomainException $e) {
+            $this->failScan($receipt, $storedPath);
             session()->flash('error', $e->getMessage());
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::error('Receipt scan failed', ['message' => $e->getMessage()]);
+            $this->failScan($receipt, $storedPath);
+            session()->flash('error', 'We could not read that receipt. Try a clearer, well-lit photo or log it manually.');
+        }
+    }
+
+    private function failScan(?Receipt $receipt, ?string $storedPath): void
+    {
+        $this->isProcessing = false;
+        $this->receiptImage = null;
+
+        if ($receipt) {
+            $receipt->update(['status' => 'failed']);
+        }
+
+        if ($storedPath) {
+            Storage::disk('local')->delete($storedPath);
         }
     }
 
@@ -425,10 +459,11 @@ class ScanExpense extends Component
                 continue;
             }
 
-            if (preg_match('/(?P<name>.+?)[\s:xX@\-]*\D*(?P<amount>\d{1,6}(?:[.,]\d{2}))\s*$/u', $line, $m)) {
+            if (preg_match('/^(?P<name>.+?)[\s.:\-]+(?:[xX@]\s*)?(?:PHP|P|₱)?\s*(?P<amount>\d{1,3}(?:,\d{3})*\.\d{2}|\d{1,6}[.,]\d{2})\s*$/u', $line, $m)) {
                 $name = trim(preg_replace('/[^\p{L}\p{N}\s\'\-\.&]/u', ' ', $m['name']));
                 $name = trim(preg_replace('/\s+/', ' ', $name));
-                $amount = (float) str_replace(',', '.', $m['amount']);
+                $raw    = $m['amount'];
+                $amount = (float) (preg_match('/,\d{3}/', $raw) ? str_replace(',', '', $raw) : str_replace(',', '.', $raw));
 
                 if ($name === '' || $amount <= 0 || $amount > 999999) {
                     continue;
@@ -576,8 +611,9 @@ class ScanExpense extends Component
             session()->flash('success', count($this->items) . ' item(s) logged from your receipt!');
 
             return redirect()->route('student.dashboard');
-        } catch (\Exception $e) {
-            session()->flash('error', 'Verification Save Error: ' . $e->getMessage());
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::error('Receipt save failed', ['message' => $e->getMessage()]);
+            session()->flash('error', 'We could not save those items. Please try again.');
         }
     }
 

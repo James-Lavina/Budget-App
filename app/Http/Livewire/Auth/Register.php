@@ -95,9 +95,9 @@ class Register extends Component
             return;
         }
 
-        $this->validate();
-
         RateLimiter::hit($throttleKey, 60);
+
+        $this->validate();
 
         $user = User::create([
             'name' => $this->name,
@@ -119,8 +119,6 @@ class Register extends Component
         ]);
 
         Auth::login($user);
-
-        RateLimiter::clear($throttleKey);
 
         return redirect()->route('student.dashboard');
     }

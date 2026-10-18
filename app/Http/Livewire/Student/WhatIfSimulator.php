@@ -285,7 +285,7 @@ class WhatIfSimulator extends Component
 
         try {
             $settings = \App\Models\IntegrationSetting::current();
-            $apiKey = $settings->groq_api_key ?: (env('GROQ_API_KEY') ?? config('services.groq.key'));
+            $apiKey = $settings->groq_api_key ?: config('services.groq.key');
 
             if (!empty($apiKey)) {
                 $prompt = "Analyze this college student's spending simulation:\n" .

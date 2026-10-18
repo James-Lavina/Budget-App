@@ -79,10 +79,9 @@ class Dashboard extends Component
 
         $ocrProcessed = Receipt::where('status', 'processed')->count();
 
-        $aiForecastRequests = ActivityLog::whereIn('event_type', [
-            'ai_forecast_requested',
-            'ai_simulation_requested',
-        ])->count();
+        $aiForecastCount = ActivityLog::where('event_type', 'ai_forecast_requested')->count();
+        $aiSimulationCount = ActivityLog::where('event_type', 'ai_simulation_requested')->count();
+        $aiForecastRequests = $aiForecastCount + $aiSimulationCount;
 
         $registrationLabels = [];
         $registrationCounts = [];
@@ -145,6 +144,8 @@ class Dashboard extends Component
             'activityLabels'        => $activityLabels,
             'activityCounts'        => $activityCounts,
             'recentActivities'      => $recentActivities,
+            'aiForecastCount'       => $aiForecastCount,
+            'aiSimulationCount'     => $aiSimulationCount,
         ])->layout('layouts.admin');
     }
 }
