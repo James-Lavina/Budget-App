@@ -9,11 +9,16 @@ class DatabaseSeeder extends Seeder
     /**
      * Seed the application's database.
      *
+     * AppSetting, RiskSetting and IntegrationSetting need no seeder: each one
+     * creates its single row with defaults the first time it is read.
+     *
      * @return void
      */
     public function run()
     {
-        $this->call(AdminUserSeeder::class);
-        $this->call(ExpenseCategorySeeder::class);
+        $this->call([
+            ExpenseCategorySeeder::class,
+            SuperAdminSeeder::class,
+        ]);
     }
 }
