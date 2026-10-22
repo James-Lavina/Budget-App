@@ -14,12 +14,12 @@ use Livewire\Component;
 class BudgetSetup extends Component
 {
     public const TOTAL_STEPS = 4;
+    public const CYCLE_LENGTH_DAYS = 7;
 
     public $step = 1;
 
     // Step 1
     public $total_allowance;
-    public $reset_day = 'Monday';
 
     // Step 3 (optional)
     public $goal_name;
@@ -44,7 +44,6 @@ class BudgetSetup extends Component
         if ($step === 1) {
             return [
                 'total_allowance' => ['required', 'numeric', 'min:1', 'max:999999', 'regex:/^\d+(\.\d{1,2})?$/'],
-                'reset_day'       => 'required|string|in:Monday,Tuesday,Wednesday,Thursday,Friday,Saturday,Sunday',
             ];
         }
 
@@ -60,27 +59,25 @@ class BudgetSetup extends Component
     }
 
     /**
-     * Mirrors BudgetCycleService::resolve(): the first cycle starts today and
-     * ends at the next occurrence of the reset day, so it can be shorter than 7 days.
+     * The reset day is always the day setup is completed, so the first cycle is a
+     * full 7 days and matches BudgetCycleService::resolve() (start day == reset day
+     * => next reset is start + 1 week).
      */
     public function getFirstCycleProperty(): array
     {
-        $days     = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-        $resetDay = in_array($this->reset_day, $days, true) ? $this->reset_day : 'Monday';
-
-        $today = Carbon::today();
-
-        $nextReset = strtolower($today->format('l')) === strtolower($resetDay)
-            ? $today->copy()->addWeek()
-            : $today->copy()->next($resetDay);
-
-        $dayCount = max(1, min(7, (int) $today->diffInDays($nextReset)));
+        $today     = Carbon::today();
+        $nextReset = $today->copy()->addWeek();
 
         $perDay = is_numeric($this->total_allowance) && $this->total_allowance > 0
-            ? round($this->total_allowance / $dayCount, 2)
+            ? round($this->total_allowance / self::CYCLE_LENGTH_DAYS, 2)
             : 0.00;
 
-        return ['days' => $dayCount, 'nextReset' => $nextReset, 'perDay' => $perDay];
+        return [
+            'days'      => self::CYCLE_LENGTH_DAYS,
+            'resetDay'  => $today->format('l'),
+            'nextReset' => $nextReset,
+            'perDay'    => $perDay,
+        ];
     }
 
     public function next()
@@ -127,18 +124,23 @@ class BudgetSetup extends Component
         $user      = auth()->user();
         $allowance = round((float) $this->total_allowance, 2);
 
-        DB::transaction(function () use ($user, $allowance) {
+        // Resolved once, at completion time, so cycle start and reset day can never disagree
+        // (e.g. a wizard left open across midnight).
+        $today    = Carbon::today();
+        $resetDay = $today->format('l');
+
+        DB::transaction(function () use ($user, $allowance, $today, $resetDay) {
             $user->update([
                 'default_allowance' => $allowance,
-                'default_reset_day' => $this->reset_day,
+                'default_reset_day' => $resetDay,
             ]);
 
             WeeklyBudget::create([
                 'user_id'             => $user->id,
                 'total_allowance'     => $allowance,
                 'remaining_allowance' => $allowance,
-                'reset_day'           => $this->reset_day,
-                'cycle_start_date'    => Carbon::today(),
+                'reset_day'           => $resetDay,
+                'cycle_start_date'    => $today,
             ]);
 
             if (filled($this->goal_name) && filled($this->goal_amount)) {
@@ -153,15 +155,12 @@ class BudgetSetup extends Component
             }
         });
 
-        // NEW: the seed event for a student's entire history had no
-        // audit trail — lower priority, but this is the record an admin
-        // would look for first when reviewing an account from day one.
         ActivityLog::create([
             'user_id'    => $user->id,
             'event_type' => 'budget_setup_completed',
             'ip_address' => request()->ip(),
             'user_agent' => request()->userAgent(),
-            'details'    => "Completed initial budget setup: ₱" . number_format($allowance, 2) . " weekly allowance, resets {$this->reset_day}"
+            'details'    => "Completed initial budget setup: ₱" . number_format($allowance, 2) . " weekly allowance, resets {$resetDay}"
                 . (filled($this->goal_name) && filled($this->goal_amount)
                     ? ", with savings goal \"{$this->goal_name}\" (₱" . number_format((float) $this->goal_amount, 2) . ')'
                     : ''),

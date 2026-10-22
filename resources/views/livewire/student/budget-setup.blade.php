@@ -56,62 +56,61 @@
 
             {{-- STEP 1 --}}
             @if($step === 1)
-                @php $fc = $this->firstCycle; @endphp
-                <div class="space-y-6">
-                    <div class="text-center space-y-1">
-                        <h2 class="text-xl sm:text-2xl font-extrabold text-slate-900">What's your weekly allowance?</h2>
-                        <p class="text-sm text-slate-500">We'll use this to calculate a calm, realistic daily budget.</p>
+            @php $fc = $this->firstCycle; @endphp
+            <div class="space-y-6">
+                <div class="text-center space-y-1">
+                    <h2 class="text-xl sm:text-2xl font-extrabold text-slate-900">What's your weekly allowance?</h2>
+                    <p class="text-sm text-slate-500">We'll use this to calculate a calm, realistic daily budget.</p>
+                </div>
+
+                <div class="max-w-sm mx-auto space-y-4">
+                    <div class="space-y-1.5">
+                        <label for="total_allowance" class="block text-xs font-bold text-slate-700">Weekly Allowance</label>
+                        <div class="relative">
+                            <span class="absolute inset-y-0 left-0 pl-4 flex items-center text-slate-400 font-bold">₱</span>
+                            <input id="total_allowance" type="number" step="0.01" min="0" placeholder="0.00" autofocus
+                                wire:model.lazy="total_allowance"
+                                wire:keyup.enter="next"
+                                onblur="formatMoney(this)"
+                                class="w-full pl-9 pr-4 py-3.5 bg-slate-50 border rounded-2xl text-2xl font-black text-slate-900 placeholder-slate-300 focus:bg-white focus:outline-none focus:ring-2 transition-all
+                                @error('total_allowance') border-rose-300 focus:border-rose-500 focus:ring-rose-500/20 @else border-slate-200 focus:border-[var(--brand)] focus:ring-[rgba(var(--brand-rgb),0.2)] @enderror">
+                        </div>
+                        @error('total_allowance') <span class="text-xs text-rose-600 font-medium">{{ $message }}</span> @enderror
                     </div>
 
-                    <div class="max-w-sm mx-auto space-y-4">
-                        <div class="space-y-1.5">
-                            <label for="total_allowance" class="block text-xs font-bold text-slate-700">Weekly Allowance</label>
-                            <div class="relative">
-                                <span class="absolute inset-y-0 left-0 pl-4 flex items-center text-slate-400 font-bold">₱</span>
-                                <input id="total_allowance" type="number" step="0.01" min="0" placeholder="0.00" autofocus
-                                    wire:model.lazy="total_allowance"
-                                    wire:keyup.enter="next"
-                                    onblur="formatMoney(this)"
-                                    class="w-full pl-9 pr-4 py-3.5 bg-slate-50 border rounded-2xl text-2xl font-black text-slate-900 placeholder-slate-300 focus:bg-white focus:outline-none focus:ring-2 transition-all
-                                    @error('total_allowance') border-rose-300 focus:border-rose-500 focus:ring-rose-500/20 @else border-slate-200 focus:border-[var(--brand)] focus:ring-[rgba(var(--brand-rgb),0.2)] @enderror">
-                            </div>
-                            @error('total_allowance') <span class="text-xs text-rose-600 font-medium">{{ $message }}</span> @enderror
+                    {{-- Quick select --}}
+                    <div class="flex flex-wrap justify-center gap-2">
+                        @foreach([500, 1000, 1500, 2000] as $preset)
+                            <button type="button"
+                                wire:click="$set('total_allowance', '{{ number_format($preset, 2, '.', '') }}')"
+                                class="px-3 py-1.5 text-xs font-bold font-mono rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 transition-colors">
+                                ₱{{ number_format($preset) }}
+                            </button>
+                        @endforeach
+                    </div>
+
+                    @if($fc['perDay'] > 0)
+                        <div class="text-center">
+                            <span class="inline-block px-4 py-1.5 rounded-full bg-[rgba(var(--brand-rgb),0.08)] text-[var(--brand)] text-xs font-bold">
+                                That's about ₱{{ number_format($fc['perDay'], 2) }} per day
+                            </span>
                         </div>
+                    @endif
 
-                        {{-- Quick select --}}
-                        <div class="flex flex-wrap justify-center gap-2">
-                            @foreach([500, 1000, 1500, 2000] as $preset)
-                                <button type="button"
-                                    wire:click="$set('total_allowance', '{{ number_format($preset, 2, '.', '') }}')"
-                                    class="px-3 py-1.5 text-xs font-bold font-mono rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 transition-colors">
-                                    ₱{{ number_format($preset) }}
-                                </button>
-                            @endforeach
+                    {{-- Reset day is fixed to the setup day; informational only --}}
+                    <div class="flex items-start gap-3 p-3.5 rounded-2xl bg-slate-50 border border-slate-100">
+                        <div class="h-8 w-8 rounded-lg bg-[rgba(var(--brand-rgb),0.08)] text-[var(--brand)] flex items-center justify-center shrink-0">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
                         </div>
-
-                        @if($fc['perDay'] > 0)
-                            <div class="text-center space-y-1.5">
-                                <span class="inline-block px-4 py-1.5 rounded-full bg-[rgba(var(--brand-rgb),0.08)] text-[var(--brand)] text-xs font-bold">
-                                    That's about ₱{{ number_format($fc['perDay'], 2) }} per day
-                                </span>
-                                <p class="text-[11px] text-slate-400 font-medium">
-                                    Your first week runs {{ $fc['days'] }} {{ Str::plural('day', $fc['days']) }}, until {{ $fc['nextReset']->format('l, M j') }}. Every week after that is 7 days.
-                                </p>
-                            </div>
-                        @endif
-
-                        <div class="space-y-1.5">
-                            <label for="reset_day" class="block text-xs font-bold text-slate-700">Weekly Reset Day</label>
-                            <select id="reset_day" wire:model="reset_day"
-                                class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-medium text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:border-[var(--brand)] focus:ring-[rgba(var(--brand-rgb),0.2)] transition-all">
-                                @foreach(['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'] as $day)
-                                    <option value="{{ $day }}">{{ $day }}</option>
-                                @endforeach
-                            </select>
-                            <p class="text-[11px] text-slate-400 font-medium">Unspent money rolls over to your next week automatically.</p>
+                        <div class="space-y-0.5">
+                            <p class="text-xs font-extrabold text-slate-900">Your week resets every {{ $fc['resetDay'] }}</p>
+                            <p class="text-[11px] text-slate-500 font-medium leading-snug">
+                                Your first week runs {{ $fc['days'] }} days, until {{ $fc['nextReset']->format('l, M j') }}. Unspent money rolls over automatically. You can change the reset day later in Settings.
+                            </p>
                         </div>
                     </div>
                 </div>
+            </div>
             @endif
 
             {{-- STEP 2 --}}

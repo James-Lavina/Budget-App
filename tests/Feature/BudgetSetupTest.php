@@ -49,18 +49,6 @@ class BudgetSetupTest extends TestCase
         }
     }
 
-    public function test_step_one_rejects_an_invalid_reset_day()
-    {
-        $this->actingAs($this->makeStudent());
-
-        Livewire::test(BudgetSetup::class)
-            ->set('total_allowance', '1000')
-            ->set('reset_day', 'Funday')
-            ->call('next')
-            ->assertHasErrors(['reset_day'])
-            ->assertSet('step', 1);
-    }
-
     public function test_wizard_moves_forward_and_back()
     {
         $this->actingAs($this->makeStudent());
@@ -78,12 +66,12 @@ class BudgetSetupTest extends TestCase
 
     public function test_finishing_creates_the_budget_the_goal_and_an_audit_entry()
     {
+        // Today is Wednesday 2026-10-07, so the reset day must be Wednesday.
         $user = $this->makeStudent(['default_allowance' => 500, 'default_reset_day' => 'Monday']);
         $this->actingAs($user);
 
         Livewire::test(BudgetSetup::class)
             ->set('total_allowance', '1500')
-            ->set('reset_day', 'Friday')
             ->call('next')
             ->call('next')
             ->set('goal_name', 'Laptop')
@@ -97,12 +85,12 @@ class BudgetSetupTest extends TestCase
         $this->assertNotNull($budget);
         $this->assertEquals(1500.00, $budget->total_allowance);
         $this->assertEquals(1500.00, $budget->remaining_allowance);
-        $this->assertSame('Friday', $budget->reset_day);
+        $this->assertSame('Wednesday', $budget->reset_day);
         $this->assertSame('2026-10-07', $budget->cycle_start_date->format('Y-m-d'));
 
         $user->refresh();
         $this->assertEquals(1500.00, $user->default_allowance);
-        $this->assertSame('Friday', $user->default_reset_day);
+        $this->assertSame('Wednesday', $user->default_reset_day);
 
         $goal = SavingsGoal::where('user_id', $user->id)->first();
         $this->assertSame('Laptop', $goal->target_name);
@@ -188,15 +176,15 @@ class BudgetSetupTest extends TestCase
         $this->assertSame(1, WeeklyBudget::where('user_id', $user->id)->count());
     }
 
-    public function test_first_cycle_preview_accounts_for_a_short_first_week()
+    public function test_first_cycle_is_always_a_full_seven_days_ending_on_the_setup_weekday()
     {
         $this->actingAs($this->makeStudent());
 
-        // Today is Wednesday and the reset day is Monday => 5 days.
+        // Today is Wednesday => resets every Wednesday, 1000 / 7 = 142.86.
         Livewire::test(BudgetSetup::class)
             ->set('total_allowance', '1000')
-            ->set('reset_day', 'Monday')
-            ->assertSee('about ₱200.00 per day')
-            ->assertSee('Your first week runs 5 days');
+            ->assertSee('about ₱142.86 per day')
+            ->assertSee('Your week resets every Wednesday')
+            ->assertSee('Your first week runs 7 days, until Wednesday, Oct 14');
     }
 }
