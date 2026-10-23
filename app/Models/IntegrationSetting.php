@@ -1,9 +1,14 @@
 <?php
 
+
 namespace App\Models;
 
+
+use Illuminate\Contracts\Encryption\DecryptException;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Crypt;
+
 
 class IntegrationSetting extends Model
 {
@@ -15,17 +20,41 @@ class IntegrationSetting extends Model
         'groq_max_tokens',
     ];
 
-    // Laravel encrypts/decrypts this automatically on save/read.
+
     protected $casts = [
-        'groq_api_key'      => 'encrypted',
-        'groq_temperature'  => 'float',
-        'groq_max_tokens'   => 'integer',
+        'groq_temperature' => 'float',
+        'groq_max_tokens'  => 'integer',
     ];
 
+
     /**
-     * Singleton accessor — this app only ever has one settings row.
-     * Cached so every Groq API call doesn't hit the DB + decrypt on every request.
+     * Encrypt on write.
      */
+    public function setGroqApiKeyAttribute($value): void
+    {
+        $this->attributes['groq_api_key'] = filled($value) ? Crypt::encryptString($value) : null;
+    }
+
+
+    /**
+     * Decrypt on read. An undecryptable value (e.g. APP_KEY changed after a
+     * clone/migration) is treated as "no key saved" instead of crashing the page.
+     */
+    public function getGroqApiKeyAttribute($value): ?string
+    {
+        if (blank($value)) {
+            return null;
+        }
+
+
+        try {
+            return Crypt::decryptString($value);
+        } catch (DecryptException $e) {
+            return null;
+        }
+    }
+
+
     public static function current(): self
     {
         return Cache::rememberForever('integration_settings', function () {
@@ -37,6 +66,7 @@ class IntegrationSetting extends Model
             ]);
         });
     }
+
 
     public static function flush(): void
     {
