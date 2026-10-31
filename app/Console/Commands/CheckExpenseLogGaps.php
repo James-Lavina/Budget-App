@@ -41,7 +41,6 @@ class CheckExpenseLogGaps extends Command
         foreach ($students as $user) {
             // Savings transfers are not "logging an expense".
             $lastExpenseDate = Expense::where('user_id', $user->id)
-                ->whereNull('savings_goal_id')
                 ->max('transaction_date');
 
             $anchorDate = $lastExpenseDate

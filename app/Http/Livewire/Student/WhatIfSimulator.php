@@ -110,10 +110,6 @@ class WhatIfSimulator extends Component
 
         $this->spentToday = (float) Expense::where('user_id', Auth::id())
             ->whereDate('transaction_date', $cycle['spentTodayDate'])
-            ->whereNull('savings_goal_id')
-            ->whereDoesntHave('category', function ($q) {
-                $q->where('name', 'LIKE', '%Savings%');
-            })
             ->sum('amount');
 
         if ($this->daysRemaining > 0) {

@@ -48,14 +48,13 @@ class BudgetCycleService
 
         $spentTodayDate = $isFastForwarded ? $evalDate->copy()->addDay() : $evalDate;
 
+        // CHANGED: no longer excludes savings — savings transfers now count as spend.
         $totalSpentInCycle = Expense::where('user_id', $user->id)
             ->whereBetween('transaction_date', [$startDate, $endDate])
-            ->whereNull('savings_goal_id')
-            ->whereDoesntHave('category', function ($query) {
-                $query->where('name', 'LIKE', '%Savings%');
-            })
             ->sum('amount');
 
+        // Kept as a sub-metric only (used for the weekly review email's "saved ₱X" wording),
+        // NOT added to the pool anymore since it's already inside totalSpentInCycle.
         $totalSavedInCycle = Expense::where('user_id', $user->id)
             ->whereBetween('transaction_date', [$startDate, $endDate])
             ->whereNotNull('savings_goal_id')
@@ -63,7 +62,7 @@ class BudgetCycleService
 
         $effectiveTotalAllowance = max(
             (float) $budget->total_allowance,
-            (float) $budget->remaining_allowance + $totalSpentInCycle + $totalSavedInCycle
+            (float) $budget->remaining_allowance + $totalSpentInCycle
         );
 
         return compact(
@@ -98,11 +97,9 @@ class BudgetCycleService
         DB::transaction(function () use ($budget, $user, $startDate, $targetResetDay, $today) {
             // Re-check under a row lock: a concurrent request may have already rolled this cycle.
             $locked = WeeklyBudget::whereKey($budget->id)->lockForUpdate()->first();
-
             if (!$locked || Carbon::parse($locked->cycle_start_date)->startOfDay()->ne($startDate)) {
                 return;
             }
-
             $budget = $locked;
 
             $endingResetDate = strtolower($startDate->format('l')) === strtolower($targetResetDay)
@@ -111,12 +108,9 @@ class BudgetCycleService
 
             $endingEndDate = $endingResetDate->copy()->subSecond();
 
-            $amountSpent = (float) Expense::where('user_id', $user->id)
+            // CHANGED: total spend now includes savings transfers.
+            $amountSpentTotal = (float) Expense::where('user_id', $user->id)
                 ->whereBetween('transaction_date', [$startDate, $endingEndDate])
-                ->whereNull('savings_goal_id')
-                ->whereDoesntHave('category', function ($query) {
-                    $query->where('name', 'LIKE', '%Savings%');
-                })
                 ->sum('amount');
 
             $amountSaved = (float) Expense::where('user_id', $user->id)
@@ -124,9 +118,12 @@ class BudgetCycleService
                 ->whereNotNull('savings_goal_id')
                 ->sum('amount');
 
+            // Pure spend (excluding savings), kept only for the email's breakdown wording.
+            $amountSpentOnly = $amountSpentTotal - $amountSaved;
+
             $endingPool = max(
                 (float) $budget->total_allowance,
-                (float) $budget->remaining_allowance + $amountSpent + $amountSaved
+                (float) $budget->remaining_allowance + $amountSpentTotal
             );
 
             $unspent = max(0.00, (float) $budget->remaining_allowance);
@@ -147,10 +144,10 @@ class BudgetCycleService
                 'cycle_start_date'    => $newCycleStart,
             ]);
 
-            $severity = ($endingPool > 0 && ($amountSpent / $endingPool) >= 0.9) ? 'medium' : 'success';
+            $severity = ($endingPool > 0 && ($amountSpentTotal / $endingPool) >= 0.9) ? 'medium' : 'success';
 
             try {
-                $user->notify(new WeeklyBudgetReview($amountSpent, $unspent, $severity, $amountSaved));
+                $user->notify(new WeeklyBudgetReview($amountSpentOnly, $unspent, $severity, $amountSaved));
             } catch (\Throwable $e) {
                 NotificationLogger::logFailure($user, WeeklyBudgetReview::class, $e);
             }

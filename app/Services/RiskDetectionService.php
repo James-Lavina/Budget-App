@@ -57,7 +57,6 @@ class RiskDetectionService
 
         $spentToday = (float) Expense::where('user_id', $user->id)
             ->whereDate('transaction_date', $cycle['spentTodayDate'])
-            ->whereNull('savings_goal_id')
             ->sum('amount');
 
         // Identical to the Dashboard's "Safe per Day".
@@ -326,15 +325,10 @@ class RiskDetectionService
     private function checkCategoryConcentration($user, Carbon $cycleStart, Carbon $cycleEnd, float $pool): void
     {
         $type = 'category_concentration';
-
         $this->expireBefore($user, $type, $cycleStart);
 
         $totalSpent = (float) Expense::where('user_id', $user->id)
             ->whereBetween('transaction_date', [$cycleStart, $cycleEnd])
-            ->whereNull('savings_goal_id')
-            ->whereDoesntHave('category', function ($q) {
-                $q->where('name', 'LIKE', '%Savings%');
-            })
             ->sum('amount');
 
         $dominant   = null;
@@ -343,9 +337,7 @@ class RiskDetectionService
         if ($totalSpent >= 200 && $pool > 0 && ($totalSpent / $pool) >= 0.30) {
             $top = Expense::where('expenses.user_id', $user->id)
                 ->whereBetween('expenses.transaction_date', [$cycleStart, $cycleEnd])
-                ->whereNull('expenses.savings_goal_id')
                 ->join('expense_categories', 'expenses.expense_category_id', '=', 'expense_categories.id')
-                ->where('expense_categories.name', 'NOT LIKE', '%Savings%')
                 ->select('expense_categories.name', DB::raw('SUM(expenses.amount) as total'))
                 ->groupBy('expense_categories.name')
                 ->orderByDesc('total')
@@ -353,7 +345,6 @@ class RiskDetectionService
 
             if ($top) {
                 $percentage = (int) round(($top->total / $totalSpent) * 100);
-
                 if ($percentage >= 50) {
                     $dominant = $top;
                 }
@@ -384,18 +375,18 @@ class RiskDetectionService
                 (float) $dominant->total,
                 $totalSpent
             ))->toArray($user);
-        
+
             $data = $same->data;
-        
+
             if (($data['description'] ?? null) !== $fresh['description']) {
                 $data['description'] = $fresh['description'];
                 $same->update(['data' => $data]);
             }
-        
+
             if (!$isOpen($same)) {
                 $this->markNotification($same, false);
             }
-        
+
             return;
         }
 
@@ -407,7 +398,6 @@ class RiskDetectionService
                 $totalSpent
             ));
         } catch (\Throwable $e) {
-            // FIX
             NotificationLogger::logFailure($user, CategoryConcentrationWarning::class, $e, $dominant->name);
         }
     }
@@ -421,7 +411,6 @@ class RiskDetectionService
         if ($settings->rapid_spending_enabled) {
             $large = Expense::where('user_id', $user->id)
                 ->whereDate('transaction_date', $spentTodayDate)
-                ->whereNull('savings_goal_id')
                 ->where('amount', '>=', $floor)
                 ->get(['amount']);
 

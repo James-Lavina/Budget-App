@@ -44,18 +44,11 @@ class SpendingForecastService
             ->whereBetween('transaction_date', [$startDate, $endDate])
             ->get();
 
-        $allByDay   = []; // everything that left the budget (spending + savings transfers)
-        $spendByDay = []; // real spending only
+        $allByDay = []; // everything that left the budget, including savings transfers
 
         foreach ($cycleExpenses as $e) {
-            $key      = $e->transaction_date->format('Y-m-d');
-            $isSaving = !is_null($e->savings_goal_id) || stripos($e->category->name ?? '', 'savings') !== false;
-
+            $key = $e->transaction_date->format('Y-m-d');
             $allByDay[$key] = ($allByDay[$key] ?? 0) + (float) $e->amount;
-
-            if (!$isSaving) {
-                $spendByDay[$key] = ($spendByDay[$key] ?? 0) + (float) $e->amount;
-            }
         }
 
         // Money at the start of the cycle, reconstructed so the chart's last real point == remaining.
@@ -63,10 +56,6 @@ class SpendingForecastService
 
         $spentToday = (float) Expense::where('user_id', $user->id)
             ->whereDate('transaction_date', $cycle['spentTodayDate'])
-            ->whereNull('savings_goal_id')
-            ->whereDoesntHave('category', function ($q) {
-                $q->where('name', 'LIKE', '%Savings%');
-            })
             ->sum('amount');
 
         // ---- Chart series: money left at the end of each day -------------------------------
@@ -82,7 +71,7 @@ class SpendingForecastService
 
             if ($i + 1 <= $daysElapsed) {
                 $running    += $allByDay[$key] ?? 0;
-                $totalSpent += $spendByDay[$key] ?? 0;
+                $totalSpent += $allByDay[$key] ?? 0;
                 $actual[]    = round(max(0, $pool - $running), 2);
             } else {
                 $actual[] = null;

@@ -4,24 +4,22 @@
     // other — both read off the same single ranked state the component
     // already computes.
     $statusPillMap = [
-        'depleted'       => ['label' => 'Budget exhausted', 'class' => 'bg-rose-50 text-rose-600'],
-        'pace_critical'  => ['label' => 'Spending too fast', 'class' => 'bg-rose-50 text-rose-600'],
-        'savings_locked' => ['label' => 'Saved today', 'class' => 'bg-[rgba(var(--brand-rgb),0.08)] text-[var(--brand)]'],
-        'quota_hit'      => ['label' => "Today's budget met", 'class' => 'bg-amber-50 text-amber-600'],
-        'fresh_start'    => ['label' => 'Fresh start this week', 'class' => 'bg-slate-100 text-slate-500'],
-        'on_track'       => ['label' => 'On track this week', 'class' => 'bg-emerald-50 text-emerald-600'],
-    ];
-    $pill = $statusPillMap[$dashboardState] ?? $statusPillMap['on_track'];
+       'depleted'       => ['label' => 'Budget exhausted', 'class' => 'bg-rose-50 text-rose-600'],
+       'pace_critical'  => ['label' => 'Spending too fast', 'class' => 'bg-rose-50 text-rose-600'],
+       'quota_hit'      => ['label' => "Today's budget met", 'class' => 'bg-amber-50 text-amber-600'],
+       'fresh_start'    => ['label' => 'Fresh start this week', 'class' => 'bg-slate-100 text-slate-500'],
+       'on_track'       => ['label' => 'On track this week', 'class' => 'bg-emerald-50 text-emerald-600'],
+   ];
+   $pill = $statusPillMap[$dashboardState] ?? $statusPillMap['on_track'];
 
-    $bannerMap = [
-        'depleted'       => ['class' => 'bg-rose-50 border-rose-100 text-rose-800', 'icon' => 'exclamation-circle'],
-        'pace_critical'  => ['class' => 'bg-rose-50 border-rose-100 text-rose-800', 'icon' => 'trending-up'],
-        'savings_locked' => ['class' => 'bg-[rgba(var(--brand-rgb),0.06)] border-[rgba(var(--brand-rgb),0.15)] text-[var(--brand)]', 'icon' => 'check-circle'],
-        'quota_hit'      => ['class' => 'bg-amber-50 border-amber-100 text-amber-800', 'icon' => 'clock'],
-        'fresh_start'    => ['class' => 'bg-slate-50 border-slate-200 text-slate-600', 'icon' => 'sparkles'],
-        'on_track'       => ['class' => 'bg-emerald-50 border-emerald-100 text-emerald-800', 'icon' => 'check-circle'],
-    ];
-    $banner = $bannerMap[$dashboardState] ?? $bannerMap['on_track'];
+   $bannerMap = [
+       'depleted'       => ['class' => 'bg-rose-50 border-rose-100 text-rose-800', 'icon' => 'exclamation-circle'],
+       'pace_critical'  => ['class' => 'bg-rose-50 border-rose-100 text-rose-800', 'icon' => 'trending-up'],
+       'quota_hit'      => ['class' => 'bg-amber-50 border-amber-100 text-amber-800', 'icon' => 'clock'],
+       'fresh_start'    => ['class' => 'bg-slate-50 border-slate-200 text-slate-600', 'icon' => 'sparkles'],
+       'on_track'       => ['class' => 'bg-emerald-50 border-emerald-100 text-emerald-800', 'icon' => 'check-circle'],
+   ];
+   $banner = $bannerMap[$dashboardState] ?? $bannerMap['on_track'];
 @endphp
 
 <div class="min-h-screen py-3 sm:py-6 md:py-8 px-2.5 sm:px-6 lg:px-8 text-slate-800 antialiased relative pb-28 sm:pb-24 w-full max-w-full overflow-x-hidden">
@@ -146,8 +144,6 @@
                             You've used your full budget. {{ $daysRemaining }} {{ Str::plural('day', $daysRemaining) }} left until reset.
                         @elseif($isPaceCritical)
                             At ₱{{ number_format($dailyVelocity, 2) }}/day, aim for ₱{{ number_format($remainingDailyRate, 2) }}/day to catch back up.
-                        @elseif($isSavingsLocked)
-                            You saved ₱{{ number_format($todaySavingsTotal, 2) }} today. ₱{{ number_format($safeToSpend, 2) }} left for today.
                         @elseif($isDailyQuotaHit)
                             Today's daily budget is used. ₱{{ number_format($remainingDailyRate, 2) }}/day left for the rest of the week.
                         @elseif($hasNoSpendingYet)
@@ -219,8 +215,6 @@
                     @php
                         if ($dashboardState === 'depleted' || $dashboardState === 'pace_critical') {
                             $safeToSpendIconStyle = 'bg-rose-50 text-rose-600';
-                        } elseif ($dashboardState === 'savings_locked') {
-                            $safeToSpendIconStyle = 'bg-[rgba(var(--brand-rgb),0.08)] text-[var(--brand)]';
                         } elseif ($dashboardState === 'quota_hit') {
                             $safeToSpendIconStyle = 'bg-amber-50 text-amber-600';
                         } else {
@@ -335,18 +329,6 @@
                         </div>
                     @endforeach
                 </div>
-
-                @if($totalSavedThisWeek > 0)
-                    <div class="mt-3 pt-3 border-t border-dashed border-slate-200 flex items-center justify-between text-xs bg-[rgba(var(--brand-rgb),0.06)] px-2.5 py-2 rounded-lg">
-                        <div class="flex items-center gap-2 min-w-0">
-                            <span class="w-2.5 h-2.5 rounded-full shrink-0 bg-[var(--brand)]"></span>
-                            <span class="font-semibold text-[var(--brand)]">Saved this week</span>
-                        </div>
-                        <span class="font-black text-[var(--brand)] font-mono shrink-0 pl-2">
-                            ₱{{ number_format($totalSavedThisWeek, 2) }}
-                        </span>
-                    </div>
-                @endif
 
                 @php
                     $chartLabels = [];

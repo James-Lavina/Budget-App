@@ -38,11 +38,6 @@ class Dashboard extends Component
             return redirect()->route('student.budget-setup');
         }
 
-        // FIX: previously only SpendingForecast::mount() called this — a
-        // student who never visits /forecast could go stale-alerted for days
-        // just from time passing (same spend, fewer days left = worse pace)
-        // with no expense action to trigger a re-evaluation. The Dashboard is
-        // the page students actually land on, so alerts should refresh here too.
         app(RiskDetectionService::class)->evaluateSpendingRisk(auth()->user());
 
         $this->computeBehavioralMetrics();
@@ -65,9 +60,9 @@ class Dashboard extends Component
 
         $this->daysRemaining = $cycle['daysRemaining'];
 
+        // CHANGED: savings transfers now count toward spentToday.
         $spentToday = Expense::where('user_id', auth()->id())
             ->whereDate('transaction_date', $cycle['spentTodayDate'])
-            ->whereNull('savings_goal_id')
             ->sum('amount');
 
         $this->spentToday = $spentToday;
@@ -75,6 +70,7 @@ class Dashboard extends Component
         $startingBudgetForRemainingDays = $this->currentBudget->remaining_allowance + $spentToday;
         $dailyQuota = $startingBudgetForRemainingDays / $this->daysRemaining;
         $this->dailyQuota = $dailyQuota;
+
         $this->safeToSpend = max(0.00, $dailyQuota - $spentToday);
     }
 
@@ -127,16 +123,10 @@ class Dashboard extends Component
                 'details'    => "Deleted \"{$expense->item_name}\" (₱" . number_format($expense->amount, 2) . ") dated " . Carbon::parse($expense->transaction_date)->format('Y-m-d'),
             ]);
 
-            // Delete transaction. NOTE: no longer wiping today's RiskLog
-            // entries here — evaluateSpendingRisk() replaces only the
-            // matching anomaly_type in place if it still applies.
             $expense->delete();
 
             $riskService = app(RiskDetectionService::class);
             $riskService->evaluateSpendingRisk(auth()->user());
-
-            // NEW: if this expense had triggered a large-transaction alert,
-            // resolve it — the flagged purchase no longer exists.
             $riskService->resolveLargeTransactionAlert(auth()->user(), $expense->id);
         });
 
@@ -144,6 +134,7 @@ class Dashboard extends Component
         $this->emit('refreshSavings');
         $this->emit('expenseUpdated');
         $this->emit('refreshNotifications');
+
         session()->flash('success', 'Expense deleted! Balance updated.');
     }
 
@@ -157,25 +148,15 @@ class Dashboard extends Component
         $today         = $cycle['today'];
         $daysElapsed   = $cycle['daysElapsed'];
 
-        $todaySavingsTotal = Expense::where('user_id', auth()->id())
-            ->whereDate('transaction_date', $today)
-            ->whereNotNull('savings_goal_id')
-            ->sum('amount');
-        $hasSavingsToday = $todaySavingsTotal > 0;
-
+        // CHANGED: savings now included in total spent.
         $totalSpent = Expense::where('user_id', auth()->id())
             ->whereBetween('transaction_date', [$startDate, $cycle['evalDate']->copy()->endOfDay()])
-            ->whereNull('savings_goal_id')
-            ->whereDoesntHave('category', function ($query) {
-                $query->where('name', 'LIKE', '%Savings%');
-            })
             ->sum('amount');
 
         $hasNoSpendingYet = $totalSpent <= 0;
 
         $dailyVelocity       = $totalSpent / $daysElapsed;
         $futureDaysRemaining = $cycle['daysRemaining'];
-
         $isFinalDay          = $daysElapsed >= 7 || $futureDaysRemaining <= 1;
         $projectedRemaining  = $isFinalDay
             ? (float) $this->currentBudget->remaining_allowance
@@ -189,19 +170,16 @@ class Dashboard extends Component
 
         $isDepleted     = $this->currentBudget->remaining_allowance <= 0;
         $isPaceCritical = !$isDepleted && !$isFinalDay && ($projectedDaysLeft < $this->daysRemaining);
-        $isQuotaHitRaw  = !$isDepleted && !$isPaceCritical && ($this->safeToSpend <= 0);
-        $isSavingsLocked = $isQuotaHitRaw && $hasSavingsToday;
-        $isDailyQuotaHit = $isQuotaHitRaw && !$hasSavingsToday;
+        $isDailyQuotaHit = !$isDepleted && !$isPaceCritical && ($this->safeToSpend <= 0);
 
         $totalAllowance      = max(1, $cycle['effectiveTotalAllowance']);
         $remainingPercentage = round(($this->currentBudget->remaining_allowance / $totalAllowance) * 100);
 
+        // CHANGED: removed the 'savings_locked' state — savings no longer treated specially.
         if ($isDepleted) {
             $dashboardState = 'depleted';
         } elseif ($isPaceCritical) {
             $dashboardState = 'pace_critical';
-        } elseif ($isSavingsLocked) {
-            $dashboardState = 'savings_locked';
         } elseif ($isDailyQuotaHit) {
             $dashboardState = 'quota_hit';
         } elseif ($hasNoSpendingYet) {
@@ -229,10 +207,10 @@ class Dashboard extends Component
             $dailyCategoryBreakdown[$dateKey] = [];
         }
 
+        // CHANGED: no longer excludes Savings category from the legend.
         $categoriesInCycle = Expense::where('expenses.user_id', auth()->id())
             ->whereBetween('transaction_date', [$startDate, $endDate])
             ->join('expense_categories', 'expenses.expense_category_id', '=', 'expense_categories.id')
-            ->where('expense_categories.name', 'NOT LIKE', '%Savings%')
             ->distinct()
             ->orderBy('expense_categories.name', 'asc')
             ->pluck('expense_categories.color', 'expense_categories.name');
@@ -255,18 +233,7 @@ class Dashboard extends Component
             $categoryTotalsMap[$cat->name] = (float) $cat->total_amount;
         }
 
-        $totalSavedThisWeek = 0.0;
-        foreach ($categoryTotalsMap as $catName => $amount) {
-            if (stripos($catName, 'savings') !== false) {
-                $totalSavedThisWeek += $amount;
-                unset($categoryTotalsMap[$catName]);
-            }
-        }
-
-        // NEW: the single largest non-savings category this cycle, for the
-        // hero card's "Biggest Category" stat. $categoryTotalsMap stays
-        // ordered by total_amount desc (savings already stripped above),
-        // so the first key is the winner. Null when nothing's been spent.
+        // CHANGED: no longer stripped out of the map — Savings is just another category now.
         $biggestCategoryName = array_key_first($categoryTotalsMap);
 
         $cycleExpenses = Expense::with('category')
@@ -277,10 +244,6 @@ class Dashboard extends Component
         foreach ($cycleExpenses as $exp) {
             $expDateKey = Carbon::parse($exp->transaction_date)->format('Y-m-d');
             $catName = $exp->category->name ?? 'Uncategorized';
-
-            if (stripos($catName, 'savings') !== false) {
-                continue;
-            }
 
             if (array_key_exists($expDateKey, $dailyTotals)) {
                 $dailyTotals[$expDateKey] += (float) $exp->amount;
@@ -308,12 +271,6 @@ class Dashboard extends Component
 
         $rolloverAmount = max(0, $totalAllowance - (float) $this->currentBudget->total_allowance - (float) $this->currentBudget->added_funds);
 
-        // NEW: aggregate savings-goal figures for the "Savings Progress"
-        // card. Achieved goals count toward the saved total and percentage
-        // (a completed goal is still "money saved"), but not toward the
-        // active goal count shown next to it, matching the mockup's
-        // "4 goals · ₱2,850 saved" phrasing (goal count = still-active
-        // targets, saved total = everything banked so far).
         $savingsGoalsForTotals = SavingsGoal::where('user_id', auth()->id())
             ->whereIn('status', ['active', 'achieved'])
             ->get();
@@ -334,8 +291,6 @@ class Dashboard extends Component
             'rolloverAmount'         => $rolloverAmount,
             'totalSpent'             => $totalSpent,
             'hasNoSpendingYet'       => $hasNoSpendingYet,
-            'totalSavedThisWeek'     => $totalSavedThisWeek,
-            'todaySavingsTotal'      => $todaySavingsTotal,
             'dailyVelocity'          => $dailyVelocity,
             'futureDaysRemaining'    => $futureDaysRemaining,
             'projectedRemaining'     => $projectedRemaining,
@@ -343,7 +298,6 @@ class Dashboard extends Component
             'remainingDailyRate'     => $remainingDailyRate,
             'isDepleted'             => $isDepleted,
             'isPaceCritical'         => $isPaceCritical,
-            'isSavingsLocked'        => $isSavingsLocked,
             'isDailyQuotaHit'        => $isDailyQuotaHit,
             'isFinalDay'             => $isFinalDay,
             'remainingPercentage'    => $remainingPercentage,

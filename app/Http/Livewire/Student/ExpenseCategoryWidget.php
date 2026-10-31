@@ -25,13 +25,12 @@ class ExpenseCategoryWidget extends Component
     public function loadCategoryBreakdown()
     {
         $userId = auth()->id();
-
         $activeBudget = WeeklyBudget::where('user_id', $userId)->latest()->first();
+
         if ($activeBudget) {
             $rawExpenses = Expense::where('expenses.user_id', $userId)
                 ->where('transaction_date', '>=', $activeBudget->cycle_start_date)
                 ->join('expense_categories', 'expenses.expense_category_id', '=', 'expense_categories.id')
-                ->where('expense_categories.name', 'NOT LIKE', '%Savings%')
                 ->select('expense_categories.name', 'expense_categories.color', DB::raw('SUM(expenses.amount) as total_amount'))
                 ->groupBy('expense_categories.name', 'expense_categories.color')
                 ->get();
@@ -45,7 +44,6 @@ class ExpenseCategoryWidget extends Component
                         'name'       => $item->name,
                         'total'      => floatval($item->total_amount),
                         'percentage' => number_format(($item->total_amount / $this->totalSpent) * 100, 1),
-                        // NEW: same source of truth as the Dashboard chart.
                         'color'      => ExpenseCategory::colorToHex($item->color),
                     ];
                 })->toArray();
