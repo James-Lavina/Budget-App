@@ -108,40 +108,45 @@ class DashboardStatesTest extends TestCase
             ->assertSee('daily budget is used');
     }
 
-    public function test_quota_hit_with_a_savings_transfer_today_is_shown_as_savings_locked()
+    public function test_quota_hit_when_a_savings_transfer_pushes_today_over_the_daily_budget()
     {
         [$user, , $food] = $this->signIn(1000.00);
+
         $this->makeExpense($user, $food, 400.00, '2026-10-07 10:00:00');
+
         $goal = SavingsGoal::create([
             'user_id' => $user->id, 'target_name' => 'Laptop', 'target_amount' => 5000,
             'current_saved' => 50, 'status' => 'active',
         ]);
+
         $this->makeExpense($user, $this->makeCategory('Savings'), 50.00, '2026-10-07 11:00:00', [
             'savings_goal_id' => $goal->id,
             'item_name'       => 'Laptop',
         ]);
 
         Livewire::test(Dashboard::class)
-            ->assertViewHas('dashboardState', 'savings_locked')
-            ->assertViewHas('totalSavedThisWeek', 50)
-            ->assertSee('Saved today')
-            ->assertSee('You saved ₱50.00 today');
+            ->assertSet('spentToday', 450)
+            ->assertSet('safeToSpend', 0)
+            ->assertViewHas('dashboardState', 'quota_hit')
+            ->assertSee('daily budget is used');
     }
 
-    public function test_savings_transfers_do_not_count_as_spending_today()
+    public function test_savings_transfers_count_as_spending_today()
     {
         [$user] = $this->signIn(950.00);
+
         $goal = SavingsGoal::create([
             'user_id' => $user->id, 'target_name' => 'Laptop', 'target_amount' => 5000,
             'current_saved' => 50, 'status' => 'active',
         ]);
+
         $this->makeExpense($user, $this->makeCategory('Savings'), 50.00, '2026-10-07 11:00:00', [
             'savings_goal_id' => $goal->id,
         ]);
 
         Livewire::test(Dashboard::class)
-            ->assertSet('spentToday', 0)
-            ->assertViewHas('totalSpent', 0);
+            ->assertSet('spentToday', 50)
+            ->assertViewHas('totalSpent', 50);
     }
 
     public function test_biggest_category_and_week_label()

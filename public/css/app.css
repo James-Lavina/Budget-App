@@ -1572,6 +1572,9 @@ input:where([type='file']):focus {
 .border-\[rgba\(var\(--brand-rgb\)\2c 0\.18\)\] {
   border-color: rgba(var(--brand-rgb),0.18);
 }
+.border-\[rgba\(var\(--brand-rgb\)\2c 0\.3\)\] {
+  border-color: rgba(var(--brand-rgb),0.3);
+}
 .border-\[var\(--brand\)\] {
   border-color: var(--brand);
 }
@@ -4359,6 +4362,9 @@ input:where([type='file']):focus {
 .pt-2 {
   padding-top: 0.5rem;
 }
+.pt-2\.5 {
+  padding-top: 0.625rem;
+}
 .pt-3 {
   padding-top: 0.75rem;
 }
@@ -5570,6 +5576,9 @@ input:where([type='file']):focus {
 }
 .hover\:bg-\[rgba\(var\(--brand-rgb\)\2c 0\.08\)\]:hover {
   background-color: rgba(var(--brand-rgb),0.08);
+}
+.hover\:bg-\[rgba\(var\(--brand-rgb\)\2c 0\.12\)\]:hover {
+  background-color: rgba(var(--brand-rgb),0.12);
 }
 .hover\:bg-\[rgba\(var\(--brand-rgb\)\2c 0\.14\)\]:hover {
   background-color: rgba(var(--brand-rgb),0.14);

@@ -131,21 +131,23 @@ class SpendingForecastServiceTest extends TestCase
         $this->assertSame([], array_filter($result['chart']['projected'], fn ($v) => $v !== null));
     }
 
-    public function test_savings_transfers_do_not_count_as_pace()
+    public function test_savings_transfers_count_toward_pace()
     {
         $user = $this->makeStudent();
         $this->makeBudget($user, 700.00);
+
         $savings = $this->makeCategory('Savings');
         $goal = \App\Models\SavingsGoal::create([
             'user_id' => $user->id, 'target_name' => 'Laptop', 'target_amount' => 5000,
             'current_saved' => 300, 'status' => 'active',
         ]);
+
         $this->makeExpense($user, $savings, 300.00, '2026-10-06 12:00:00', ['savings_goal_id' => $goal->id]);
 
         $result = $this->forecast($user);
 
-        $this->assertEquals(0.0, $result['metrics']['pace']);
-        $this->assertSame('fresh_start', $result['metrics']['state']);
+        $this->assertEquals(100.0, $result['metrics']['pace']); // 300 / 3 days
+        $this->assertSame('on_track', $result['metrics']['state']);
     }
 
     public function test_ai_tips_are_returned_logged_and_cached()

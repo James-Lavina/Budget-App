@@ -19,6 +19,7 @@ class AddBudgetFundsTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+
         Notification::fake();
         Carbon::setTestNow('2026-10-07 12:00:00');
     }
@@ -42,9 +43,11 @@ class AddBudgetFundsTest extends TestCase
             ->assertRedirect(route('student.dashboard'));
 
         $budget->refresh();
+
         $this->assertEquals(950.50, $budget->remaining_allowance);
         $this->assertEquals(250.50, $budget->added_funds);
         $this->assertEquals(1000.00, $budget->total_allowance);
+
         $this->assertDatabaseHas('activity_logs', [
             'user_id'    => $user->id,
             'event_type' => 'budget_funds_added',
@@ -58,10 +61,12 @@ class AddBudgetFundsTest extends TestCase
         $this->actingAs($user);
 
         $component = Livewire::test(AddBudgetFunds::class);
+
         $component->set('amount', '100')->call('addFunds');
         $component->set('amount', '50')->call('addFunds');
 
         $budget->refresh();
+
         $this->assertEquals(650.00, $budget->remaining_allowance);
         $this->assertEquals(150.00, $budget->added_funds);
     }
@@ -84,6 +89,7 @@ class AddBudgetFundsTest extends TestCase
     public function test_genuine_rollover_is_still_displayed()
     {
         $user = $this->makeStudent();
+
         // State right after a reset: 1000 base + 400 carried over, no top-ups.
         $this->makeBudget($user, 1400.00);
         $this->actingAs($user);
@@ -96,6 +102,7 @@ class AddBudgetFundsTest extends TestCase
     public function test_rollover_and_top_up_together_show_only_the_rollover()
     {
         $user = $this->makeStudent();
+
         // 1000 base + 400 rollover + 300 top-up = 1700 remaining.
         $this->makeBudget($user, 1700.00, ['added_funds' => 300]);
         $this->actingAs($user);
@@ -104,18 +111,21 @@ class AddBudgetFundsTest extends TestCase
             ->assertViewHas('rolloverAmount', 400);
     }
 
-    public function test_cycle_reset_clears_added_funds_and_carries_over_the_unspent_balance()
+    public function test_cycle_rollover_clears_added_funds_and_carries_over_the_unspent_balance()
     {
         Carbon::setTestNow('2026-10-12 09:00:00'); // Monday, reset day
 
         $user   = $this->makeStudent();
         $budget = $this->makeBudget($user, 400.00, ['added_funds' => 200]);
 
-        app(BudgetCycleService::class)->resolve($budget, $user);
+        $result = app(BudgetCycleService::class)->rollover($budget, $user, 1000.00);
+
+        $this->assertNotNull($result);
 
         $budget->refresh();
+
         $this->assertEquals(0.00, $budget->added_funds);
-        $this->assertEquals(1400.00, $budget->remaining_allowance); // 1000 base + 400 unspent
+        $this->assertEquals(1400.00, $budget->remaining_allowance); // 1000 entered + 400 unspent
         $this->assertEquals(1000.00, $budget->total_allowance);
         $this->assertSame('2026-10-12', $budget->cycle_start_date->format('Y-m-d'));
     }
@@ -134,6 +144,7 @@ class AddBudgetFundsTest extends TestCase
         }
 
         $budget->refresh();
+
         $this->assertEquals(500.00, $budget->remaining_allowance);
         $this->assertEquals(0.00, $budget->added_funds);
     }

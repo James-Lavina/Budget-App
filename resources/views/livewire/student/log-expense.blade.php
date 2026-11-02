@@ -44,7 +44,7 @@
             <div class="space-y-1.5">
                 <label for="item_name" class="block text-xs font-bold text-slate-700">Item Name</label>
                 <input id="item_name" type="text" autofocus autocomplete="off"
-                    wire:model.debounce.400ms="item_name" placeholder="e.g., Chickenjoy Meal"
+                    wire:model.debounce.1000ms="item_name" placeholder="e.g., Chickenjoy Meal"
                     class="w-full px-4 py-3 bg-slate-100/80 border-0 rounded-2xl text-slate-900 font-semibold text-sm placeholder-slate-400 focus:bg-white focus:ring-2 focus:ring-[rgba(var(--brand-rgb),0.2)] transition-all">
                 @error('item_name')
                     <span class="text-[11px] font-semibold text-rose-500 block mt-1">{{ $message }}</span>

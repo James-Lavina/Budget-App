@@ -50,5 +50,6 @@ class Kernel extends HttpKernel
         'maintenance.check' => \App\Http\Middleware\CheckMaintenanceMode::class,
         'super_admin' => \App\Http\Middleware\CheckSuperAdmin::class,
         'student' => \App\Http\Middleware\EnsureUserIsStudent::class,
+        'cycle.current' => \App\Http\Middleware\EnsureCycleIsCurrent::class,
     ];
 }

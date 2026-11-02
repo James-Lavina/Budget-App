@@ -216,11 +216,13 @@ class StudentWidgetsTest extends TestCase
     // Category breakdown widget (dashboard)
     // ---------------------------------------------------------------
 
-    public function test_the_category_widget_totals_this_cycle_without_savings()
+    public function test_the_category_widget_totals_this_cycle_including_savings()
     {
         [$user] = $this->signIn();
+
         $food  = $this->makeCategory('Food & Dining', ['color' => 'bg-emerald-50 text-emerald-700']);
         $trans = $this->makeCategory('Transportation', ['color' => 'bg-blue-50 text-blue-700']);
+
         $this->makeExpense($user, $food, 300.00, '2026-10-06 12:00:00');
         $this->makeExpense($user, $trans, 100.00, '2026-10-07 09:00:00');
         $this->makeExpense($user, $food, 999.00, '2026-09-30 12:00:00'); // previous cycle
@@ -229,16 +231,18 @@ class StudentWidgetsTest extends TestCase
         $component = Livewire::test(ExpenseCategoryWidget::class)
             ->call('loadCategoryBreakdown')
             ->assertSet('hasExpenses', true)
-            ->assertSet('totalSpent', 400)
+            ->assertSet('totalSpent', 450)
             ->assertDispatchedBrowserEvent('updateCategoryChart');
 
         $rows = collect($component->get('categoriesData'))->keyBy('name');
-        $this->assertCount(2, $rows);
+
+        $this->assertCount(3, $rows);
         $this->assertEquals(300, $rows['Food & Dining']['total']);
-        $this->assertSame('75.0', $rows['Food & Dining']['percentage']);
+        $this->assertSame('66.7', $rows['Food & Dining']['percentage']);
         $this->assertSame('#059669', $rows['Food & Dining']['color']);
-        $this->assertSame('25.0', $rows['Transportation']['percentage']);
+        $this->assertSame('22.2', $rows['Transportation']['percentage']);
         $this->assertSame('#2563eb', $rows['Transportation']['color']);
+        $this->assertSame('11.1', $rows['Savings']['percentage']);
     }
 
     public function test_the_category_widget_is_empty_without_spending()

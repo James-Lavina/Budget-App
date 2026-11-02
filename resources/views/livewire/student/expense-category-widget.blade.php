@@ -3,7 +3,7 @@
     <!-- HEADER SECTION -->
     <div class="pb-2">
         <h3 class="text-sm font-extrabold text-slate-900">Expense Categories</h3>
-        <span class="text-[10px] text-slate-400 font-semibold">Where your money went this week</span>
+        <span class="text-[11px] text-slate-500 font-semibold">Where your money went this week</span>
     </div>
 
     @if(!$hasExpenses)

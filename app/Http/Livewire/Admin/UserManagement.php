@@ -312,10 +312,6 @@ class UserManagement extends Component
 
         $totalSpent = (float) Expense::where('user_id', $user->id)
             ->whereBetween('transaction_date', [$cycle['startDate'], $cycle['evalDate']->copy()->endOfDay()])
-            ->whereNull('savings_goal_id')
-            ->whereDoesntHave('category', function ($query) {
-                $query->where('name', 'LIKE', '%Savings%');
-            })
             ->sum('amount');
 
         $dailyVelocity     = $totalSpent / $daysElapsed;

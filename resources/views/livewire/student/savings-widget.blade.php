@@ -5,7 +5,7 @@
             <h3 class="text-xs font-bold text-slate-900 uppercase tracking-widest">
                 Active Savings Goal
             </h3>
-            <p class="text-[11px] text-slate-400 font-medium mt-0.5">Real-time progress toward your active milestones.</p>
+            <p class="text-[12px] text-slate-500 font-medium mt-0.5">Real-time progress toward your active milestones.</p>
         </div>
         
         <a href="{{ route('student.goals') }}" class="text-[10px] font-extrabold uppercase text-[var(--brand)] hover:opacity-80 tracking-wider flex items-center gap-0.5 shrink-0 transition-colors">

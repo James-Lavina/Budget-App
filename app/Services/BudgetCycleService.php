@@ -10,12 +10,13 @@ use Illuminate\Support\Facades\DB;
 
 class BudgetCycleService
 {
+    /**
+     * Read-only. Never mutates the budget. The weekly reset is performed
+     * explicitly through rollover() after the student confirms the new allowance.
+     * $readOnly is kept only for backward compatibility with existing callers.
+     */
     public function resolve(WeeklyBudget $budget, $user, bool $readOnly = false): array
     {
-        if (!$readOnly) {
-            $this->maybeResetCycle($budget, $user);
-        }
-
         $today          = Carbon::today();
         $startDate      = Carbon::parse($budget->cycle_start_date)->startOfDay();
         $targetResetDay = $budget->reset_day ?? $user->default_reset_day ?? 'Monday';
@@ -37,6 +38,7 @@ class BudgetCycleService
 
         if ($latestExpenseDate) {
             $latestCarbon = Carbon::parse($latestExpenseDate)->startOfDay();
+
             if ($latestCarbon->gt($today)) {
                 $evalDate        = $latestCarbon;
                 $isFastForwarded = true;
@@ -48,13 +50,12 @@ class BudgetCycleService
 
         $spentTodayDate = $isFastForwarded ? $evalDate->copy()->addDay() : $evalDate;
 
-        // CHANGED: no longer excludes savings — savings transfers now count as spend.
+        // Savings transfers count as spend.
         $totalSpentInCycle = Expense::where('user_id', $user->id)
             ->whereBetween('transaction_date', [$startDate, $endDate])
             ->sum('amount');
 
-        // Kept as a sub-metric only (used for the weekly review email's "saved ₱X" wording),
-        // NOT added to the pool anymore since it's already inside totalSpentInCycle.
+        // Sub-metric only (weekly review wording). Already inside totalSpentInCycle.
         $totalSavedInCycle = Expense::where('user_id', $user->id)
             ->whereBetween('transaction_date', [$startDate, $endDate])
             ->whereNotNull('savings_goal_id')
@@ -75,13 +76,16 @@ class BudgetCycleService
 
     public function isWithinCurrentCycle(WeeklyBudget $budget, $user, $date, bool $readOnly = false): bool
     {
-        $cycle = $this->resolve($budget, $user, $readOnly);
+        $cycle     = $this->resolve($budget, $user, $readOnly);
         $checkDate = Carbon::parse($date);
 
         return $checkDate->betweenIncluded($cycle['startDate'], $cycle['endDate']);
     }
 
-    private function maybeResetCycle(WeeklyBudget $budget, $user): void
+    /**
+     * True when the stored cycle has ended and the student must set up the new week.
+     */
+    public function needsRollover(WeeklyBudget $budget, $user): bool
     {
         $today          = Carbon::today();
         $startDate      = Carbon::parse($budget->cycle_start_date)->startOfDay();
@@ -90,71 +94,114 @@ class BudgetCycleService
         $isScheduledResetDay = strtolower($today->format('l')) === strtolower($targetResetDay);
         $isPastCycleWindow   = $today->gte($startDate->copy()->addDays(7));
 
-        if (!(($isScheduledResetDay && !$today->isSameDay($startDate)) || $isPastCycleWindow)) {
-            return;
-        }
+        return ($isScheduledResetDay && !$today->isSameDay($startDate)) || $isPastCycleWindow;
+    }
 
-        DB::transaction(function () use ($budget, $user, $startDate, $targetResetDay, $today) {
-            // Re-check under a row lock: a concurrent request may have already rolled this cycle.
+    /**
+     * Figures for the cycle that just ended plus the dates of the cycle that starts now.
+     */
+    public function endingCycleSummary(WeeklyBudget $budget, $user): array
+    {
+        $today          = Carbon::today();
+        $startDate      = Carbon::parse($budget->cycle_start_date)->startOfDay();
+        $targetResetDay = $budget->reset_day ?? $user->default_reset_day ?? 'Monday';
+
+        $endingResetDate = strtolower($startDate->format('l')) === strtolower($targetResetDay)
+            ? $startDate->copy()->addWeek()
+            : $startDate->copy()->next($targetResetDay);
+
+        $endingEndDate = $endingResetDate->copy()->subSecond();
+
+        // Total outflow, savings transfers included.
+        $amountSpentTotal = (float) Expense::where('user_id', $user->id)
+            ->whereBetween('transaction_date', [$startDate, $endingEndDate])
+            ->sum('amount');
+
+        $amountSaved = (float) Expense::where('user_id', $user->id)
+            ->whereBetween('transaction_date', [$startDate, $endingEndDate])
+            ->whereNotNull('savings_goal_id')
+            ->sum('amount');
+
+        // Pure spend (excluding savings) for the recap and the review email wording.
+        $amountSpent = $amountSpentTotal - $amountSaved;
+
+        $endingPool = max(
+            (float) $budget->total_allowance,
+            (float) $budget->remaining_allowance + $amountSpentTotal
+        );
+
+        $unspent = max(0.00, (float) $budget->remaining_allowance);
+
+        $newResetDay = $user->default_reset_day ?? $targetResetDay;
+
+        $newCycleStart = strtolower($today->format('l')) === strtolower($newResetDay)
+            ? $today->copy()
+            : $today->copy()->previous($newResetDay);
+
+        return [
+            'startDate'        => $startDate,
+            'endDate'          => $endingEndDate->copy()->startOfDay(),
+            'amountSpent'      => $amountSpent,
+            'amountSpentTotal' => $amountSpentTotal,
+            'amountSaved'      => $amountSaved,
+            'endingPool'       => $endingPool,
+            'unspent'          => $unspent,
+            'newResetDay'      => $newResetDay,
+            'newCycleStart'    => $newCycleStart,
+            'newNextReset'     => $newCycleStart->copy()->addWeek(),
+        ];
+    }
+
+    /**
+     * Applies the reset using the allowance the student entered this week.
+     * New remaining = entered allowance + last cycle's unspent balance.
+     * Returns null when the cycle was already rolled (double submit / second tab).
+     */
+    public function rollover(WeeklyBudget $budget, $user, float $newAllowance): ?array
+    {
+        $result = null;
+
+        DB::transaction(function () use ($budget, $user, $newAllowance, &$result) {
             $locked = WeeklyBudget::whereKey($budget->id)->lockForUpdate()->first();
-            if (!$locked || Carbon::parse($locked->cycle_start_date)->startOfDay()->ne($startDate)) {
+
+            if (!$locked || !$this->needsRollover($locked, $user)) {
                 return;
             }
-            $budget = $locked;
 
-            $endingResetDate = strtolower($startDate->format('l')) === strtolower($targetResetDay)
-                ? $startDate->copy()->addWeek()
-                : $startDate->copy()->next($targetResetDay);
+            $summary  = $this->endingCycleSummary($locked, $user);
+            $newTotal = round($newAllowance + $summary['unspent'], 2);
 
-            $endingEndDate = $endingResetDate->copy()->subSecond();
-
-            // CHANGED: total spend now includes savings transfers.
-            $amountSpentTotal = (float) Expense::where('user_id', $user->id)
-                ->whereBetween('transaction_date', [$startDate, $endingEndDate])
-                ->sum('amount');
-
-            $amountSaved = (float) Expense::where('user_id', $user->id)
-                ->whereBetween('transaction_date', [$startDate, $endingEndDate])
-                ->whereNotNull('savings_goal_id')
-                ->sum('amount');
-
-            // Pure spend (excluding savings), kept only for the email's breakdown wording.
-            $amountSpentOnly = $amountSpentTotal - $amountSaved;
-
-            $endingPool = max(
-                (float) $budget->total_allowance,
-                (float) $budget->remaining_allowance + $amountSpentTotal
-            );
-
-            $unspent = max(0.00, (float) $budget->remaining_allowance);
-
-            $nextCycleBaseline = (float) ($user->default_allowance ?? 1000.00);
-            $nextCycleResetDay = $user->default_reset_day ?? $targetResetDay;
-            $newWeeklyTotal    = $nextCycleBaseline + $unspent;
-
-            $newCycleStart = strtolower($today->format('l')) === strtolower($nextCycleResetDay)
-                ? $today->copy()
-                : $today->copy()->previous($nextCycleResetDay);
-
-            $budget->update([
-                'total_allowance'     => $nextCycleBaseline,
-                'remaining_allowance' => $newWeeklyTotal,
+            $locked->update([
+                'total_allowance'     => $newAllowance,
+                'remaining_allowance' => $newTotal,
                 'added_funds'         => 0,
-                'reset_day'           => $nextCycleResetDay,
-                'cycle_start_date'    => $newCycleStart,
+                'reset_day'           => $summary['newResetDay'],
+                'cycle_start_date'    => $summary['newCycleStart'],
             ]);
 
-            $severity = ($endingPool > 0 && ($amountSpentTotal / $endingPool) >= 0.9) ? 'medium' : 'success';
+            $result = $summary + [
+                'newAllowance' => $newAllowance,
+                'newTotal'     => $newTotal,
+            ];
+        });
+
+        if ($result) {
+            $severity = ($result['endingPool'] > 0 && ($result['amountSpentTotal'] / $result['endingPool']) >= 0.9)
+                ? 'medium'
+                : 'success';
 
             try {
-                $user->notify(new WeeklyBudgetReview($amountSpentOnly, $unspent, $severity, $amountSaved));
+                $user->notify(new WeeklyBudgetReview(
+                    $result['amountSpent'],
+                    $result['unspent'],
+                    $severity,
+                    $result['amountSaved']
+                ));
             } catch (\Throwable $e) {
                 NotificationLogger::logFailure($user, WeeklyBudgetReview::class, $e);
             }
+        }
 
-            session()->flash('success', 'Weekly budget reset! ₱' . number_format($unspent, 2) . ' rolled over to your new cycle.');
-        });
-
-        $budget->refresh();
+        return $result;
     }
 }

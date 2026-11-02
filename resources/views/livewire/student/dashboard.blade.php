@@ -73,9 +73,9 @@
                     <div class="text-3xl sm:text-4xl font-black text-slate-900 font-mono mt-1">
                         ₱{{ number_format($currentBudget->remaining_allowance, 2) }}
                     </div>
-                    <p class="text-[11px] sm:text-xs font-medium text-slate-400 mt-1">
+                    <p class="text-[12px] sm:text-xs font-medium text-slate-600 mt-1">
                         ₱{{ number_format($totalSpent, 2) }} spent of ₱{{ number_format($weeklyAllowanceDisplay, 2) }}
-                        · <span class="font-bold text-slate-600">{{ $remainingPercentage }}% left</span>
+                        · <span class="font-bold text-slate-800">{{ $remainingPercentage }}% left</span>
                     </p>
                     @if($rolloverAmount > 0)
                         <div class="mt-2 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-700 text-[11px] font-bold">
@@ -88,7 +88,7 @@
                 {{-- RIGHT: compact stats --}}
                 <div class="flex items-start gap-5 sm:gap-6 pt-3 lg:pt-0.5 lg:pl-6 border-t border-slate-100 lg:border-t-0 lg:border-l lg:shrink-0">
                     <div class="min-w-0">
-                        <span class="flex items-center gap-1 text-[9px] font-bold text-slate-400 uppercase tracking-wider whitespace-nowrap">
+                        <span class="flex items-center gap-1 text-[11px] font-bold text-slate-500 uppercase tracking-wider whitespace-nowrap">
                             <x-heroicon-o-calendar class="w-3 h-3 shrink-0" />
                             Days Left
                         </span>
@@ -102,7 +102,7 @@
                     </div>
 
                     <div class="min-w-0">
-                        <span class="flex items-center gap-1 text-[9px] font-bold text-slate-400 uppercase tracking-wider whitespace-nowrap">
+                        <span class="flex items-center gap-1 text-[11px] font-bold text-slate-500 uppercase tracking-wider whitespace-nowrap">
                             <x-heroicon-o-shield-check class="w-3 h-3 shrink-0" />
                             Safe per Day
                         </span>
@@ -112,7 +112,7 @@
                     </div>
 
                     <div class="min-w-0">
-                        <span class="flex items-center gap-1 text-[9px] font-bold text-slate-400 uppercase tracking-wider whitespace-nowrap">
+                        <span class="flex items-center gap-1 text-[11px] font-bold text-slate-500 uppercase tracking-wider whitespace-nowrap">
                             <x-heroicon-o-trending-up class="w-3 h-3 shrink-0" />
                             Biggest Category
                         </span>
@@ -129,7 +129,7 @@
                     <div class="h-full rounded-full transition-all duration-500 {{ (100 - $remainingPercentage) >= 80 ? 'bg-rose-500' : ((100 - $remainingPercentage) >= 50 ? 'bg-amber-500' : 'bg-emerald-500') }}"
                         style="width: {{ min(100, 100 - $remainingPercentage) }}%"></div>
                 </div>
-                <div class="flex justify-between text-[10px] font-semibold text-slate-400">
+                <div class="flex justify-between text-[12px] font-semibold text-slate-600">
                     <span>₱0</span>
                     <span>₱{{ number_format($weeklyAllowanceDisplay, 0) }}</span>
                 </div>
@@ -177,7 +177,7 @@
                 <div class="text-xl sm:text-2xl font-black text-slate-900 font-mono mt-4 whitespace-nowrap">
                     ₱{{ number_format($totalSpent, 2) }}
                 </div>
-                <div class="text-[10px] sm:text-[11px] font-medium text-slate-400 mt-2">
+                <div class="text-[10px] sm:text-[11px] font-medium text-slate-600 mt-2">
                     {{ 100 - $remainingPercentage }}% of allowance used
                 </div>
             </div>
@@ -234,7 +234,7 @@
                         ₱{{ number_format($spentToday, 2) }}
                     </span>
                 </div>
-                <div class="text-[10px] sm:text-[11px] font-medium text-slate-400 mt-2">
+                <div class="text-[10px] sm:text-[11px] font-medium text-slate-500 mt-2">
                     ₱{{ number_format($safeToSpend, 2) }} left today
                 </div>
             </div>
@@ -250,7 +250,7 @@
                 <div class="text-xl sm:text-2xl font-black text-slate-900 font-mono mt-4 whitespace-nowrap">
                     {{ $savingsProgressPercent }}%
                 </div>
-                <div class="text-[10px] sm:text-[11px] font-medium text-slate-400 mt-2">
+                <div class="text-[10px] sm:text-[11px] font-medium text-slate-500 mt-2">
                     {{ $savingsGoalsCount }} {{ Str::plural('goal', $savingsGoalsCount) }} · ₱{{ number_format($totalSavingsSaved, 2) }} saved
                 </div>
             </div>
@@ -265,7 +265,7 @@
                 </div>
                 <div class="min-w-0">
                     <h4 class="text-sm font-extrabold text-slate-900 truncate">Add expenses</h4>
-                    <p class="text-[11px] text-slate-400 font-medium truncate">Log what you spent today</p>
+                    <p class="text-[11px] text-slate-500 font-medium truncate">Log what you spent today</p>
                 </div>
             </a>
 
@@ -276,7 +276,7 @@
                 </div>
                 <div class="min-w-0">
                     <h4 class="text-sm font-extrabold text-slate-900 truncate">Scan a receipt</h4>
-                    <p class="text-[11px] text-slate-400 font-medium truncate">Fill a row automatically</p>
+                    <p class="text-[11px] text-slate-500 font-medium truncate">Fill a row automatically</p>
                 </div>
             </a>
 
@@ -287,7 +287,7 @@
                 </div>
                 <div class="min-w-0">
                     <h4 class="text-sm font-extrabold text-slate-900 truncate">Purchase Simulator</h4>
-                    <p class="text-[11px] text-slate-400 font-medium truncate">Check before you spend</p>
+                    <p class="text-[11px] text-slate-500 font-medium truncate">Check before you spend</p>
                 </div>
             </a>
         </div>
@@ -299,10 +299,10 @@
                 <div class="flex items-center justify-between gap-2 pb-3 border-b border-slate-100">
                     <div>
                         <h3 class="text-xs sm:text-sm font-extrabold text-slate-900 truncate">Spending by day</h3>
-                        <span class="text-[10px] text-slate-400 font-semibold">Red bars went over your daily safe amount</span>
+                        <span class="text-[11px] text-slate-500 font-semibold">Red bars went over your daily safe amount</span>
                     </div>
                     <div class="flex flex-col items-end gap-1 shrink-0">
-                        <span class="text-[10px] sm:text-xs text-slate-400 font-medium">
+                        <span class="text-[10px] sm:text-xs text-slate-500 font-medium">
                             Safe line <span class="font-bold text-slate-600">₱{{ number_format($dailyQuota, 0) }}/day</span>
                         </span>
                         <a href="{{ route('student.forecast') }}" class="text-[11px] font-bold text-[var(--brand)] flex items-center gap-1 hover:opacity-75 transition-opacity">
@@ -381,7 +381,7 @@
             <div class="pb-4 border-b border-slate-100 flex items-center justify-between gap-3">
                 <div class="min-w-0">
                     <h3 class="text-base sm:text-lg font-bold text-slate-900 truncate">Recent Transactions</h3>
-                    <p class="text-[11px] text-slate-400 font-medium mt-0.5">Your last 5 transactions</p>
+                    <p class="text-[12px] text-slate-500 font-medium mt-0.5">Your last 5 transactions</p>
                 </div>
                 <a href="{{ route('student.expenses.index') }}" class="text-xs sm:text-sm font-semibold text-[var(--brand)] hover:opacity-80 transition-colors flex items-center gap-1 shrink-0">
                     <span>View all</span>

@@ -21,6 +21,7 @@ use App\Http\Livewire\Student\Dashboard as studentDashboard;
 use App\Http\Livewire\Student\EditExpense;
 use App\Http\Livewire\Student\GoalsManager;
 use App\Http\Livewire\Student\LogExpense;
+use App\Http\Livewire\Student\NewCycleSetup;
 use App\Http\Livewire\Student\NotificationIndex;
 use App\Http\Livewire\Student\Profile;
 use App\Http\Livewire\Student\ScanExpense;
@@ -39,7 +40,6 @@ use Illuminate\Support\Facades\Route;
 Route::middleware(['guest'])->group(function() {
     Route::get('/register', Register::class)->name('register');
     Route::get('/login', Login::class)->name('login');
-
     Route::get('/forgot-password', ForgotPassword::class)->name('password.request');
     Route::get('/reset-password/{token}', ResetPassword::class)->name('password.reset');
 
@@ -51,8 +51,17 @@ Route::middleware(['guest'])->group(function() {
 // Authenticated Routes
 Route::middleware(['auth', 'maintenance.check'])->group(function() {
 
-    // Student Routes (admins/super admins are redirected to the admin dashboard)
+    // New-cycle setup (student only). Deliberately WITHOUT 'cycle.current',
+    // otherwise the gate would redirect this page to itself.
     Route::middleware('student')
+        ->name('student.')
+        ->group(function() {
+            Route::get('/new-cycle', NewCycleSetup::class)->name('new-cycle');
+        });
+
+    // Student Routes (admins/super admins are redirected to the admin dashboard).
+    // 'cycle.current' redirects to /new-cycle once the budget week has ended.
+    Route::middleware(['student', 'cycle.current'])
         ->name('student.')
         ->group(function() {
             Route::get('/dashboard', studentDashboard::class)->name('dashboard');

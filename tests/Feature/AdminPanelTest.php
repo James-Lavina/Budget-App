@@ -145,6 +145,28 @@ class AdminPanelTest extends TestCase
         Notification::assertNothingSent();
     }
 
+    public function test_the_admin_forecast_counts_savings_transfers_as_spending()
+    {
+        $this->signInAdmin();
+
+        $student = $this->makeStudent();
+        $this->makeBudget($student, 100.00);
+
+        $goal = \App\Models\SavingsGoal::create([
+            'user_id' => $student->id, 'target_name' => 'Laptop', 'target_amount' => 5000,
+            'current_saved' => 900, 'status' => 'active',
+        ]);
+
+        $this->makeExpense($student, $this->makeCategory('Savings'), 900.00, '2026-10-06 12:00:00', [
+            'savings_goal_id' => $goal->id,
+            'item_name'       => 'Laptop',
+        ]);
+
+        Livewire::test(UserManagement::class)
+            ->call('viewUser', $student->id)
+            ->assertSee('Forecast: Spending Warning');
+    }
+
     public function test_search_and_status_filters()
     {
         $this->signInAdmin();

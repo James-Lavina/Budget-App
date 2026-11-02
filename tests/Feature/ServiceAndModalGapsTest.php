@@ -27,6 +27,7 @@ class ServiceAndModalGapsTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+
         Carbon::setTestNow('2026-10-07 12:00:00'); // Wednesday
     }
 
@@ -76,15 +77,18 @@ class ServiceAndModalGapsTest extends TestCase
 
         $service->checkAndNotifySavingsMilestone($user, $goal->fresh());
         $service->checkAndNotifySavingsMilestone($user, $goal->fresh()); // duplicate call
+
         $this->assertSame([25], $this->milestones($user));
 
         $goal->update(['current_saved' => 300]); // 60% => 50
         $service->checkAndNotifySavingsMilestone($user, $goal->fresh());
         $service->checkAndNotifySavingsMilestone($user, $goal->fresh());
+
         $this->assertSame([25, 50], $this->milestones($user));
 
         $goal->update(['current_saved' => 400]); // 80% => 75
         $service->checkAndNotifySavingsMilestone($user, $goal->fresh());
+
         $this->assertSame([25, 50, 75], $this->milestones($user));
     }
 
@@ -103,8 +107,8 @@ class ServiceAndModalGapsTest extends TestCase
         $user = $this->makeStudent();
         $one  = $this->goal($user, 130);
         $two  = $this->goal($user, 130);
-        $service = app(SavingsGoalService::class);
 
+        $service = app(SavingsGoalService::class);
         $service->checkAndNotifySavingsMilestone($user, $one);
         $service->checkAndNotifySavingsMilestone($user, $two);
 
@@ -128,6 +132,7 @@ class ServiceAndModalGapsTest extends TestCase
     public function test_cycle_boundaries_are_inclusive_of_the_first_and_last_second()
     {
         Notification::fake();
+
         $user   = $this->makeStudent();
         $budget = $this->makeBudget($user);
         $cycle  = app(BudgetCycleService::class);
@@ -141,6 +146,7 @@ class ServiceAndModalGapsTest extends TestCase
     public function test_a_non_monday_reset_day_shortens_the_cycle()
     {
         Notification::fake();
+
         $user   = $this->makeStudent();
         $budget = $this->makeBudget($user, 1000.00, ['reset_day' => 'Friday']);
         $cycle  = app(BudgetCycleService::class);
@@ -153,24 +159,30 @@ class ServiceAndModalGapsTest extends TestCase
         $this->assertFalse($cycle->isWithinCurrentCycle($budget, $user, '2026-10-09 00:00:00'));
     }
 
-    public function test_read_only_resolution_never_rolls_the_cycle_over()
+    public function test_resolution_never_rolls_the_cycle_over_only_rollover_does()
     {
         Notification::fake();
+
         Carbon::setTestNow('2026-10-14 12:00:00'); // the cycle that started 10-05 is stale
+
         $user   = $this->makeStudent();
         $budget = $this->makeBudget($user, 400.00);
         $cycle  = app(BudgetCycleService::class);
 
+        // resolve() is read-only in both modes.
         $readOnly = $cycle->resolve($budget, $user, true);
+        $cycle->resolve($budget->fresh(), $user, false);
 
         $this->assertSame('2026-10-05', $readOnly['startDate']->format('Y-m-d'));
         $this->assertSame('2026-10-05', $budget->fresh()->cycle_start_date->format('Y-m-d'));
         $this->assertEquals(400.00, $budget->fresh()->remaining_allowance);
+        Notification::assertNothingSent();
 
-        $cycle->resolve($budget->fresh(), $user, false);
+        // rollover() is the only thing that moves the cycle.
+        $cycle->rollover($budget->fresh(), $user, 1000.00);
 
         $this->assertSame('2026-10-12', $budget->fresh()->cycle_start_date->format('Y-m-d'));
-        $this->assertEquals(1400.00, $budget->fresh()->remaining_allowance);
+        $this->assertEquals(1400.00, $budget->fresh()->remaining_allowance); // 1000 entered + 400 unspent
     }
 
     // ---------------------------------------------------------------

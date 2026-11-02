@@ -6,6 +6,7 @@ use App\Models\AppSetting;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
+use Livewire\Livewire;
 
 
 class AppServiceProvider extends ServiceProvider
@@ -35,5 +36,9 @@ class AppServiceProvider extends ServiceProvider
         View::composer(['layouts.student', 'layouts.admin'], function ($view) {
             $view->with('appSettings', AppSetting::current());
         });
+
+        Livewire::addPersistentMiddleware([
+            \App\Http\Middleware\EnsureCycleIsCurrent::class,
+        ]);
     }
 }

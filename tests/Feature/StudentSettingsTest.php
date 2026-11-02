@@ -20,6 +20,7 @@ class StudentSettingsTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+
         Notification::fake();
         Carbon::setTestNow('2026-10-07 12:00:00'); // Wednesday
     }
@@ -64,21 +65,24 @@ class StudentSettingsTest extends TestCase
             ->assertHasNoErrors();
 
         $user->refresh();
+
         $this->assertEquals(1500.00, $user->default_allowance);
         $this->assertSame('Friday', $user->default_reset_day);
 
         $budget->refresh();
+
         $this->assertEquals(1000.00, $budget->total_allowance);
         $this->assertEquals(1000.00, $budget->remaining_allowance);
         $this->assertSame('Monday', $budget->reset_day);
 
         $log = \App\Models\ActivityLog::where('event_type', 'budget_settings_updated')->first();
+
         $this->assertStringContainsString('weekly allowance: ₱1,000.00 → ₱1,500.00', $log->details);
         $this->assertStringContainsString('reset day: Monday → Friday', $log->details);
         $this->assertStringNotContainsString('applied immediately', $log->details);
     }
 
-    public function test_the_new_allowance_becomes_the_baseline_at_the_next_reset()
+    public function test_the_allowance_entered_at_the_next_reset_becomes_the_baseline()
     {
         [$user, $budget] = $this->signIn();
 
@@ -87,11 +91,14 @@ class StudentSettingsTest extends TestCase
             ->call('updateSettings');
 
         Carbon::setTestNow('2026-10-12 09:00:00'); // Monday: reset day
-        app(BudgetCycleService::class)->resolve($budget->fresh(), $user->fresh());
+
+        // The student types 1500 on the New Cycle Setup page.
+        app(BudgetCycleService::class)->rollover($budget->fresh(), $user->fresh(), 1500.00);
 
         $budget->refresh();
+
         $this->assertEquals(1500.00, $budget->total_allowance);
-        $this->assertEquals(2500.00, $budget->remaining_allowance); // 1500 base + 1000 unspent
+        $this->assertEquals(2500.00, $budget->remaining_allowance); // 1500 entered + 1000 unspent
     }
 
     public function test_applying_to_the_current_week_adjusts_the_remaining_balance()
@@ -106,10 +113,12 @@ class StudentSettingsTest extends TestCase
             ->assertSet('update_current_week', false);
 
         $budget->refresh();
+
         $this->assertEquals(1500.00, $budget->total_allowance);
         $this->assertEquals(1100.00, $budget->remaining_allowance); // 600 + 500 difference
 
         $log = \App\Models\ActivityLog::where('event_type', 'budget_settings_updated')->first();
+
         $this->assertStringContainsString('applied immediately to current week', $log->details);
     }
 
@@ -123,6 +132,7 @@ class StudentSettingsTest extends TestCase
             ->call('updateSettings');
 
         $budget->refresh();
+
         $this->assertEquals(800.00, $budget->total_allowance);
         $this->assertEquals(0.00, $budget->remaining_allowance);
     }
@@ -185,6 +195,7 @@ class StudentSettingsTest extends TestCase
     public function test_the_simulator_runs_immediately_when_opened_from_the_widget()
     {
         $this->signIn();
+
         Http::fake(['api.groq.com/*' => Http::response([], 500)]);
 
         $this->get('/simulation?scenarioType=major_purchase&purchaseAmount=250')
