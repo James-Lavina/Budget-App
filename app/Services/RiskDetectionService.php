@@ -46,7 +46,16 @@ class RiskDetectionService
         // Real pool = base + rollover, including money moved into savings goals.
         $pool      = (float) $cycle['effectiveTotalAllowance'];
         $remaining = (float) $budget->remaining_allowance;
-        $spent     = (float) $cycle['totalSpentInCycle'];
+
+        // Real spending only. Savings transfers still count as expenses everywhere else
+        // (remaining, history, safe-to-spend) but must never trigger a risk alert.
+        $spent = (float) Expense::where('user_id', $user->id)
+            ->whereBetween('transaction_date', [$cycleStart, $cycleEnd])
+            ->excludingSavings()
+            ->sum('amount');
+
+        $saved         = max(0.0, (float) $cycle['totalSpentInCycle'] - $spent);
+        $riskRemaining = $remaining + $saved; // the balance as if nothing had been moved to goals
 
         if ($pool <= 0) {
             return;
@@ -55,18 +64,24 @@ class RiskDetectionService
         $settings   = RiskSetting::current();
         $todayStart = Carbon::today();
 
-        $spentToday = (float) Expense::where('user_id', $user->id)
+        $spentTodayAll = (float) Expense::where('user_id', $user->id)
             ->whereDate('transaction_date', $cycle['spentTodayDate'])
             ->sum('amount');
 
-        // Identical to the Dashboard's "Safe per Day".
-        $safePerDay = ($remaining + $spentToday) / $daysLeftInclToday;
+        $spentToday = (float) Expense::where('user_id', $user->id)
+            ->whereDate('transaction_date', $cycle['spentTodayDate'])
+            ->excludingSavings()
+            ->sum('amount');
+
+        // Identical to the Dashboard's "Safe per Day". Unaffected by a deposit,
+        // because the deposit lowers $remaining and raises $spentTodayAll by the same amount.
+        $safePerDay = ($remaining + $spentTodayAll) / $daysLeftInclToday;
 
         // ---- 1. Pace check (per day) ---------------------------------------
         $allowedDailyVelocity = $pool / $cycleLength;
         $daysAfterToday       = max(0.5, $cycleLength - $daysElapsed);
         $velocity             = max($spent / $daysElapsed, $spentToday);
-        $runwayDays           = $velocity > 0 ? $remaining / $velocity : $cycleLength;
+        $runwayDays = $velocity > 0 ? $riskRemaining / $velocity : $cycleLength;
 
         $paceType      = $daysElapsed <= 3 ? 'early_week_depletion' : 'rapid_overspending';
         $otherPaceType = $paceType === 'early_week_depletion' ? 'rapid_overspending' : 'early_week_depletion';
@@ -130,7 +145,7 @@ class RiskDetectionService
         // ---- 4-6. Remaining checks -----------------------------------------
         $this->checkCategoryConcentration($user, $cycleStart, $cycleEnd, $pool);
         $this->checkRapidSpending($user, $cycle['spentTodayDate'], $pool, $settings);
-        $this->syncLowAllowance($user, $remaining, $pool, $cycleStart, $settings);
+        $this->syncLowAllowance($user, $remaining, $pool, $cycleStart, $settings, $saved);
     }
 
     private function generateFeedbackString(float $velocity, float $remaining, float $safePerDay, string $resetDay): string
@@ -277,14 +292,14 @@ class RiskDetectionService
             ->each(fn ($n) => $this->markNotification($n, true));
     }
 
-    private function syncLowAllowance($user, float $remaining, float $pool, Carbon $cycleStart, RiskSetting $settings): void
+    private function syncLowAllowance($user, float $remaining, float $pool, Carbon $cycleStart, RiskSetting $settings, float $saved = 0.0): void
     {
         $type = 'low_allowance_threshold';
 
         $this->expireBefore($user, $type, $cycleStart);
 
         $isLow = $settings->low_remaining_budget_enabled
-            && $remaining <= $pool * ($settings->low_remaining_budget_threshold / 100);
+            && ($remaining + $saved) <= $pool * ($settings->low_remaining_budget_threshold / 100);
 
         $existing = $this->notificationsSince($user, $type, $cycleStart);
         $open     = $existing->filter(fn ($n) => !($n->data['resolved'] ?? false));
@@ -329,6 +344,7 @@ class RiskDetectionService
 
         $totalSpent = (float) Expense::where('user_id', $user->id)
             ->whereBetween('transaction_date', [$cycleStart, $cycleEnd])
+            ->excludingSavings()
             ->sum('amount');
 
         $dominant   = null;
@@ -337,6 +353,7 @@ class RiskDetectionService
         if ($totalSpent >= 200 && $pool > 0 && ($totalSpent / $pool) >= 0.30) {
             $top = Expense::where('expenses.user_id', $user->id)
                 ->whereBetween('expenses.transaction_date', [$cycleStart, $cycleEnd])
+                ->excludingSavings()
                 ->join('expense_categories', 'expenses.expense_category_id', '=', 'expense_categories.id')
                 ->select('expense_categories.name', DB::raw('SUM(expenses.amount) as total'))
                 ->groupBy('expense_categories.name')
@@ -412,6 +429,7 @@ class RiskDetectionService
             $large = Expense::where('user_id', $user->id)
                 ->whereDate('transaction_date', $spentTodayDate)
                 ->where('amount', '>=', $floor)
+                ->excludingSavings()
                 ->get(['amount']);
 
             $count = $large->count();

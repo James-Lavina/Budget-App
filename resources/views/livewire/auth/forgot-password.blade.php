@@ -10,12 +10,12 @@
         <div class="flex items-center gap-3 min-w-0">
             <div class="h-10 w-10 rounded-xl flex items-center justify-center text-white shadow-md shrink-0 overflow-hidden bg-[var(--brand)]">
                 @if($appSettings->logo_path)
+                <div class="h-10 w-10 rounded-xl flex items-center justify-center shadow-md shrink-0 overflow-hidden">
                     <img src="{{ \Illuminate\Support\Facades\Storage::url($appSettings->logo_path) }}" class="h-full w-full object-cover">
-                @else
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M21 12V7H5a2 2 0 010-4h14v4M3 5v14a2 2 0 002 2h16v-5M18 12a2 2 0 100 4 2 2 0 000-4z"/>
-                    </svg>
-                @endif
+                </div>
+            @else
+                <x-app-logo class="h-10 w-10 shrink-0 drop-shadow-md" />
+            @endif
             </div>
             <span class="text-lg font-bold tracking-tight text-slate-900 truncate">{{ $appSettings->application_name }}</span>
         </div>

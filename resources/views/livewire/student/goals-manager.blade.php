@@ -180,12 +180,18 @@
                         <label class="block text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">Savings Amount (₱)</label>
                         <div class="relative">
                             <span class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400 font-bold text-xs">₱</span>
+                            
+                            <!-- Hidden input that actually syncs the raw numeric value back to Livewire -->
+                            <input type="hidden" id="fund_amount_raw" wire:model.defer="fund_amount" value="{{ $fund_amount }}">
+                
+                            <!-- Visible text input for comma-separated display -->
                             <input
-                            type="number"
-                            step="0.01"
-                            wire:model.defer="fund_amount"
+                            id="fund_amount"
+                            type="text"
+                            inputmode="decimal"
                             autofocus
                             placeholder="0.00"
+                            value="{{ $fund_amount ? number_format($fund_amount, 2, '.', ',') : '' }}"
                             onblur="formatAmount(this, 'fund_amount')"
                             class="block w-full pl-8 pr-3.5 py-2.5 border border-slate-200 bg-slate-50/50 text-xs font-bold rounded-2xl text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:border-[var(--brand)] focus:ring-[rgba(var(--brand-rgb),0.2)] transition-all">
                         </div>
@@ -234,11 +240,41 @@
 
  <script>
     function formatAmount(input, wireModel) {
-        if (input.value !== '') {
-            input.value = parseFloat(input.value).toFixed(2);
+        // 1. Remove everything except numbers and decimal points
+        let cleanValue = input.value.replace(/[^0-9.]/g, '');
+        let number = parseFloat(cleanValue);
+        let rawInputId = wireModel + '_raw';
+        let rawInput = document.getElementById(rawInputId);
 
-            // Update Livewire value
-            input.dispatchEvent(new Event('input', { bubbles: true }));
+        // 2. Handle empty or invalid inputs
+        if (isNaN(number) || number < 0) {
+            input.value = '';
+            if (rawInput) {
+                rawInput.value = '';
+                rawInput.dispatchEvent(new Event('input', { bubbles: true }));
+            }
+            if (typeof @this !== 'undefined') {
+                @this.set(wireModel, '');
+            }
+            return;
+        }
+
+        // 3. Format the visible input with thousands separators (commas) and 2 decimals
+        input.value = number.toLocaleString('en-US', {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
+        });
+
+        // 4. Set the raw unformatted value to the hidden input for Livewire
+        let rawVal = number.toFixed(2);
+        if (rawInput) {
+            rawInput.value = rawVal;
+            rawInput.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+
+        // 5. Directly sync with Livewire backend property if available
+        if (typeof @this !== 'undefined') {
+            @this.set(wireModel, rawVal);
         }
     }
 </script>

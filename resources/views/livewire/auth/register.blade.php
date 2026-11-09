@@ -41,14 +41,10 @@
                     <div class="flex items-center gap-3 min-w-0">
                         @if($appSettings->logo_path)
                             <img src="{{ \Illuminate\Support\Facades\Storage::url($appSettings->logo_path) }}"
-                                 alt="{{ $appSettings->application_name }}"
-                                 class="h-10 w-10 rounded-2xl object-cover shadow-md shrink-0">
+                                alt="{{ $appSettings->application_name }}"
+                                class="h-10 w-10 rounded-2xl object-cover shadow-md shrink-0">
                         @else
-                            <div class="h-10 w-10 bg-white brand-icon-text rounded-2xl flex items-center justify-center shadow-md font-black shrink-0">
-                                <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a1 1 0 11-2 0 1 1 0 012 0z" />
-                                </svg>
-                            </div>
+                            <x-app-logo class="h-10 w-10 shrink-0 rounded-xl ring-2 ring-white/50 shadow-md" />
                         @endif
                         <span class="text-xl font-bold tracking-tight text-white truncate">
                             <a href="/" class="hover:opacity-90 transition-opacity">{{ $appSettings->application_name }}</a>

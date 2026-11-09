@@ -115,17 +115,30 @@ class LogExpense extends Component
     {
         $this->clearSuggestion();
 
-        if ($this->mismatchAcknowledged || mb_strlen(trim($this->item_name ?? '')) < 3) {
+        $name = trim($this->item_name ?? '');
+
+        // Field cleared: drop an auto-picked guess instead of leaving a stale category.
+        if ($name === '' && $this->categoryAutoPicked) {
+            $this->expense_category_id = null;
+            $this->categoryAutoPicked  = false;
+            return;
+        }
+
+        if ($this->mismatchAcknowledged || mb_strlen($name) < 3) {
             return;
         }
 
         $match = app(CategorySuggester::class)->suggest(auth()->user(), $this->item_name);
 
         if (!$match) {
-            if ($allowAutoPick && $this->categoryAutoPicked) {
-                $this->expense_category_id = null;
-                $this->categoryAutoPicked  = false;
+            // Nothing recognised: use the catch-all ("Other") category, but never override a manual choice.
+            if ($allowAutoPick && (!$this->expense_category_id || $this->categoryAutoPicked)) {
+                $fallback = ExpenseCategory::fallback();
+
+                $this->expense_category_id = $fallback ? $fallback->id : null;
+                $this->categoryAutoPicked  = (bool) $fallback;
             }
+
             return;
         }
 

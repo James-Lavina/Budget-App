@@ -74,4 +74,19 @@ class Expense extends Model
 
         return $date->format('M d, Y • g:i A');
     }
+
+    // Real spending only: not linked to a goal and not in a "Savings" category.
+    public function scopeExcludingSavings($query)
+    {
+        return $query->whereNull('expenses.savings_goal_id')
+            ->whereDoesntHave('category', function ($c) {
+                $c->where('name', 'LIKE', '%Savings%');
+            });
+    }
+
+    public function isSavingsTransfer(): bool
+    {
+        return $this->savings_goal_id !== null
+            || stripos($this->category->name ?? '', 'savings') !== false;
+    }
 }

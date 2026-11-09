@@ -148,34 +148,44 @@ class Dashboard extends Component
         $today         = $cycle['today'];
         $daysElapsed   = $cycle['daysElapsed'];
 
-        // CHANGED: savings now included in total spent.
+        // Total outflow for display: savings transfers count as expenses.
         $totalSpent = Expense::where('user_id', auth()->id())
             ->whereBetween('transaction_date', [$startDate, $cycle['evalDate']->copy()->endOfDay()])
             ->sum('amount');
 
+        // Real spending only. Used for the pace so a savings deposit never looks like a spending habit.
+        $realSpent = (float) Expense::where('user_id', auth()->id())
+            ->whereBetween('transaction_date', [$startDate, $cycle['evalDate']->copy()->endOfDay()])
+            ->excludingSavings()
+            ->sum('amount');
+
+        $savedSoFar = max(0.0, (float) $totalSpent - $realSpent);
+
         $hasNoSpendingYet = $totalSpent <= 0;
 
-        $dailyVelocity       = $totalSpent / $daysElapsed;
+        $dailyVelocity       = $realSpent / $daysElapsed;
         $futureDaysRemaining = $cycle['daysRemaining'];
         $isFinalDay          = $daysElapsed >= 7 || $futureDaysRemaining <= 1;
         $projectedRemaining  = $isFinalDay
             ? (float) $this->currentBudget->remaining_allowance
             : max(0, $this->currentBudget->remaining_allowance - ($dailyVelocity * $futureDaysRemaining));
 
-        $projectedDaysLeft   = $dailyVelocity > 0 ? ($this->currentBudget->remaining_allowance / $dailyVelocity) : $this->daysRemaining;
+        // Balance runway ignores money moved to goals, so a deposit can't trigger "Spending too fast".
+        $projectedDaysLeft = $dailyVelocity > 0
+            ? (($this->currentBudget->remaining_allowance + $savedSoFar) / $dailyVelocity)
+            : $this->daysRemaining;
 
         $remainingDailyRate = $futureDaysRemaining > 0
             ? ($this->currentBudget->remaining_allowance / $futureDaysRemaining)
             : $this->currentBudget->remaining_allowance;
 
-        $isDepleted     = $this->currentBudget->remaining_allowance <= 0;
-        $isPaceCritical = !$isDepleted && !$isFinalDay && ($projectedDaysLeft < $this->daysRemaining);
+        $isDepleted      = $this->currentBudget->remaining_allowance <= 0;
+        $isPaceCritical  = !$isDepleted && !$isFinalDay && ($projectedDaysLeft < $this->daysRemaining);
         $isDailyQuotaHit = !$isDepleted && !$isPaceCritical && ($this->safeToSpend <= 0);
 
         $totalAllowance      = max(1, $cycle['effectiveTotalAllowance']);
         $remainingPercentage = round(($this->currentBudget->remaining_allowance / $totalAllowance) * 100);
 
-        // CHANGED: removed the 'savings_locked' state — savings no longer treated specially.
         if ($isDepleted) {
             $dashboardState = 'depleted';
         } elseif ($isPaceCritical) {
@@ -207,7 +217,7 @@ class Dashboard extends Component
             $dailyCategoryBreakdown[$dateKey] = [];
         }
 
-        // CHANGED: no longer excludes Savings category from the legend.
+        // Savings is just another category in the legend.
         $categoriesInCycle = Expense::where('expenses.user_id', auth()->id())
             ->whereBetween('transaction_date', [$startDate, $endDate])
             ->join('expense_categories', 'expenses.expense_category_id', '=', 'expense_categories.id')
@@ -233,7 +243,6 @@ class Dashboard extends Component
             $categoryTotalsMap[$cat->name] = (float) $cat->total_amount;
         }
 
-        // CHANGED: no longer stripped out of the map — Savings is just another category now.
         $biggestCategoryName = array_key_first($categoryTotalsMap);
 
         $cycleExpenses = Expense::with('category')

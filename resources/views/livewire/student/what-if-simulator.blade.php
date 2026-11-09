@@ -119,8 +119,14 @@
                         <label for="purchaseAmount" class="block text-xs font-bold text-slate-700">Amount</label>
                         <div class="relative">
                             <span class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-400 font-extrabold text-sm">₱</span>
-                            <input id="purchaseAmount" type="text" inputmode="decimal" wire:model.defer="purchaseAmount"
+                            
+                            <!-- Hidden input that syncs the clean raw numeric value to Livewire -->
+                            <input type="hidden" id="purchaseAmount_raw" wire:model.defer="purchaseAmount" value="{{ $purchaseAmount }}">
+                    
+                            <!-- Visible text input for comma-separated display -->
+                            <input id="purchaseAmount" type="text" inputmode="decimal"
                                 placeholder="0.00"
+                                value="{{ $purchaseAmount ? number_format($purchaseAmount, 2, '.', ',') : '' }}"
                                 onblur="formatSimulatorAmount(this)"
                                 class="w-full pl-9 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-slate-900 font-extrabold font-mono text-sm placeholder-slate-400 focus:bg-white focus:border-[var(--brand)] focus:ring-2 focus:ring-[rgba(var(--brand-rgb),0.2)] focus:outline-none transition-all">
                         </div>
@@ -274,14 +280,49 @@
 
     <script>
         function formatSimulatorAmount(input) {
-            const cleaned = input.value.replace(/,/g, '').trim();
-            if (cleaned === '') return;
+        const cleaned = input.value.replace(/,/g, '').trim();
+        const rawInput = document.getElementById('purchaseAmount_raw');
 
-            const value = parseFloat(cleaned);
-            if (isNaN(value)) return;
-
-            input.value = value.toFixed(2);
-            input.dispatchEvent(new Event('input', { bubbles: true }));
+        if (cleaned === '') {
+            input.value = '';
+            if (rawInput) {
+                rawInput.value = '';
+                rawInput.dispatchEvent(new Event('input', { bubbles: true }));
+            }
+            if (typeof @this !== 'undefined') {
+                @this.set('purchaseAmount', '');
+            }
+            return;
         }
+
+        const value = parseFloat(cleaned);
+        if (isNaN(value) || value < 0) {
+            input.value = '';
+            if (rawInput) {
+                rawInput.value = '';
+                rawInput.dispatchEvent(new Event('input', { bubbles: true }));
+            }
+            if (typeof @this !== 'undefined') {
+                @this.set('purchaseAmount', '');
+            }
+            return;
+        }
+
+        // Format display with commas and 2 decimal places
+        input.value = value.toLocaleString('en-US', {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
+        });
+
+        const rawVal = value.toFixed(2);
+        if (rawInput) {
+            rawInput.value = rawVal;
+            rawInput.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+
+        if (typeof @this !== 'undefined') {
+            @this.set('purchaseAmount', rawVal);
+        }
+    }
     </script>
 </div>

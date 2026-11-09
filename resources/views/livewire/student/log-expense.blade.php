@@ -19,7 +19,7 @@
 
             {{-- Quick add: tap the label to fill the form, tap + to log it again right now --}}
             @if($frequentItems->isNotEmpty())
-                <div class="space-y-1.5">
+                <div wire:key="quick-add" class="space-y-1.5">
                     <label class="block text-[11px] font-bold text-slate-400 uppercase tracking-wider">Quick add</label>
                     <div class="flex flex-wrap gap-2">
                         @foreach($frequentItems as $freq)
@@ -41,7 +41,7 @@
             @endif
 
             {{-- Row 1: Item Name (drives category detection) --}}
-            <div class="space-y-1.5">
+            <div wire:key="item-row" class="space-y-1.5">
                 <label for="item_name" class="block text-xs font-bold text-slate-700">Item Name</label>
                 <input id="item_name" type="text" autofocus autocomplete="off"
                     wire:model.debounce.1000ms="item_name" placeholder="e.g., Chickenjoy Meal"
@@ -51,7 +51,7 @@
                 @enderror
 
                 @if($expense_category_id && $recentItems->isNotEmpty())
-                    <div class="flex flex-wrap gap-1.5 pt-1">
+                    <div wire:key="recent-items" class="flex flex-wrap gap-1.5 pt-1">
                         @foreach($recentItems as $recent)
                             <button type="button"
                                 wire:click='pickRecentItem(@json($recent, JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_TAG))'
@@ -64,7 +64,7 @@
             </div>
 
             {{-- Row 2: Category --}}
-            <div class="space-y-2">
+            <div wire:key="category-row" class="space-y-2">
                 <div class="flex items-center justify-between">
                     <label class="block text-xs font-bold text-slate-700">Category</label>
                     @if($categoryAutoPicked)
@@ -114,14 +114,20 @@
             </div>
 
             {{-- Row 3: Amount & Date --}}
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div wire:key="amount-date-row" class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div class="space-y-1.5">
                     <label for="amount" class="block text-xs font-bold text-slate-700">Amount</label>
                     <div class="relative">
                         <span class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-800 font-extrabold text-base">₱</span>
-                        <input id="amount" type="number" step="0.01" min="0" wire:model.defer="amount" placeholder="0.00"
+                        
+                        <!-- Visible text input that displays commas -->
+                        <input id="amount" type="text" inputmode="decimal" placeholder="0.00"
+                            value="{{ $amount ? number_format($amount, 2, '.', ',') : '' }}"
                             onblur="formatAmount(this)"
                             class="w-full pl-9 pr-4 py-3 bg-slate-100/80 border-0 rounded-2xl text-slate-900 font-extrabold text-base placeholder-slate-400 focus:bg-white focus:ring-2 focus:ring-[rgba(var(--brand-rgb),0.2)] transition-all">
+                        
+                        <!-- Hidden input that actually syncs the raw numeric value back to Livewire -->
+                        <input type="hidden" id="amount_raw" wire:model.defer="amount" value="{{ $amount }}">
                     </div>
                     @error('amount')
                         <span class="text-[11px] font-semibold text-rose-500 block mt-1">{{ $message }}</span>
@@ -140,7 +146,7 @@
 
             {{-- Session Ledger: only shows once something's been logged --}}
             @if(count($sessionLog) > 0)
-            <div class="bg-emerald-50/60 border border-emerald-100 rounded-2xl p-4 space-y-2">
+            <div wire:key="session-ledger" class="bg-emerald-50/60 border border-emerald-100 rounded-2xl p-4 space-y-2">
                 <div class="flex items-center justify-between text-xs font-bold text-emerald-800">
                     <span>Logged this session ({{ count($sessionLog) }})</span>
                     <span>₱{{ number_format(array_sum(array_column($sessionLog, 'amount')), 2) }} total</span>
@@ -173,20 +179,20 @@
             @endif
 
             {{-- Footer buttons --}}
-            <div class="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
+            <div wire:key="footer-buttons" class="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
                 <a href="{{ route('student.dashboard') }}"
                 class="px-5 py-2.5 rounded-full text-xs font-bold text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition-all">
                 Cancel
                 </a>
 
                 <button type="button" wire:click="storeAndAddAnother" wire:loading.attr="disabled"
-                    class="px-6 py-3 bg-white border-2 border-[var(--brand)] text-[var(--brand)] hover:bg-[rgba(var(--brand-rgb),0.08)] rounded-full font-bold text-xs transition-all transform active:scale-95 disabled:opacity-50 flex items-center gap-2">
+                    class="px-1 py-1 sm:px-8 sm:py-3 bg-white border-2 border-[var(--brand)] text-[var(--brand)] hover:bg-[rgba(var(--brand-rgb),0.08)] rounded-full font-bold text-xs transition-all transform active:scale-95 disabled:opacity-50 flex items-center gap-2">
                     <span wire:loading.remove wire:target="storeAndAddAnother">+ Save & Add Another</span>
                     <span wire:loading wire:target="storeAndAddAnother">Saving...</span>
                 </button>
 
                 <button type="submit" wire:loading.attr="disabled"
-                    class="px-8 py-3 bg-[var(--brand)] hover:opacity-90 text-white rounded-full font-bold text-xs shadow-lg shadow-[0_8px_16px_-4px_rgba(var(--brand-rgb),0.3)] transition-all transform active:scale-95 disabled:opacity-50 flex items-center gap-2">
+                    class="px-3 py-1 sm:px-8 sm:py-3 bg-[var(--brand)] hover:opacity-90 text-white rounded-full font-bold text-xs shadow-lg shadow-[0_8px_16px_-4px_rgba(var(--brand-rgb),0.3)] transition-all transform active:scale-95 disabled:opacity-50 flex items-center gap-2">
                     <span wire:loading.remove wire:target="storeExpense">Save & Finish</span>
                     <span wire:loading wire:target="storeExpense">Saving...</span>
                 </button>
@@ -215,4 +221,50 @@
         const el = document.getElementById('amount');
         if (el) { el.focus(); el.select(); }
     });
+
+    document.addEventListener('livewire:load', () => {
+        let wasTyping = false, selStart = null, selEnd = null;
+
+        Livewire.hook('message.sent', () => {
+            const el = document.activeElement;
+            wasTyping = !!(el && el.id === 'item_name');
+            if (wasTyping) { selStart = el.selectionStart; selEnd = el.selectionEnd; }
+        });
+
+        Livewire.hook('message.processed', () => {
+            if (!wasTyping) return;
+            const el = document.getElementById('item_name');
+            if (el && document.activeElement !== el) {
+                el.focus();
+                try { el.setSelectionRange(selStart, selEnd); } catch (e) {}
+            }
+        });
+    });
+
+    function formatAmount(input) {
+        // Remove everything except numbers and dots
+        let cleanValue = input.value.replace(/[^0-9.]/g, '');
+        let number = parseFloat(cleanValue);
+
+        if (isNaN(number) || number < 0) {
+            input.value = '';
+            document.getElementById('amount_raw').value = '';
+            // Trigger Livewire update manually if needed
+            @this.set('amount', '');
+            return;
+        }
+
+        // Format for display with commas and 2 decimal places
+        input.value = number.toLocaleString('en-US', {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
+        });
+
+        // Set raw value for Livewire/backend validation
+        let rawVal = number.toFixed(2);
+        document.getElementById('amount_raw').value = rawVal;
+        
+        // Push the clean numeric value directly into Livewire
+        @this.set('amount', rawVal);
+    }
 </script>

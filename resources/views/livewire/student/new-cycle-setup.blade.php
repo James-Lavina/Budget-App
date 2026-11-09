@@ -61,9 +61,14 @@
                     <label for="total_allowance" class="block text-xs font-bold text-slate-700">This week's allowance</label>
                     <div class="relative">
                         <span class="absolute inset-y-0 left-0 pl-4 flex items-center text-slate-400 font-bold">₱</span>
-                        <input id="total_allowance" type="number" step="0.01" min="0" placeholder="0.00" autofocus
-                            wire:model.lazy="total_allowance"
-                            onblur="formatMoney(this)"
+                        
+                        <!-- Hidden input that securely syncs the raw value with wire:model.lazy -->
+                        <input type="hidden" id="total_allowance_raw" wire:model.lazy="total_allowance" value="{{ $total_allowance }}">
+                    
+                        <!-- Visible text input for comma-separated formatting -->
+                        <input id="total_allowance" type="text" inputmode="decimal" placeholder="0.00" autofocus
+                            value="{{ $total_allowance ? number_format($total_allowance, 2, '.', ',') : '' }}"
+                            onblur="formatMoney(this, 'total_allowance')"
                             class="w-full pl-9 pr-4 py-3.5 bg-slate-50 border rounded-2xl text-2xl font-black text-slate-900 placeholder-slate-300 focus:bg-white focus:outline-none focus:ring-2 transition-all
                             @error('total_allowance') border-rose-300 focus:border-rose-500 focus:ring-rose-500/20 @else border-slate-200 focus:border-[var(--brand)] focus:ring-[rgba(var(--brand-rgb),0.2)] @enderror">
                     </div>
@@ -138,14 +143,54 @@
 </div>
 
 <script>
-    function formatMoney(input) {
-        if (input.value !== '') {
-            const value = parseFloat(input.value);
-            if (!isNaN(value)) {
-                input.value = value.toFixed(2);
-                input.dispatchEvent(new Event('input', { bubbles: true }));
-                input.dispatchEvent(new Event('change', { bubbles: true }));
+    function formatMoney(input, propertyName = 'total_allowance') {
+        const cleaned = input.value.replace(/,/g, '').trim();
+        const rawInputId = propertyName + '_raw';
+        const rawInput = document.getElementById(rawInputId);
+
+        if (cleaned === '') {
+            input.value = '';
+            if (rawInput) {
+                rawInput.value = '';
+                rawInput.dispatchEvent(new Event('input', { bubbles: true }));
+                rawInput.dispatchEvent(new Event('change', { bubbles: true }));
             }
+            if (typeof @this !== 'undefined') {
+                @this.set(propertyName, '');
+            }
+            return;
+        }
+
+        const value = parseFloat(cleaned);
+        if (isNaN(value) || value < 0) {
+            input.value = '';
+            if (rawInput) {
+                rawInput.value = '';
+                rawInput.dispatchEvent(new Event('input', { bubbles: true }));
+                rawInput.dispatchEvent(new Event('change', { bubbles: true }));
+            }
+            if (typeof @this !== 'undefined') {
+                @this.set(propertyName, '');
+            }
+            return;
+        }
+
+        // Format display value with commas and 2 decimal places (e.g., 10,000.00)
+        input.value = value.toLocaleString('en-US', {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
+        });
+
+        // Update hidden raw input and trigger lazy updates/events
+        const rawVal = value.toFixed(2);
+        if (rawInput) {
+            rawInput.value = rawVal;
+            rawInput.dispatchEvent(new Event('input', { bubbles: true }));
+            rawInput.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+
+        if (typeof @this !== 'undefined') {
+            @this.set(propertyName, rawVal);
         }
     }
 </script>

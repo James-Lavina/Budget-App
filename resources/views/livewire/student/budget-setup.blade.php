@@ -68,8 +68,13 @@
                         <label for="total_allowance" class="block text-xs font-bold text-slate-700">Weekly Allowance</label>
                         <div class="relative">
                             <span class="absolute inset-y-0 left-0 pl-4 flex items-center text-slate-400 font-bold">₱</span>
-                            <input id="total_allowance" type="number" step="0.01" min="0" placeholder="0.00" autofocus
-                                wire:model.lazy="total_allowance"
+                            
+                            <!-- Hidden input that securely syncs the raw numeric value to Livewire -->
+                            <input type="hidden" id="total_allowance_raw" wire:model.lazy="total_allowance" value="{{ $total_allowance }}">
+                        
+                            <!-- Visible text input for comma-separated formatting -->
+                            <input id="total_allowance" type="text" inputmode="decimal" placeholder="0.00" autofocus
+                                value="{{ $total_allowance ? number_format($total_allowance, 2, '.', ',') : '' }}"
                                 wire:keyup.enter="next"
                                 onblur="formatMoney(this)"
                                 class="w-full pl-9 pr-4 py-3.5 bg-slate-50 border rounded-2xl text-2xl font-black text-slate-900 placeholder-slate-300 focus:bg-white focus:outline-none focus:ring-2 transition-all
@@ -173,7 +178,7 @@
                 <div class="space-y-6">
                     <div class="text-center space-y-1">
                         <h2 class="text-xl sm:text-2xl font-extrabold text-slate-900">Saving for something?</h2>
-                        <p class="text-sm text-slate-500">Optional. Set a goal now, or add one anytime later.</p>
+                        <p class="text-sm text-slate-500"><span class="font-bold text-md">(Optional)</span>. Set a goal now, or add one anytime later.</p>
                     </div>
 
                     <div class="max-w-sm mx-auto space-y-4">
@@ -188,8 +193,14 @@
                             <label class="block text-xs font-bold text-slate-700">Goal amount</label>
                             <div class="relative">
                                 <span class="absolute inset-y-0 left-0 pl-4 flex items-center text-slate-400 font-bold text-sm">₱</span>
-                                <input type="number" step="0.01" min="0" wire:model.defer="goal_amount" placeholder="0.00"
-                                    onblur="formatMoney(this)"
+                                
+                                <!-- Hidden input that securely syncs the raw numeric value to Livewire -->
+                                <input type="hidden" id="goal_amount_raw" wire:model.defer="goal_amount" value="{{ $goal_amount }}">
+                            
+                                <!-- Visible text input for comma-separated display -->
+                                <input id="goal_amount" type="text" inputmode="decimal" placeholder="0.00"
+                                    value="{{ $goal_amount ? number_format($goal_amount, 2, '.', ',') : '' }}"
+                                    onblur="formatMoney(this, 'goal_amount')"
                                     class="w-full pl-9 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-bold text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:border-[var(--brand)] focus:ring-[rgba(var(--brand-rgb),0.2)] transition-all">
                             </div>
                             @error('goal_amount') <span class="text-xs text-rose-600 font-medium">{{ $message }}</span> @enderror
@@ -264,10 +275,10 @@
 
             <div class="flex items-center gap-2">
                 @if($step === 3)
-                    <button type="button" wire:click="skipGoal"
+                    {{-- <button type="button" wire:click="skipGoal"
                         class="px-4 py-2.5 text-sm font-bold text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-full transition-all">
                         Skip
-                    </button>
+                    </button> --}}
                 @endif
 
                 @if($step < $totalSteps)
@@ -289,16 +300,53 @@
 </div>
 
 <script>
-    // Formats to 2 decimals and notifies Livewire. Both events are dispatched:
-    // `change` is what wire:model.lazy listens to, `input` is what wire:model.defer needs.
     function formatMoney(input) {
-        if (input.value !== '') {
-            const value = parseFloat(input.value);
-            if (!isNaN(value)) {
-                input.value = value.toFixed(2);
-                input.dispatchEvent(new Event('input', { bubbles: true }));
-                input.dispatchEvent(new Event('change', { bubbles: true }));
+        const cleaned = input.value.replace(/,/g, '').trim();
+        const rawInput = document.getElementById('total_allowance_raw');
+
+        if (cleaned === '') {
+            input.value = '';
+            if (rawInput) {
+                rawInput.value = '';
+                rawInput.dispatchEvent(new Event('input', { bubbles: true }));
+                rawInput.dispatchEvent(new Event('change', { bubbles: true }));
             }
+            if (typeof @this !== 'undefined') {
+                @this.set('total_allowance', '');
+            }
+            return;
+        }
+
+        const value = parseFloat(cleaned);
+        if (isNaN(value) || value < 0) {
+            input.value = '';
+            if (rawInput) {
+                rawInput.value = '';
+                rawInput.dispatchEvent(new Event('input', { bubbles: true }));
+                rawInput.dispatchEvent(new Event('change', { bubbles: true }));
+            }
+            if (typeof @this !== 'undefined') {
+                @this.set('total_allowance', '');
+            }
+            return;
+        }
+
+        // Format display value with commas and 2 decimals (e.g., 10,000.00)
+        input.value = value.toLocaleString('en-US', {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
+        });
+
+        // Update hidden raw input and sync with Livewire
+        const rawVal = value.toFixed(2);
+        if (rawInput) {
+            rawInput.value = rawVal;
+            rawInput.dispatchEvent(new Event('input', { bubbles: true }));
+            rawInput.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+
+        if (typeof @this !== 'undefined') {
+            @this.set('total_allowance', rawVal);
         }
     }
 </script>

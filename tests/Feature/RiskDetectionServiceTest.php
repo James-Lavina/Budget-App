@@ -284,4 +284,25 @@ class RiskDetectionServiceTest extends TestCase
         $this->assertEquals(3, $settings->rapid_spending_count);
         $this->assertFalse($settings->no_expense_logs_enabled);
     }
+
+    public function test_a_savings_transfer_never_raises_any_alert()
+    {
+        $user = $this->makeStudent();
+        $this->makeBudget($user, 100.00);
+
+        $goal = SavingsGoal::create([
+            'user_id' => $user->id, 'target_name' => 'Laptop', 'target_amount' => 5000,
+            'current_saved' => 900, 'status' => 'active',
+        ]);
+
+        $this->makeExpense($user, $this->makeCategory('Savings'), 900.00, '2026-10-07 10:00:00', [
+            'savings_goal_id' => $goal->id,
+            'item_name'       => 'Laptop',
+        ]);
+
+        $this->service()->evaluateSpendingRisk($user);
+
+        $this->assertSame(0, RiskLog::count());
+        $this->assertDatabaseCount('notifications', 0);
+    }
 }

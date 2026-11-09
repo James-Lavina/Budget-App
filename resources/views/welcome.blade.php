@@ -52,6 +52,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{{ $appSettings->application_name }}</title>
   <link rel="stylesheet" href="{{ asset('css/app.css') }}">
+  <link rel="icon" type="image/x-icon" href="{{ asset('images/budgetwise-icon 1 · 42 × 42.svg') }}">
   <style>
       :root {
           --brand: {{ $primary }};
@@ -85,11 +86,7 @@
                            alt="{{ $appSettings->application_name }}"
                            class="h-10 w-10 rounded-2xl object-cover shadow-md group-hover:scale-105 transition-transform shrink-0">
                   @else
-                      <div class="h-10 w-10 brand-bg text-white rounded-2xl flex items-center justify-center shadow-md group-hover:scale-105 transition-transform shrink-0">
-                          <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                              <path stroke-linecap="round" stroke-linejoin="round" d="M21 12V7H5a2 2 0 010-4h14v4M3 5v14a2 2 0 002 2h16v-5M18 12a2 2 0 100 4 2 2 0 000-4z" />
-                          </svg>
-                      </div>
+                    <x-app-logo class="h-10 w-10 shrink-0 shadow-md rounded-xl group-hover:scale-105 transition-transform" />
                   @endif
                   <span class="text-xl font-bold text-slate-900 tracking-tight truncate">
                       {{ $appSettings->application_name }}
@@ -218,7 +215,7 @@
           <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
 
               <!-- Card 1 -->
-              <div class="bg-white border border-slate-100 rounded-[2rem] p-8 shadow-sm hover:shadow-md transition-all duration-300 space-y-4" data-aos="fade-up" data-aos-delay="100">
+              <div class="bg-white border border-slate-200 rounded-[2rem] p-8 shadow-lg hover:shadow-xl transition-all duration-300 space-y-4" data-aos="fade-up" data-aos-delay="100">
                   <div class="h-12 w-12 brand-bg-light rounded-2xl flex items-center justify-center font-bold" style="color: var(--brand);">
                       <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
                   </div>
@@ -228,7 +225,7 @@
                   </p>
               </div>
               <!-- Card 2 -->
-              <div class="bg-white border border-slate-100 rounded-[2rem] p-8 shadow-sm hover:shadow-md transition-all duration-300 space-y-4" data-aos="fade-up" data-aos-delay="200">
+              <div class="bg-white border border-slate-200 rounded-[2rem] p-8 shadow-lg hover:shadow-xl transition-all duration-300 space-y-4" data-aos="fade-up" data-aos-delay="200">
                   <div class="h-12 w-12 bg-orange-50 text-orange-500 rounded-2xl flex items-center justify-center font-bold">
                       <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/></svg>
                   </div>
@@ -238,7 +235,7 @@
                   </p>
               </div>
               <!-- Card 3 -->
-              <div class="bg-white border border-slate-100 rounded-[2rem] p-8 shadow-sm hover:shadow-md transition-all duration-300 space-y-4" data-aos="fade-up" data-aos-delay="300">
+              <div class="bg-white border border-slate-200 rounded-[2rem] p-8 shadow-lg hover:shadow-xl transition-all duration-300 space-y-4" data-aos="fade-up" data-aos-delay="300">
                   <div class="h-12 w-12 bg-emerald-50 text-emerald-500 rounded-2xl flex items-center justify-center font-bold">
                       <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
                   </div>
@@ -248,7 +245,7 @@
                   </p>
               </div>
               <!-- Card 4 -->
-              <div class="bg-white border border-slate-100 rounded-[2rem] p-8 shadow-sm hover:shadow-md transition-all duration-300 space-y-4" data-aos="fade-up" data-aos-delay="100">
+              <div class="bg-white border border-slate-200 rounded-[2rem] p-8 shadow-lg hover:shadow-lg transition-all duration-300 space-y-4" data-aos="fade-up" data-aos-delay="100">
                   <div class="h-12 w-12 bg-amber-50 text-amber-500 rounded-2xl flex items-center justify-center font-bold">
                       <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>
                   </div>
@@ -258,7 +255,7 @@
                   </p>
               </div>
               <!-- Card 5 -->
-              <div class="bg-white border border-slate-100 rounded-[2rem] p-8 shadow-sm hover:shadow-md transition-all duration-300 space-y-4" data-aos="fade-up" data-aos-delay="200">
+              <div class="bg-white border border-slate-200 rounded-[2rem] p-8 shadow-lg hover:shadow-xl transition-all duration-300 space-y-4" data-aos="fade-up" data-aos-delay="200">
                   <div class="h-12 w-12 bg-purple-50 text-purple-600 rounded-2xl flex items-center justify-center font-bold">
                       <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>
                   </div>
@@ -349,11 +346,7 @@
                        alt="{{ $appSettings->application_name }}"
                        class="h-8 w-8 rounded-xl object-cover shrink-0">
               @else
-                  <div class="h-8 w-8 brand-bg text-white rounded-xl flex items-center justify-center font-black text-sm shrink-0">
-                      <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                          <path stroke-linecap="round" stroke-linejoin="round" d="M21 12V7H5a2 2 0 010-4h14v4M3 5v14a2 2 0 002 2h16v-5M18 12a2 2 0 100 4 2 2 0 000-4z" />
-                      </svg>
-                  </div>
+                <x-app-logo class="h-8 w-8 shrink-0" />
               @endif
               <span class="text-lg font-bold text-slate-900 tracking-tight truncate">
                   {{ $appSettings->application_name }}

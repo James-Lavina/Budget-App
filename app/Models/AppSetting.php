@@ -78,4 +78,40 @@ class AppSetting extends Model
 
         return sprintf('#%02x%02x%02x', ...$rgb);
     }
+
+    /**
+ * Lighter tint of the brand color (mix toward white) — logo gradient start.
+ */
+public function primaryColorTint(float $pct = 0.35): string
+    {
+        return self::mixHex($this->primary_color ?: '#4f39fa', $pct, true);
+    }
+
+    /**
+     * Deeper shade of the brand color (mix toward black) — logo gradient end.
+     */
+    public function primaryColorDeep(float $pct = 0.30): string
+    {
+        return self::mixHex($this->primary_color ?: '#4f39fa', $pct, false);
+    }
+
+    private static function mixHex(string $hex, float $pct, bool $lighten): string
+    {
+        $hex = ltrim($hex, '#');
+
+        if (strlen($hex) === 3) {
+            $hex = $hex[0].$hex[0].$hex[1].$hex[1].$hex[2].$hex[2];
+        }
+
+        [$r, $g, $b] = array_map('hexdec', str_split($hex, 2));
+
+        $mix = $lighten ? 255 : 0;
+
+        return sprintf(
+            '#%02x%02x%02x',
+            (int) round($r + ($mix - $r) * $pct),
+            (int) round($g + ($mix - $g) * $pct),
+            (int) round($b + ($mix - $b) * $pct)
+        );
+    }
 }

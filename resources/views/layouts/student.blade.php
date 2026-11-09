@@ -6,6 +6,7 @@
     <title>{{ $appSettings->application_name }}</title>
     <link rel="stylesheet" href="{{ asset('css/app.css') }}">
     <script src="{{ asset('js/chart.min.js') }}"></script>
+    <link rel="icon" type="image/x-icon" href="{{ asset('images/budgetwise-icon 1 · 42 × 42.svg') }}">
     <style>
         :root {
             --brand: {{ $appSettings->primary_color }};
@@ -26,18 +27,17 @@
             <div class="space-y-6">
                 <div id="brand-row" class="flex items-center justify-between px-2 pt-1">
                     <a href="{{ route('student.dashboard') }}" id="brand-link" class="flex items-center gap-3 min-w-0">
-                        <div class="h-10 w-10 rounded-2xl flex items-center justify-center text-white shrink-0 overflow-hidden bg-[var(--brand)] shadow-md shadow-[0_8px_16px_-4px_rgba(var(--brand-rgb),0.3)]">
+                        <div class="h-10 w-10 rounded-xl flex items-center justify-center text-white shrink-0 overflow-hidden bg-[var(--brand)] shadow-md shadow-[0_8px_16px_-4px_rgba(var(--brand-rgb),0.3)]">
+                            {{-- sidebar --}}
                             @if($appSettings->logo_path)
-                                <img src="{{ Storage::url($appSettings->logo_path) }}"
-                                     alt="{{ $appSettings->application_name }}"
-                                     class="h-full w-full object-cover">
+                            <div class="h-10 w-10 rounded-2xl flex items-center justify-center shrink-0 overflow-hidden shadow-md">
+                                <img src="{{ Storage::url($appSettings->logo_path) }}" alt="{{ $appSettings->application_name }}" class="h-full w-full object-cover">
+                            </div>
                             @else
-                                <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" d="M21 12V7H5a2 2 0 010-4h14v4M3 5v14a2 2 0 002 2h16v-5M18 12a2 2 0 100 4 2 2 0 000-4z"/>
-                                </svg>
+                            <x-app-logo class="h-10 w-10 shrink-0 drop-shadow-md" />
                             @endif
                         </div>
-                        <span data-sidebar-label class="font-black text-slate-900 text-xl tracking-tight truncate">{{ $appSettings->application_name }}</span>
+                        <span data-sidebar-label class="font-black text-slate-900 text-lg tracking-tight truncate">{{ $appSettings->application_name }}</span>
                     </a>
                     <button id="close-sidebar-btn" type="button" class="lg:hidden p-1.5 text-slate-400 hover:text-slate-600 rounded-xl hover:bg-slate-100 shrink-0">
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -134,13 +134,14 @@
                         </svg>
                     </button>
                     <a href="{{ route('student.dashboard') }}" class="flex items-center gap-2">
-                        <div class="h-8 w-8 rounded-xl flex items-center justify-center text-white shrink-0 overflow-hidden bg-[var(--brand)] shadow-md shadow-[0_8px_16px_-4px_rgba(var(--brand-rgb),0.3)]">
+                        <div class="h-8 w-8 rounded-xl flex items-center justify-center text-white shrink-0 overflow-hidden bg-[var(--brand) shadow-md shadow-[0_8px_16px_-4px_rgba(var(--brand-rgb),0.3)]">
+                            {{-- mobile header --}}
                             @if($appSettings->logo_path)
+                            <div class="h-8 w-8 rounded-xl flex items-center justify-center shrink-0 overflow-hidden shadow-md">
                                 <img src="{{ Storage::url($appSettings->logo_path) }}" alt="{{ $appSettings->application_name }}" class="h-full w-full object-cover">
+                            </div>
                             @else
-                                <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" d="M21 12V7H5a2 2 0 010-4h14v4M3 5v14a2 2 0 002 2h16v-5M18 12a2 2 0 100 4 2 2 0 000-4z"/>
-                                </svg>
+                            <x-app-logo class="h-8 w-8 shrink-0 drop-shadow-md" />
                             @endif
                         </div>
                         <span class="font-extrabold text-slate-900 text-lg tracking-tight">{{ $appSettings->application_name }}</span>

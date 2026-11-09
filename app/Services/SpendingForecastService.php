@@ -44,11 +44,18 @@ class SpendingForecastService
             ->whereBetween('transaction_date', [$startDate, $endDate])
             ->get();
 
-        $allByDay = []; // everything that left the budget, including savings transfers
+        $allByDay   = []; // everything that left the budget, savings transfers included (drives "money left")
+        $spendByDay = []; // real spending only, savings transfers excluded (drives the pace)
 
         foreach ($cycleExpenses as $e) {
-            $key = $e->transaction_date->format('Y-m-d');
-            $allByDay[$key] = ($allByDay[$key] ?? 0) + (float) $e->amount;
+            $key    = $e->transaction_date->format('Y-m-d');
+            $amount = (float) $e->amount;
+
+            $allByDay[$key] = ($allByDay[$key] ?? 0) + $amount;
+
+            if (!$e->isSavingsTransfer()) {
+                $spendByDay[$key] = ($spendByDay[$key] ?? 0) + $amount;
+            }
         }
 
         // Money at the start of the cycle, reconstructed so the chart's last real point == remaining.
@@ -59,10 +66,11 @@ class SpendingForecastService
             ->sum('amount');
 
         // ---- Chart series: money left at the end of each day -------------------------------
-        $labels     = [];
-        $actual     = [];
-        $totalSpent = 0.0;
-        $running    = 0.0;
+        $labels       = [];
+        $actual       = [];
+        $totalOutflow = 0.0; // spending + savings
+        $totalSpent   = 0.0; // spending only: this is what the pace is based on
+        $running      = 0.0;
 
         for ($i = 0; $i < $cycleLength; $i++) {
             $date     = $startDate->copy()->addDays($i);
@@ -70,13 +78,19 @@ class SpendingForecastService
             $labels[] = $date->format('D');
 
             if ($i + 1 <= $daysElapsed) {
-                $running    += $allByDay[$key] ?? 0;
-                $totalSpent += $allByDay[$key] ?? 0;
-                $actual[]    = round(max(0, $pool - $running), 2);
+                $dayAll   = $allByDay[$key] ?? 0;
+                $daySpend = $spendByDay[$key] ?? 0;
+
+                $running      += $dayAll;
+                $totalOutflow += $dayAll;
+                $totalSpent   += $daySpend;
+                $actual[]      = round(max(0, $pool - $running), 2);
             } else {
                 $actual[] = null;
             }
         }
+
+        $totalSaved = max(0.0, $totalOutflow - $totalSpent);
 
         // ---- Projection --------------------------------------------------------------------
         $isFinalDay = $daysElapsed >= $cycleLength || $daysRemaining <= 1;
@@ -121,7 +135,7 @@ class SpendingForecastService
             $state = 'depleted';
         } elseif ($isFinalDay) {
             $state = 'final_day';
-        } elseif ($totalSpent <= 0) {
+        } elseif ($totalOutflow <= 0) {
             $state = 'fresh_start';
         } elseif ($projectedSpend > $remaining) {
             $state = 'runs_out';
@@ -132,16 +146,16 @@ class SpendingForecastService
         }
 
         $ctx = [
-            'remaining'          => $remaining,
+            'remaining'           => $remaining,
             'projected_remaining' => $projectedRemaining,
-            'shortfall'          => $shortfall,
-            'pace'               => $pace,
-            'quota'              => $quota,
-            'days_left'          => $daysRemaining,
-            'reset_day'          => $resetDay,
-            'runs_out_label'     => $runsOutLabel,
-            'short_days'         => $shortDays,
-            'pct_left'           => $pctLeft,
+            'shortfall'           => $shortfall,
+            'pace'                => $pace,
+            'quota'               => $quota,
+            'days_left'           => $daysRemaining,
+            'reset_day'           => $resetDay,
+            'runs_out_label'      => $runsOutLabel,
+            'short_days'          => $shortDays,
+            'pct_left'            => $pctLeft,
         ];
 
         return [
@@ -154,6 +168,7 @@ class SpendingForecastService
                 'safe_per_day'        => $quota,
                 'safe_today'          => $safeToday,
                 'spent_today'         => $spentToday,
+                'saved'               => $totalSaved,
                 'days_left'           => $daysRemaining,
                 'is_final_day'        => $isFinalDay,
                 'reset_day'           => $resetDay,

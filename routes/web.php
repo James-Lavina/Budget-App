@@ -48,6 +48,19 @@ Route::middleware(['guest'])->group(function() {
     });
 });
 
+// routes/web.php (outside auth groups)
+// Route::get('/favicon-brand.svg', function () {
+//     $s = \App\Models\AppSetting::current();
+
+//     $svg = view('components.app-logo', ['attributes' => new \Illuminate\View\ComponentAttributeBag(['width' => 42, 'height' => 42])])->render();
+//     $svg = str_replace('<svg ', '<svg xmlns="http://www.w3.org/2000/svg" ', $svg);
+
+//     return response($svg, 200, [
+//         'Content-Type'  => 'image/svg+xml',
+//         'Cache-Control' => 'public, max-age=300',
+//     ]);
+// })->name('favicon.brand');
+
 // Authenticated Routes
 Route::middleware(['auth', 'maintenance.check'])->group(function() {
 

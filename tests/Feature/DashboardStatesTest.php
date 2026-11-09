@@ -225,4 +225,23 @@ class DashboardStatesTest extends TestCase
         $this->assertDatabaseHas('expenses', ['id' => $other->id]);
         $this->assertEquals(900.00, $budget->fresh()->remaining_allowance);
     }
+
+    public function test_a_savings_deposit_alongside_normal_spending_does_not_flag_the_pace()
+    {
+        [$user, , $food] = $this->signIn(300.00);
+
+        $this->makeExpense($user, $food, 300.00, '2026-10-06 12:00:00');
+
+        $goal = SavingsGoal::create([
+            'user_id' => $user->id, 'target_name' => 'Laptop', 'target_amount' => 5000,
+            'current_saved' => 400, 'status' => 'active',
+        ]);
+
+        $this->makeExpense($user, $this->makeCategory('Savings'), 400.00, '2026-10-06 13:00:00', [
+            'savings_goal_id' => $goal->id,
+        ]);
+
+        Livewire::test(Dashboard::class)
+            ->assertViewHas('dashboardState', 'on_track');
+    }
 }

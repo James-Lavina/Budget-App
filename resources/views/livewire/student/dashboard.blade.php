@@ -86,13 +86,13 @@
                 </div>
 
                 {{-- RIGHT: compact stats --}}
-                <div class="flex items-start gap-5 sm:gap-6 pt-3 lg:pt-0.5 lg:pl-6 border-t border-slate-100 lg:border-t-0 lg:border-l lg:shrink-0">
+                <div class="flex items-start gap-4 sm:gap-6 lg:gap-8 pt-3 lg:pt-0.5 lg:pl-6 border-t border-slate-100 lg:border-t-0 lg:border-l lg:shrink-0">
                     <div class="min-w-0">
-                        <span class="flex items-center gap-1 text-[11px] font-bold text-slate-500 uppercase tracking-wider whitespace-nowrap">
-                            <x-heroicon-o-calendar class="w-3 h-3 shrink-0" />
+                        <span class="flex items-center gap-1 lg:gap-1.5 text-[9px] sm:text-[11px] lg:text-xs font-extrabold text-slate-500 uppercase tracking-wider whitespace-nowrap">
+                            <x-heroicon-o-calendar class="w-3 h-3 lg:w-4 lg:h-4 shrink-0" />
                             Days Left
                         </span>
-                        <span class="text-sm font-extrabold text-slate-900 block mt-0.5 whitespace-nowrap">
+                        <span class="text-xs sm:text-sm lg:text-lg font-bold text-slate-900 block mt-0.5 lg:mt-1 whitespace-nowrap">
                             @if($daysRemaining === 1)
                                 Last day · {{ $cycleEnd->format('M j') }}
                             @else
@@ -100,23 +100,23 @@
                             @endif
                         </span>
                     </div>
-
+                
                     <div class="min-w-0">
-                        <span class="flex items-center gap-1 text-[11px] font-bold text-slate-500 uppercase tracking-wider whitespace-nowrap">
-                            <x-heroicon-o-shield-check class="w-3 h-3 shrink-0" />
+                        <span class="flex items-center gap-1 lg:gap-1.5 text-[9px] sm:text-[11px] lg:text-xs font-extrabold text-slate-500 uppercase tracking-wider whitespace-nowrap">
+                            <x-heroicon-o-shield-check class="w-3 h-3 lg:w-4 lg:h-4 shrink-0" />
                             Safe per Day
                         </span>
-                        <span class="text-sm font-extrabold text-slate-900 block mt-0.5 whitespace-nowrap">
+                        <span class="text-xs sm:text-sm lg:text-lg font-bold text-slate-900 block mt-0.5 lg:mt-1 whitespace-nowrap">
                             ₱{{ number_format($dailyQuota, 2) }}
                         </span>
                     </div>
-
+                
                     <div class="min-w-0">
-                        <span class="flex items-center gap-1 text-[11px] font-bold text-slate-500 uppercase tracking-wider whitespace-nowrap">
-                            <x-heroicon-o-trending-up class="w-3 h-3 shrink-0" />
+                        <span class="flex items-center gap-1 lg:gap-1.5 text-[9px] sm:text-[11px] lg:text-xs font-extrabold text-slate-500 uppercase tracking-wider whitespace-nowrap">
+                            <x-heroicon-o-trending-up class="w-3 h-3 lg:w-4 lg:h-4 shrink-0" />
                             Biggest Category
                         </span>
-                        <span class="text-sm font-extrabold text-slate-900 block mt-0.5 leading-tight max-w-[13rem]">
+                        <span class="text-xs sm:text-sm lg:text-lg font-bold text-slate-900 block mt-0.5 lg:mt-1 leading-tight max-w-[13rem]">
                             {{ $biggestCategoryName ?? '—' }}
                         </span>
                     </div>
@@ -187,8 +187,6 @@
                 <div class="flex items-center justify-between gap-3">
                     <span class="text-[11px] sm:text-xs font-semibold text-slate-500">Weekly Allowance</span>
                     <div class="h-7 w-7 rounded-lg bg-[rgba(var(--brand-rgb),0.08)] text-[var(--brand)] flex items-center justify-center shrink-0">
-                        {{-- No peso-sign icon exists in the installed Heroicons v1 set —
-                             kept as the original manual inline SVG rather than a mismatched icon. --}}
                         <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M20.25 6.375c0 2.278-3.694 4.125-8.25 4.125S3.75 8.653 3.75 6.375m16.5 0c0-2.278-3.694-4.125-8.25-4.125S3.75 4.097 3.75 6.375m16.5 0v11.25c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125V6.375m16.5 5.625c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125" />
                         </svg>
@@ -360,7 +358,7 @@
                         <canvas id="weeklySpendingChart"></canvas>
                     </div>
                 </div>
-                <p class="text-[10px] text-slate-400 font-medium text-center pt-1 sm:hidden">
+                <p class="text-[10px] text-slate-600 font-bold  text-center pt-1 sm:hidden">
                     Tap a bar for category breakdown
                 </p>
             </div>
@@ -422,7 +420,7 @@
         </div>
 
         {{-- FLOATING "+ ADD EXPENSE" BUTTON WITH CHOICE MENU --}}
-        <div class="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-50" data-add-expense-widget>
+        <div class="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-49" data-add-expense-widget>
             <div data-add-expense-menu class="hidden absolute bottom-full right-0 mb-3 w-56 bg-white rounded-2xl shadow-xl border border-slate-100 p-2 space-y-1">
                 <a href="{{ route('student.expenses.create') }}"
                 class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold text-slate-700 hover:bg-slate-50 transition-colors">
@@ -561,14 +559,14 @@
                         x: {
                             stacked: true,
                             grid: { display: false },
-                            ticks: { font: { size: 10 }, color: '#94a3b8' },
+                            ticks: { font: { size: 10 }, color: '#475569' },
                         },
                         y: {
                             stacked: true,
-                            grid: { color: '#f1f5f9' },
+                            grid: { color: '#dcdfe3' },
                             ticks: {
                                 font: { size: 9 },
-                                color: '#94a3b8',
+                                color: '#475569',
                                 callback: (val) => '₱' + val,
                             },
                         },

@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{ \App\Models\AppSetting::current()->application_name }} — Admin</title>
     <link rel="stylesheet" href="{{ asset('css/app.css') }}">
+    <link rel="icon" type="image/x-icon" href="{{ asset('images/budgetwise-icon 1 · 42 × 42.svg') }}">
     <script src="{{ asset('js/chart.min.js') }}"></script>
     @livewireStyles
 
@@ -29,13 +30,13 @@
                 {{-- Brand --}}
                 <div id="admin-brand-row" class="flex items-center justify-between px-2 pt-1">
                     <a href="{{ route('admin.dashboard') }}" id="admin-brand-link" class="flex items-center gap-3 min-w-0">
-                        <div class="h-10 w-10 rounded-2xl flex items-center justify-center text-white shadow-md shrink-0 overflow-hidden" style="background-color: var(--brand-primary);">
+                        <div class="h-10 w-10 rounded-xl flex items-center justify-center text-white shadow-md shrink-0 overflow-hidden" style="background-color: var(--brand-primary);">
                             @if($appSettings->logo_path)
-                                <img src="{{ Storage::url($appSettings->logo_path) }}" class="h-full w-full object-cover">
+                                <div class="h-10 w-10 rounded-xl flex items-center justify-center shadow-md shrink-0 overflow-hidden">
+                                    <img src="{{ Storage::url($appSettings->logo_path) }}" class="h-full w-full object-cover">
+                                </div>
                             @else
-                                <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" d="M21 12V7H5a2 2 0 010-4h14v4M3 5v14a2 2 0 002 2h16v-5M18 12a2 2 0 100 4 2 2 0 000-4z"/>
-                                </svg>
+                                <x-app-logo class="h-10 w-10 shrink-0 drop-shadow-md" />
                             @endif
                         </div>
                         <div class="leading-tight min-w-0" data-sidebar-label>
