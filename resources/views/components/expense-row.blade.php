@@ -1,8 +1,8 @@
 @props(['expense', 'locked' => false])
 
-<div class="py-3.5 sm:py-4 flex items-center justify-between gap-3 group hover:bg-slate-50/70 -mx-2 px-2 rounded-2xl transition-all {{ $locked ? 'opacity-70' : '' }}">
+<div class="py-3.5 sm:py-4 flex items-center justify-between gap-3 group hover:bg-slate-50 -mx-3 px-3 rounded-2xl transition-all {{ $locked ? 'opacity-70' : '' }}">
    <div class="flex items-center gap-3.5 min-w-0">
-       <div class="h-10 w-10 sm:h-11 sm:w-11 rounded-2xl {{ $expense->icon_bg_color }} flex items-center justify-center shrink-0 shadow-xs">
+       <div class="h-11 w-11 sm:h-12 sm:w-12 rounded-2xl {{ $expense->icon_bg_color }} flex items-center justify-center shrink-0 shadow-xs">
            <x-category-icon :type="$expense->icon_type" class="w-5 h-5" />
        </div>
        <div class="min-w-0">

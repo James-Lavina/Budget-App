@@ -111,16 +111,14 @@ class AddBudgetFundsTest extends TestCase
             ->assertViewHas('rolloverAmount', 400);
     }
 
-    public function test_cycle_rollover_clears_added_funds_and_carries_over_the_unspent_balance()
+    public function test_rollover_clears_added_funds_and_carries_over_the_unspent_balance()
     {
         Carbon::setTestNow('2026-10-12 09:00:00'); // Monday, reset day
 
         $user   = $this->makeStudent();
         $budget = $this->makeBudget($user, 400.00, ['added_funds' => 200]);
 
-        $result = app(BudgetCycleService::class)->rollover($budget, $user, 1000.00);
-
-        $this->assertNotNull($result);
+        app(BudgetCycleService::class)->rollover($budget, $user, 1000.00);
 
         $budget->refresh();
 

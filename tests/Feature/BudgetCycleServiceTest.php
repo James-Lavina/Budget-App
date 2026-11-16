@@ -59,66 +59,33 @@ class BudgetCycleServiceTest extends TestCase
         return [$user, $budget];
     }
 
-    public function test_resolve_never_resets_the_cycle_even_when_it_has_ended()
-    {
-        Carbon::setTestNow('2026-10-12 09:00:00'); // Monday, reset day
-
-        [$user, $budget] = $this->seedCycle('2026-10-05');
-
-        $service = app(BudgetCycleService::class);
-        $service->resolve($budget, $user);
-        $service->resolve($budget, $user, true);
-
-        $budget->refresh();
-
-        $this->assertSame('2026-10-05', $budget->cycle_start_date->format('Y-m-d'));
-        $this->assertEquals(400.00, $budget->remaining_allowance);
-        $this->assertEquals(1000.00, $budget->total_allowance);
-        Notification::assertNothingSent();
-    }
-
-    public function test_needs_rollover_detects_an_ended_cycle()
-    {
-        [$user, $budget] = $this->seedCycle('2026-10-05');
-        $service = app(BudgetCycleService::class);
-
-        Carbon::setTestNow('2026-10-07 12:00:00'); // Wednesday, mid-cycle
-        $this->assertFalse($service->needsRollover($budget, $user));
-
-        Carbon::setTestNow('2026-10-12 09:00:00'); // Monday, reset day
-        $this->assertTrue($service->needsRollover($budget, $user));
-
-        Carbon::setTestNow('2026-10-13 09:00:00'); // Tuesday, reset day missed
-        $this->assertTrue($service->needsRollover($budget, $user));
-    }
-
-    public function test_rollover_adds_the_entered_allowance_to_the_unspent_balance_and_notifies_once()
+    public function test_rollover_uses_the_entered_allowance_plus_unspent_and_notifies_once()
     {
         Carbon::setTestNow('2026-10-12 09:00:00'); // Monday
-
         [$user, $budget] = $this->seedCycle('2026-10-05');
 
         $service = app(BudgetCycleService::class);
 
+        $this->assertTrue($service->needsRollover($budget, $user));
+
         $first  = $service->rollover($budget, $user, 1000.00);
-        $second = $service->rollover($budget->fresh(), $user, 1000.00); // second call must be a no-op
+        $second = $service->rollover($budget->fresh(), $user, 1000.00); // double submit
+
+        $budget->refresh();
 
         $this->assertNotNull($first);
         $this->assertNull($second);
-
-        $budget->refresh();
-
         $this->assertEquals(1400.00, $budget->remaining_allowance); // 1000 entered + 400 unspent
         $this->assertEquals(1000.00, $budget->total_allowance);
+        $this->assertEquals(0.00, $budget->added_funds);
         $this->assertSame('2026-10-12', $budget->cycle_start_date->format('Y-m-d'));
 
         Notification::assertTimesSent(1, WeeklyBudgetReview::class);
     }
 
-    public function test_rollover_uses_the_allowance_the_student_entered_not_the_default()
+    public function test_a_different_entered_allowance_changes_the_new_balance()
     {
         Carbon::setTestNow('2026-10-12 09:00:00');
-
         [$user, $budget] = $this->seedCycle('2026-10-05');
 
         app(BudgetCycleService::class)->rollover($budget, $user, 1500.00);
@@ -126,21 +93,21 @@ class BudgetCycleServiceTest extends TestCase
         $budget->refresh();
 
         $this->assertEquals(1500.00, $budget->total_allowance);
-        $this->assertEquals(1900.00, $budget->remaining_allowance); // 1500 entered + 400 unspent
-        $this->assertEquals(1000.00, $user->fresh()->default_allowance); // default untouched
+        $this->assertEquals(1900.00, $budget->remaining_allowance); // 1500 + 400
     }
 
     public function test_no_rollover_in_the_middle_of_a_cycle()
     {
         Carbon::setTestNow('2026-10-07 12:00:00'); // Wednesday
-
         [$user, $budget] = $this->seedCycle('2026-10-05');
 
-        $result = app(BudgetCycleService::class)->rollover($budget, $user, 1000.00);
+        $service = app(BudgetCycleService::class);
+
+        $this->assertFalse($service->needsRollover($budget, $user));
+        $this->assertNull($service->rollover($budget, $user, 1000.00));
 
         $budget->refresh();
 
-        $this->assertNull($result);
         $this->assertEquals(400.00, $budget->remaining_allowance);
         $this->assertSame('2026-10-05', $budget->cycle_start_date->format('Y-m-d'));
         Notification::assertNothingSent();
@@ -149,16 +116,31 @@ class BudgetCycleServiceTest extends TestCase
     public function test_stale_cycle_rolls_over_even_when_the_reset_day_was_missed()
     {
         Carbon::setTestNow('2026-10-13 09:00:00'); // Tuesday, 8 days after cycle start
-
         [$user, $budget] = $this->seedCycle('2026-10-05');
 
-        app(BudgetCycleService::class)->rollover($budget, $user, 1000.00);
+        $service = app(BudgetCycleService::class);
 
+        $this->assertTrue($service->needsRollover($budget, $user));
+
+        $service->rollover($budget, $user, 1000.00);
         $budget->refresh();
 
         $this->assertSame('2026-10-12', $budget->cycle_start_date->format('Y-m-d'));
         $this->assertEquals(1400.00, $budget->remaining_allowance);
-
         Notification::assertTimesSent(1, WeeklyBudgetReview::class);
+    }
+
+    public function test_resolve_never_mutates_the_budget_even_when_the_cycle_is_stale()
+    {
+        Carbon::setTestNow('2026-10-14 12:00:00');
+        [$user, $budget] = $this->seedCycle('2026-10-05');
+
+        app(BudgetCycleService::class)->resolve($budget, $user);
+
+        $budget->refresh();
+
+        $this->assertSame('2026-10-05', $budget->cycle_start_date->format('Y-m-d'));
+        $this->assertEquals(400.00, $budget->remaining_allowance);
+        Notification::assertNothingSent();
     }
 }

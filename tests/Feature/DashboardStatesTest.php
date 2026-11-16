@@ -244,4 +244,70 @@ class DashboardStatesTest extends TestCase
         Livewire::test(Dashboard::class)
             ->assertViewHas('dashboardState', 'on_track');
     }
+
+    public function test_a_savings_transfer_counts_toward_spent_today()
+    {
+        [$user] = $this->signIn(950.00);
+
+        $goal = SavingsGoal::create([
+            'user_id' => $user->id, 'target_name' => 'Laptop', 'target_amount' => 5000,
+            'current_saved' => 50, 'status' => 'active',
+        ]);
+
+        $this->makeExpense($user, $this->makeCategory('Savings'), 50.00, '2026-10-07 11:00:00', [
+            'savings_goal_id' => $goal->id,
+        ]);
+
+        Livewire::test(Dashboard::class)
+            ->assertSet('spentToday', 50)
+            ->assertViewHas('totalSpent', 50);
+    }
+
+    public function test_spending_exactly_the_daily_quota_shows_todays_budget_met_not_overspending()
+    {
+        // Mon + Tue spent 100 each, 800 left, 5 days left incl. Wed: quota = (800 + 160) / 5 = 192.
+        [$user, , $food] = $this->signIn(640.00);
+
+        $this->makeExpense($user, $food, 100.00, '2026-10-05 12:00:00');
+        $this->makeExpense($user, $food, 100.00, '2026-10-06 12:00:00');
+        $this->makeExpense($user, $food, 160.00, '2026-10-07 10:00:00');
+
+        Livewire::test(Dashboard::class)
+            ->assertViewHas('dashboardState', 'quota_hit')
+            ->assertSee("Today's budget met");
+    }
+
+    public function test_a_savings_deposit_never_triggers_spending_too_fast()
+    {
+        [$user] = $this->signIn(500.00);
+
+        $goal = SavingsGoal::create([
+            'user_id' => $user->id, 'target_name' => 'Laptop', 'target_amount' => 5000,
+            'current_saved' => 500, 'status' => 'active',
+        ]);
+
+        $this->makeExpense($user, $this->makeCategory('Savings'), 500.00, '2026-10-06 10:00:00', [
+            'savings_goal_id' => $goal->id,
+        ]);
+
+        Livewire::test(Dashboard::class)
+            ->assertViewNotHas('dashboardState', 'pace_critical');
+    }
+
+    public function test_spending_over_the_daily_quota_shows_the_over_limit_state_and_a_dismissible_alert()
+    {
+        // quota = (640 + 200) / 5 = 168, spent today 200 => 32 over
+        [$user, , $food] = $this->signIn(640.00);
+
+        $this->makeExpense($user, $food, 160.00, '2026-10-06 12:00:00');
+        $this->makeExpense($user, $food, 200.00, '2026-10-07 10:00:00');
+
+        Livewire::test(Dashboard::class)
+            ->assertViewHas('dashboardState', 'over_quota')
+            ->assertSee("Over today's limit")
+            ->assertSee("over today's limit")
+            ->call('dismissOverspendAlert')
+            ->assertViewHas('showOverspendAlert', false)
+            ->assertViewHas('dashboardState', 'over_quota');
+    }
 }

@@ -21,14 +21,16 @@ class WhatIfSimulator extends Component
     public $purchaseAmount = '';
     public $scenarioType = '';
 
-    // Overview cards (always visible)
+    // Overview cards (always visible), same formulas as Student\Dashboard
     public $hasBudget = true;
     public $weeklyAllowance = 0.00;
     public $remainingBudget = 0.00;
-    public $daysRemaining = 1;
+    public $daysRemaining = 1;       // includes today
+    public $daysAfterToday = 0;
     public $spentToday = 0.00;
-    public $currentDailyQuota = 0.00;   // same formula as Dashboard: (remaining + spentToday) / daysRemaining
-    public $currentSafeToSpend = 0.00;  // quota - spentToday ("left today")
+    public $currentDailyQuota = 0.00;   // (remaining + spentToday) / daysRemaining
+    public $currentSafeToSpend = 0.00;  // max(0, quota - spentToday)  = "left today"
+    public $currentOverToday = 0.00;    // max(0, spentToday - quota)
     public $purchaseCeiling = 50000.00;
 
     // Result state
@@ -36,13 +38,19 @@ class WhatIfSimulator extends Component
     public $simulatedItem = '';
     public $simulatedAmount = 0.00;
     public $newRemaining = 0.00;
-    public $newDailyQuota = 0.00;
-    public $newSafeToSpend = 0.00;
-    public $dailyQuotaDrop = 0.00;
+    public $newLeftToday = 0.00;      // raw: negative means over today's limit
+    public $newSafeToSpend = 0.00;    // max(0, newLeftToday)
+    public $newOverToday = 0.00;      // max(0, -newLeftToday)
+    public $tomorrowBefore = 0.00;    // per-day amount from tomorrow, before the purchase
+    public $tomorrowAfter = 0.00;     // per-day amount from tomorrow, after the purchase
+    public $tomorrowDrop = 0.00;
     public $percentBefore = 0;
     public $percentAfter = 0;
     public $riskLevel = 'low'; // low | medium | high
-    public $savingsImpact = 'No active goal';
+    public $hasGoal = false;
+    public $savingsGoalName = '';
+    public $savingsGoalNeeded = 0.00;
+    public $savingsFreeAfter = 0.00;
     public $isDeficit = false;
     public $isCriticalZero = false;
     public $isOfflineMode = false;
@@ -84,9 +92,8 @@ class WhatIfSimulator extends Component
     }
 
     /**
-     * Loads the overview cards. Uses BudgetCycleService and the same quota
-     * formula as Student\Dashboard::computeBehavioralMetrics(), so the numbers
-     * here always match the dashboard (including the fast-forward test flow).
+     * Loads the overview cards with the same quota formula as
+     * Student\Dashboard::computeBehavioralMetrics().
      */
     private function refreshOverview(): void
     {
@@ -105,20 +112,23 @@ class WhatIfSimulator extends Component
         $this->weeklyAllowance = (float) max(1, $cycle['effectiveTotalAllowance']);
         $this->remainingBudget = (float) $budget->remaining_allowance;
 
-        $periodEnded = $cycle['today']->gte($cycle['nextResetDate']);
+        $periodEnded         = $cycle['today']->gte($cycle['nextResetDate']);
         $this->daysRemaining = $periodEnded ? 0 : (int) $cycle['daysRemaining'];
+        $this->daysAfterToday = max(0, $this->daysRemaining - 1);
 
+        // Everything that left the budget today, savings transfers included (same as the Dashboard).
         $this->spentToday = (float) Expense::where('user_id', Auth::id())
             ->whereDate('transaction_date', $cycle['spentTodayDate'])
             ->sum('amount');
 
         if ($this->daysRemaining > 0) {
-            $this->currentDailyQuota  = ($this->remainingBudget + $this->spentToday) / $this->daysRemaining;
-            $this->currentSafeToSpend = max(0, $this->currentDailyQuota - $this->spentToday);
+            $this->currentDailyQuota = ($this->remainingBudget + $this->spentToday) / $this->daysRemaining;
         } else {
-            $this->currentDailyQuota  = 0.00;
-            $this->currentSafeToSpend = 0.00;
+            $this->currentDailyQuota = 0.00;
         }
+
+        $this->currentSafeToSpend = max(0, $this->currentDailyQuota - $this->spentToday);
+        $this->currentOverToday   = max(0, $this->spentToday - $this->currentDailyQuota);
     }
 
     public function applyPreset($amount, $name = '')
@@ -153,21 +163,22 @@ class WhatIfSimulator extends Component
         $this->isDeficit      = $this->newRemaining < 0;
         $this->isCriticalZero = !$this->isDeficit && $this->newRemaining <= 0.01;
 
-        if ($this->isDeficit || $this->daysRemaining === 0) {
-            $this->newDailyQuota  = 0.00;
-            $this->newSafeToSpend = 0.00;
-        } else {
-            $this->newDailyQuota  = ($this->newRemaining + $this->spentToday) / $this->daysRemaining;
-            $this->newSafeToSpend = max(0, $this->newDailyQuota - $this->spentToday);
-        }
+        // Today: the quota does not change. Buying something only uses up today's amount.
+        $leftBefore          = $this->currentDailyQuota - $this->spentToday;
+        $this->newLeftToday  = $leftBefore - $cost;
+        $this->newSafeToSpend = max(0, $this->newLeftToday);
+        $this->newOverToday   = max(0, -$this->newLeftToday);
 
-        $this->dailyQuotaDrop = max(0, $this->currentDailyQuota - $this->newDailyQuota);
+        // From tomorrow: what is left, spread over the days after today.
+        $this->tomorrowBefore = $this->tomorrowRate($this->remainingBudget, $leftBefore);
+        $this->tomorrowAfter  = $this->isDeficit ? 0.00 : $this->tomorrowRate($this->newRemaining, $this->newLeftToday);
+        $this->tomorrowDrop   = max(0, $this->tomorrowBefore - $this->tomorrowAfter);
 
         $this->percentBefore = (int) max(0, min(100, round(($this->remainingBudget / $this->weeklyAllowance) * 100)));
         $this->percentAfter  = (int) max(0, min(100, round((max(0, $this->newRemaining) / $this->weeklyAllowance) * 100)));
 
-        $this->riskLevel     = $this->resolveRiskLevel();
-        $this->savingsImpact = $this->resolveSavingsImpact($cost);
+        $this->riskLevel = $this->resolveRiskLevel();
+        $this->resolveSavingsGoal();
 
         $this->hasSimulated = true;
 
@@ -175,9 +186,30 @@ class WhatIfSimulator extends Component
     }
 
     /**
-     * high   -> overdraws the budget, uses every peso left, or leaves under 10% of the week's pool
-     * medium -> daily quota drops by 50%+ OR under 25% of the week's pool remains
-     * low    -> everything else
+     * Per-day amount for the days after today. If today's amount is not used up yet,
+     * tomorrow's amount is the normal daily quota. Once it is, whatever is left is
+     * spread over the remaining days (the same rule as the Dashboard banner).
+     */
+    private function tomorrowRate(float $remaining, float $leftToday): float
+    {
+        if ($this->daysAfterToday <= 0) {
+            return 0.0;
+        }
+
+        if ($leftToday > 0.005) {
+            return $this->currentDailyQuota;
+        }
+
+        return max(0.0, $remaining) / $this->daysAfterToday;
+    }
+
+    /**
+     * Rated on TODAY first, then on what it does to the rest of the week.
+     *
+     * low    -> fits inside today's safe-to-spend amount
+     * medium -> goes over today's amount, but the rest of the week still holds up
+     * high   -> can't afford it, leaves almost nothing (<10% of the week),
+     *           or cuts the daily amount from tomorrow by 30% or more
      */
     private function resolveRiskLevel(): string
     {
@@ -185,27 +217,26 @@ class WhatIfSimulator extends Component
             return 'high';
         }
 
-        // On the final day the quota is just "everything left", so a quota drop is meaningless.
-        if ($this->daysRemaining === 1) {
-            return $this->percentAfter < 25 ? 'medium' : 'low';
+        if ($this->newLeftToday >= -0.005) {
+            return 'low';
         }
 
-        $dropRatio = $this->currentDailyQuota > 0
-            ? $this->dailyQuotaDrop / $this->currentDailyQuota
-            : 0;
-
-        if ($dropRatio >= 0.5 || $this->percentAfter < 25) {
+        // Last day (or period ended): going over only eats into what would roll over.
+        if ($this->daysAfterToday <= 0) {
             return 'medium';
         }
 
-        return 'low';
+        $dropRatio = $this->tomorrowBefore > 0
+            ? $this->tomorrowDrop / $this->tomorrowBefore
+            : 0;
+
+        return $dropRatio >= 0.30 ? 'high' : 'medium';
     }
 
     /**
-     * Heuristic: the bigger the purchase relative to what's left, the slower
-     * the student's top active goal will grow.
+     * Concrete numbers for the top active goal instead of a vague label.
      */
-    private function resolveSavingsImpact(float $cost): string
+    private function resolveSavingsGoal(): void
     {
         $goal = SavingsGoal::where('user_id', Auth::id())
             ->where('status', 'active')
@@ -213,32 +244,30 @@ class WhatIfSimulator extends Component
             ->first();
 
         if (!$goal) {
-            return 'No active goal';
+            $this->hasGoal           = false;
+            $this->savingsGoalName   = '';
+            $this->savingsGoalNeeded = 0.00;
+            $this->savingsFreeAfter  = 0.00;
+            return;
         }
 
-        if ($this->isDeficit) {
-            return 'Goal at risk';
-        }
+        $needed = max(0.0, (float) $goal->target_amount - (float) $goal->current_saved);
 
-        $ratio = $cost / max($this->remainingBudget, 0.01);
-
-        if ($ratio <= 0.25) {
-            return 'Barely affected';
-        }
-        if ($ratio <= 0.60) {
-            return 'Slightly slower';
-        }
-        return 'Much slower';
+        $this->hasGoal           = true;
+        $this->savingsGoalName   = $goal->target_name;
+        $this->savingsGoalNeeded = $needed;
+        $this->savingsFreeAfter  = $this->isDeficit ? 0.0 : min(max(0.0, $this->newRemaining), $needed);
     }
 
     public function resetSimulation()
     {
         $this->reset([
             'itemName', 'purchaseAmount', 'scenarioType', 'hasSimulated',
-            'simulatedItem', 'simulatedAmount', 'newRemaining', 'newDailyQuota',
-            'newSafeToSpend', 'dailyQuotaDrop', 'percentBefore', 'percentAfter',
-            'riskLevel', 'savingsImpact', 'isDeficit', 'isCriticalZero',
-            'isOfflineMode', 'aiInsight',
+            'simulatedItem', 'simulatedAmount', 'newRemaining', 'newLeftToday',
+            'newSafeToSpend', 'newOverToday', 'tomorrowBefore', 'tomorrowAfter',
+            'tomorrowDrop', 'percentBefore', 'percentAfter', 'riskLevel',
+            'hasGoal', 'savingsGoalName', 'savingsGoalNeeded', 'savingsFreeAfter',
+            'isDeficit', 'isCriticalZero', 'isOfflineMode', 'aiInsight',
         ]);
         $this->resetErrorBag();
         $this->refreshOverview();
@@ -260,14 +289,16 @@ class WhatIfSimulator extends Component
     {
         $item = $this->simulatedItem;
         $this->isOfflineMode = false;
-        $isLastDay = $this->daysRemaining === 1;
+        $isLastDay   = $this->daysRemaining === 1;
         $roundedCost = (int) (round($cost / 5) * 5);
+        $roundedLeft = (int) (round($this->newLeftToday / 5) * 5);
 
         $cacheKey = sprintf(
-            'simulator_ai:v3:%d:%s:%d:%d:%s',
+            'simulator_ai:v4:%d:%s:%d:%d:%d:%s',
             Auth::id(),
             Str::slug($item),
             $roundedCost,
+            $roundedLeft,
             $this->daysRemaining,
             $this->riskLevel
         );
@@ -287,17 +318,21 @@ class WhatIfSimulator extends Component
                 $prompt = "Analyze this college student's spending simulation:\n" .
                     "- Item: {$item}\n" .
                     "- Cost: ₱" . number_format($cost, 2) . "\n" .
-                    "- Days left in the week (including today): {$this->daysRemaining}\n" .
-                    "- Remaining budget after purchase: ₱" . number_format($this->newRemaining, 2) . "\n" .
-                    "- Daily budget after purchase (per day, for each remaining day): ₱" . number_format($this->newDailyQuota, 2) . "\n" .
+                    "- Today's safe-to-spend amount: ₱" . number_format($this->currentDailyQuota, 2) . "\n" .
                     "- Already spent today: ₱" . number_format($this->spentToday, 2) . "\n" .
-                    "- Risk level: {$this->riskLevel}\n" .
+                    ($this->newLeftToday >= 0
+                        ? "- Left today after this purchase: ₱" . number_format($this->newLeftToday, 2) . "\n"
+                        : "- Over today's safe amount after this purchase by: ₱" . number_format($this->newOverToday, 2) . "\n") .
+                    "- Days left after today: {$this->daysAfterToday}\n" .
+                    "- Per-day amount from tomorrow: before ₱" . number_format($this->tomorrowBefore, 2) .
+                    ", after ₱" . number_format($this->tomorrowAfter, 2) . "\n" .
+                    "- Remaining budget after purchase: ₱" . number_format($this->newRemaining, 2) . "\n" .
+                    "- Rating: {$this->riskLevel} (low = fits today, medium = over today but week is fine, high = hard on the week)\n" .
                     ($isLastDay
-                        ? "- IMPORTANT: today is the LAST day of the week. Any unspent money rolls over to next week, so it is not lost.\n"
+                        ? "- IMPORTANT: today is the LAST day of the week. Any unspent money rolls over to next week.\n"
                         : "") . "\n" .
-                    "Give concise advice in ONE complete sentence (max 25 words). Refer to the DAILY BUDGET as the per-day figure. " .
-                    "If risk is low, simply say they can afford it. Only suggest waiting or a cheaper option when risk is high " .
-                    "or the daily budget is under ₱100. Plain words, use '₱'.";
+                    "Give concise advice in ONE complete sentence (max 25 words) about TODAY first, then the rest of the week if it matters. " .
+                    "If the rating is low, simply say it fits today's budget. Only suggest waiting or a cheaper option when the rating is high. Plain words, use '₱'.";
 
                 $payload = [
                     'model'                 => $settings->groq_text_model,
@@ -326,8 +361,6 @@ class WhatIfSimulator extends Component
                         $this->aiInsight = $text;
                         Cache::put($cacheKey, ['text' => $text, 'offline' => false], now()->addMinutes(3));
 
-                        // NEW: instruments the admin dashboard's "AI Forecast
-                        // Requests" card — previously always read 0.
                         ActivityLog::create([
                             'user_id'    => Auth::id(),
                             'event_type' => 'ai_simulation_requested',
@@ -348,23 +381,28 @@ class WhatIfSimulator extends Component
 
         // ---------- Offline fallback (no wifi, no key, API error, or bad answer) ----------
         $this->isOfflineMode = true;
-        $daily     = number_format($this->newDailyQuota, 2);
+
+        $left      = number_format($this->newSafeToSpend, 2);
+        $over      = number_format($this->newOverToday, 2);
+        $before    = number_format($this->tomorrowBefore, 2);
+        $after     = number_format($this->tomorrowAfter, 2);
         $remaining = number_format($this->newRemaining, 2);
+        $nextDays  = $this->daysAfterToday . ' ' . Str::plural('day', $this->daysAfterToday);
 
         if ($this->isDeficit) {
             $this->aiInsight = "You can't afford this yet — it's ₱" . number_format(abs($this->newRemaining), 2) . " more than what you have left this week.";
         } elseif ($this->isCriticalZero) {
             $this->aiInsight = "This uses up all your remaining budget. You'll have ₱0.00 until your next reset.";
         } elseif ($isLastDay) {
-            $this->aiInsight = $this->riskLevel === 'high'
-                ? "It's your last day and this leaves only ₱{$remaining}. That carries over to next week, so consider a cheaper option."
-                : "It's your last day. You can afford this, and the ₱{$remaining} left will roll over to next week.";
-        } elseif ($this->riskLevel === 'high') {
-            $this->aiInsight = "You can afford this, but your daily budget would drop to ₱{$daily} for {$this->daysRemaining} days. Consider waiting or a cheaper option.";
+            $this->aiInsight = $this->riskLevel === 'low'
+                ? "It's your last day and this fits within today's safe amount. The ₱{$remaining} left will roll over to next week."
+                : "It's your last day. This is ₱{$over} over today's safe amount, so less will roll over to next week.";
+        } elseif ($this->riskLevel === 'low') {
+            $this->aiInsight = "Good to go! This fits within today's safe amount, and you'd still have ₱{$left} left for today.";
         } elseif ($this->riskLevel === 'medium') {
-            $this->aiInsight = "You can afford this, but expect a tighter ₱{$daily}/day for the rest of the week.";
+            $this->aiInsight = "This is ₱{$over} over today's safe amount. You can still afford it, but you'll have about ₱{$after} a day for the next {$nextDays} instead of ₱{$before}.";
         } else {
-            $this->aiInsight = "You can comfortably afford this. Your daily budget stays around ₱{$daily} for the rest of the week.";
+            $this->aiInsight = "This would cut your daily amount for the next {$nextDays} from ₱{$before} to ₱{$after}. Consider waiting or a cheaper option.";
         }
 
         Cache::put($cacheKey, ['text' => $this->aiInsight, 'offline' => true], now()->addMinutes(3));

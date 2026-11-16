@@ -63,6 +63,9 @@ class GoalsManager extends Component
 
     public function storeGoal()
     {
+        $this->target_amount = str_replace([',', ' ', '₱'], '', (string) $this->target_amount);
+        $this->already_saved = str_replace([',', ' ', '₱'], '', (string) $this->already_saved);
+
         $this->validate();
 
         $initialSaved = $this->already_saved ? floatval($this->already_saved) : 0.00;
@@ -119,6 +122,8 @@ class GoalsManager extends Component
 
     public function addFunds()
     {
+        $this->fund_amount = str_replace([',', ' ', '₱'], '', (string) $this->fund_amount);
+        
         $goal = SavingsGoal::where('id', $this->fundingGoalId)
             ->where('user_id', auth()->id())
             ->firstOrFail();

@@ -9,7 +9,8 @@
 @endphp
 
 <div class="min-h-screen bg-[#f4f6fa] flex items-center justify-center p-4 sm:p-8 font-sans"
-     style="--brand: {{ $appSettings->primary_color }}; --brand-rgb: {{ $appSettings->primaryColorRgb() }}; --brand-dark: {{ $appSettings->primaryColorDark() }};">
+    style="--brand: {{ $appSettings->primary_color }}; --brand-rgb: {{ $appSettings->primaryColorRgb() }}; --brand-dark: {{ $appSettings->primaryColorDark() }};">
+
     <div class="w-full max-w-2xl space-y-6">
 
         {{-- Header --}}
@@ -56,66 +57,67 @@
 
             {{-- STEP 1 --}}
             @if($step === 1)
-            @php $fc = $this->firstCycle; @endphp
-            <div class="space-y-6">
-                <div class="text-center space-y-1">
-                    <h2 class="text-xl sm:text-2xl font-extrabold text-slate-900">What's your weekly allowance?</h2>
-                    <p class="text-sm text-slate-500">We'll use this to calculate a calm, realistic daily budget.</p>
+                @php $fc = $this->firstCycle; @endphp
+                <div class="space-y-6">
+                    <div class="text-center space-y-1">
+                        <h2 class="text-xl sm:text-2xl font-extrabold text-slate-900">What's your weekly allowance?</h2>
+                        <p class="text-sm text-slate-500">We'll use this to calculate a calm, realistic daily budget.</p>
+                    </div>
+
+                    <div class="max-w-sm mx-auto space-y-4">
+                        <div class="space-y-1.5">
+                            <label for="total_allowance" class="block text-xs font-bold text-slate-700">Weekly Allowance</label>
+                            <div class="relative">
+                                <span class="absolute inset-y-0 left-0 pl-4 flex items-center text-slate-400 font-bold">₱</span>
+                                <input
+                                    id="total_allowance"
+                                    type="text"
+                                    inputmode="decimal"
+                                    placeholder="0.00"
+                                    autofocus
+                                    value="{{ is_numeric($total_allowance) && (float) $total_allowance > 0 ? number_format((float) $total_allowance, 2, '.', ',') : $total_allowance }}"
+                                    onblur="formatMoney(this, 'total_allowance')"
+                                    onkeydown="if (event.key === 'Enter') { event.preventDefault(); continueSetup(1); }"
+                                    class="w-full pl-9 pr-4 py-3.5 bg-slate-50 border rounded-2xl text-2xl font-black text-slate-900 placeholder-slate-300 focus:bg-white focus:outline-none focus:ring-2 transition-all
+                                    @error('total_allowance') border-rose-300 focus:border-rose-500 focus:ring-rose-500/20 @else border-slate-200 focus:border-[var(--brand)] focus:ring-[rgba(var(--brand-rgb),0.2)] @enderror">
+                            </div>
+                            @error('total_allowance') <span class="text-xs text-rose-600 font-medium">{{ $message }}</span> @enderror
+                        </div>
+
+                        {{-- Quick select --}}
+                        <div class="flex flex-wrap justify-center gap-2">
+                            @foreach([500, 1000, 1500, 2000] as $preset)
+                                <button
+                                    type="button"
+                                    onclick="setMoneyValue('total_allowance', '{{ $preset }}')"
+                                    class="px-3 py-1.5 text-xs font-bold font-mono rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 transition-colors">
+                                    ₱{{ number_format($preset) }}
+                                </button>
+                            @endforeach
+                        </div>
+
+                        @if($fc['perDay'] > 0)
+                            <div class="text-center">
+                                <span class="inline-block px-4 py-1.5 rounded-full bg-[rgba(var(--brand-rgb),0.08)] text-[var(--brand)] text-xs font-bold">
+                                    That's about ₱{{ number_format($fc['perDay'], 2) }} per day
+                                </span>
+                            </div>
+                        @endif
+
+                        {{-- Reset day is fixed to the setup day; informational only --}}
+                        <div class="flex items-start gap-3 p-3.5 rounded-2xl bg-slate-50 border border-slate-100">
+                            <div class="h-8 w-8 rounded-lg bg-[rgba(var(--brand-rgb),0.08)] text-[var(--brand)] flex items-center justify-center shrink-0">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                            </div>
+                            <div class="space-y-0.5">
+                                <p class="text-xs font-extrabold text-slate-900">Your week resets every {{ $fc['resetDay'] }}</p>
+                                <p class="text-[11px] text-slate-500 font-medium leading-snug">
+                                    Your first week runs {{ $fc['days'] }} days, until {{ $fc['nextReset']->format('l, M j') }}. Unspent money rolls over automatically. You can change the reset day later in Settings.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
                 </div>
-
-                <div class="max-w-sm mx-auto space-y-4">
-                    <div class="space-y-1.5">
-                        <label for="total_allowance" class="block text-xs font-bold text-slate-700">Weekly Allowance</label>
-                        <div class="relative">
-                            <span class="absolute inset-y-0 left-0 pl-4 flex items-center text-slate-400 font-bold">₱</span>
-                            
-                            <!-- Hidden input that securely syncs the raw numeric value to Livewire -->
-                            <input type="hidden" id="total_allowance_raw" wire:model.lazy="total_allowance" value="{{ $total_allowance }}">
-                        
-                            <!-- Visible text input for comma-separated formatting -->
-                            <input id="total_allowance" type="text" inputmode="decimal" placeholder="0.00" autofocus
-                                value="{{ $total_allowance ? number_format($total_allowance, 2, '.', ',') : '' }}"
-                                wire:keyup.enter="next"
-                                onblur="formatMoney(this)"
-                                class="w-full pl-9 pr-4 py-3.5 bg-slate-50 border rounded-2xl text-2xl font-black text-slate-900 placeholder-slate-300 focus:bg-white focus:outline-none focus:ring-2 transition-all
-                                @error('total_allowance') border-rose-300 focus:border-rose-500 focus:ring-rose-500/20 @else border-slate-200 focus:border-[var(--brand)] focus:ring-[rgba(var(--brand-rgb),0.2)] @enderror">
-                        </div>
-                        @error('total_allowance') <span class="text-xs text-rose-600 font-medium">{{ $message }}</span> @enderror
-                    </div>
-
-                    {{-- Quick select --}}
-                    <div class="flex flex-wrap justify-center gap-2">
-                        @foreach([500, 1000, 1500, 2000] as $preset)
-                            <button type="button"
-                                wire:click="$set('total_allowance', '{{ number_format($preset, 2, '.', '') }}')"
-                                class="px-3 py-1.5 text-xs font-bold font-mono rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 transition-colors">
-                                ₱{{ number_format($preset) }}
-                            </button>
-                        @endforeach
-                    </div>
-
-                    @if($fc['perDay'] > 0)
-                        <div class="text-center">
-                            <span class="inline-block px-4 py-1.5 rounded-full bg-[rgba(var(--brand-rgb),0.08)] text-[var(--brand)] text-xs font-bold">
-                                That's about ₱{{ number_format($fc['perDay'], 2) }} per day
-                            </span>
-                        </div>
-                    @endif
-
-                    {{-- Reset day is fixed to the setup day; informational only --}}
-                    <div class="flex items-start gap-3 p-3.5 rounded-2xl bg-slate-50 border border-slate-100">
-                        <div class="h-8 w-8 rounded-lg bg-[rgba(var(--brand-rgb),0.08)] text-[var(--brand)] flex items-center justify-center shrink-0">
-                            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
-                        </div>
-                        <div class="space-y-0.5">
-                            <p class="text-xs font-extrabold text-slate-900">Your week resets every {{ $fc['resetDay'] }}</p>
-                            <p class="text-[11px] text-slate-500 font-medium leading-snug">
-                                Your first week runs {{ $fc['days'] }} days, until {{ $fc['nextReset']->format('l, M j') }}. Unspent money rolls over automatically. You can change the reset day later in Settings.
-                            </p>
-                        </div>
-                    </div>
-                </div>
-            </div>
             @endif
 
             {{-- STEP 2 --}}
@@ -147,7 +149,6 @@
                                     <p class="text-xs text-slate-500 font-medium mt-0.5">Pick a category, enter the amount, done. Use "Save &amp; Add Another" to log several at once.</p>
                                 </div>
                             </div>
-
                             @if($categories->isNotEmpty())
                                 <div class="flex flex-wrap gap-1.5 pl-14">
                                     @foreach($categories as $cat)
@@ -193,13 +194,12 @@
                             <label class="block text-xs font-bold text-slate-700">Goal amount</label>
                             <div class="relative">
                                 <span class="absolute inset-y-0 left-0 pl-4 flex items-center text-slate-400 font-bold text-sm">₱</span>
-                                
-                                <!-- Hidden input that securely syncs the raw numeric value to Livewire -->
-                                <input type="hidden" id="goal_amount_raw" wire:model.defer="goal_amount" value="{{ $goal_amount }}">
-                            
-                                <!-- Visible text input for comma-separated display -->
-                                <input id="goal_amount" type="text" inputmode="decimal" placeholder="0.00"
-                                    value="{{ $goal_amount ? number_format($goal_amount, 2, '.', ',') : '' }}"
+                                <input
+                                    id="goal_amount"
+                                    type="text"
+                                    inputmode="decimal"
+                                    placeholder="0.00"
+                                    value="{{ is_numeric($goal_amount) && (float) $goal_amount > 0 ? number_format((float) $goal_amount, 2, '.', ',') : $goal_amount }}"
                                     onblur="formatMoney(this, 'goal_amount')"
                                     class="w-full pl-9 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-bold text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:border-[var(--brand)] focus:ring-[rgba(var(--brand-rgb),0.2)] transition-all">
                             </div>
@@ -261,6 +261,13 @@
             @endif
         </div>
 
+        {{-- Global error banner: a failed finish() can never be silent --}}
+        @if($errors->any())
+            <div class="p-3 bg-rose-50 border border-rose-100 text-rose-800 rounded-xl text-xs font-semibold">
+                {{ $errors->first() }}
+            </div>
+        @endif
+
         {{-- Navigation --}}
         <div class="flex items-center justify-between">
             <div>
@@ -274,15 +281,8 @@
             </div>
 
             <div class="flex items-center gap-2">
-                @if($step === 3)
-                    {{-- <button type="button" wire:click="skipGoal"
-                        class="px-4 py-2.5 text-sm font-bold text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-full transition-all">
-                        Skip
-                    </button> --}}
-                @endif
-
                 @if($step < $totalSteps)
-                    <button type="button" wire:click="next" wire:loading.attr="disabled"
+                    <button type="button" onclick="continueSetup({{ $step }})" wire:loading.attr="disabled"
                         class="inline-flex items-center gap-1.5 px-7 py-3 bg-[var(--brand)] hover:bg-[var(--brand-dark)] text-white rounded-full font-bold text-sm shadow-[0_8px_16px_-4px_rgba(var(--brand-rgb),0.35)] transition-all active:scale-95 disabled:opacity-50">
                         Continue
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
@@ -297,56 +297,49 @@
             </div>
         </div>
     </div>
+
+    {{-- Script MUST stay inside the single Livewire root element --}}
+    <script>
+        function parseMoney(raw) {
+            const cleaned = String(raw).replace(/[,\s₱]/g, '');
+            if (cleaned === '' || !/^(?:\d+(?:\.\d{0,2})?|\.\d{1,2})$/.test(cleaned)) return null;
+            const n = Number(cleaned);
+            return Number.isFinite(n) && n >= 0 && n <= 999999 ? n : null;
+        }
+
+        async function formatMoney(input, propertyName) {
+            const n = parseMoney(input.value);
+
+            if (n === null) {
+                // Keep what the user typed so the server can show a real validation error.
+                await @this.set(propertyName, input.value.replace(/,/g, ''));
+                return;
+            }
+
+            input.value = n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            await @this.set(propertyName, n.toFixed(2));
+        }
+
+        async function setMoneyValue(propertyName, value) {
+            const input = document.getElementById(propertyName);
+            if (!input) return;
+
+            const amount = Number(value);
+            input.value = amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            await @this.set(propertyName, amount.toFixed(2));
+        }
+
+        async function continueSetup(currentStep) {
+            if (currentStep === 1 || currentStep === 3) {
+                const propertyName = currentStep === 1 ? 'total_allowance' : 'goal_amount';
+                const input = document.getElementById(propertyName);
+
+                if (input) {
+                    await formatMoney(input, propertyName);
+                }
+            }
+
+            await @this.call('next');
+        }
+    </script>
 </div>
-
-<script>
-    function formatMoney(input) {
-        const cleaned = input.value.replace(/,/g, '').trim();
-        const rawInput = document.getElementById('total_allowance_raw');
-
-        if (cleaned === '') {
-            input.value = '';
-            if (rawInput) {
-                rawInput.value = '';
-                rawInput.dispatchEvent(new Event('input', { bubbles: true }));
-                rawInput.dispatchEvent(new Event('change', { bubbles: true }));
-            }
-            if (typeof @this !== 'undefined') {
-                @this.set('total_allowance', '');
-            }
-            return;
-        }
-
-        const value = parseFloat(cleaned);
-        if (isNaN(value) || value < 0) {
-            input.value = '';
-            if (rawInput) {
-                rawInput.value = '';
-                rawInput.dispatchEvent(new Event('input', { bubbles: true }));
-                rawInput.dispatchEvent(new Event('change', { bubbles: true }));
-            }
-            if (typeof @this !== 'undefined') {
-                @this.set('total_allowance', '');
-            }
-            return;
-        }
-
-        // Format display value with commas and 2 decimals (e.g., 10,000.00)
-        input.value = value.toLocaleString('en-US', {
-            minimumFractionDigits: 2,
-            maximumFractionDigits: 2
-        });
-
-        // Update hidden raw input and sync with Livewire
-        const rawVal = value.toFixed(2);
-        if (rawInput) {
-            rawInput.value = rawVal;
-            rawInput.dispatchEvent(new Event('input', { bubbles: true }));
-            rawInput.dispatchEvent(new Event('change', { bubbles: true }));
-        }
-
-        if (typeof @this !== 'undefined') {
-            @this.set('total_allowance', rawVal);
-        }
-    }
-</script>

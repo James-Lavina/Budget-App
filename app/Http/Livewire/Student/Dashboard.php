@@ -138,6 +138,21 @@ class Dashboard extends Component
         session()->flash('success', 'Expense deleted! Balance updated.');
     }
 
+    public function dismissOverspendAlert()
+    {
+        $cycle = app(BudgetCycleService::class)->resolve($this->currentBudget, auth()->user());
+
+        $realToday = (float) Expense::where('user_id', auth()->id())
+            ->whereDate('transaction_date', $cycle['spentTodayDate'])
+            ->excludingSavings()
+            ->sum('amount');
+
+        session()->put('overspend_alert_dismissed', [
+            'date' => $cycle['spentTodayDate']->toDateString(),
+            'over' => $this->daysRemaining > 0 ? max(0.0, $realToday - $this->dailyQuota) : 0.0,
+        ]);
+    }
+
     public function render()
     {
         $cycle = app(BudgetCycleService::class)->resolve($this->currentBudget, auth()->user());
@@ -148,46 +163,62 @@ class Dashboard extends Component
         $today         = $cycle['today'];
         $daysElapsed   = $cycle['daysElapsed'];
 
+        $evalEnd = $cycle['evalDate']->copy()->endOfDay();
+
         // Total outflow for display: savings transfers count as expenses.
         $totalSpent = Expense::where('user_id', auth()->id())
-            ->whereBetween('transaction_date', [$startDate, $cycle['evalDate']->copy()->endOfDay()])
+            ->whereBetween('transaction_date', [$startDate, $evalEnd])
             ->sum('amount');
 
-        // Real spending only. Used for the pace so a savings deposit never looks like a spending habit.
+        // Real spending only (drives pace).
         $realSpent = (float) Expense::where('user_id', auth()->id())
-            ->whereBetween('transaction_date', [$startDate, $cycle['evalDate']->copy()->endOfDay()])
+            ->whereBetween('transaction_date', [$startDate, $evalEnd])
             ->excludingSavings()
             ->sum('amount');
 
+        $realSpentToday = (float) Expense::where('user_id', auth()->id())
+            ->whereDate('transaction_date', $cycle['spentTodayDate'])
+            ->excludingSavings()
+            ->sum('amount');
+
+        $savedToday = max(0.0, (float) $this->spentToday - $realSpentToday);
+
         $savedSoFar = max(0.0, (float) $totalSpent - $realSpent);
+        $remaining  = (float) $this->currentBudget->remaining_allowance;
 
-        $hasNoSpendingYet = $totalSpent <= 0;
+        $pace = app(BudgetCycleService::class)->pace($cycle, $remaining, $realSpent, $realSpentToday, $savedSoFar);
 
-        $dailyVelocity       = $realSpent / $daysElapsed;
+        $hasNoSpendingYet    = $totalSpent <= 0;
+        $dailyVelocity       = $pace['velocity'];
         $futureDaysRemaining = $cycle['daysRemaining'];
-        $isFinalDay          = $daysElapsed >= 7 || $futureDaysRemaining <= 1;
-        $projectedRemaining  = $isFinalDay
-            ? (float) $this->currentBudget->remaining_allowance
-            : max(0, $this->currentBudget->remaining_allowance - ($dailyVelocity * $futureDaysRemaining));
+        $daysAfterToday      = $pace['daysAfterToday'];
+        $isFinalDay          = $daysAfterToday <= 0;
 
-        // Balance runway ignores money moved to goals, so a deposit can't trigger "Spending too fast".
-        $projectedDaysLeft = $dailyVelocity > 0
-            ? (($this->currentBudget->remaining_allowance + $savedSoFar) / $dailyVelocity)
-            : $this->daysRemaining;
+        // Today is already deducted from $remaining, so only project the days after today.
+        $projectedRemaining = max(0, $remaining - ($dailyVelocity * $daysAfterToday));
+        $projectedDaysLeft  = $dailyVelocity > 0 ? ($remaining + $savedSoFar) / $dailyVelocity : $this->daysRemaining;
 
-        $remainingDailyRate = $futureDaysRemaining > 0
-            ? ($this->currentBudget->remaining_allowance / $futureDaysRemaining)
-            : $this->currentBudget->remaining_allowance;
+        $isDepleted = $remaining <= 0;
 
-        $isDepleted      = $this->currentBudget->remaining_allowance <= 0;
-        $isPaceCritical  = !$isDepleted && !$isFinalDay && ($projectedDaysLeft < $this->daysRemaining);
-        $isDailyQuotaHit = !$isDepleted && !$isPaceCritical && ($this->safeToSpend <= 0);
+        // Real spending today minus today's safe amount. ₱1 grace absorbs centavo rounding.
+        $overAmount  = $this->daysRemaining > 0 ? max(0.0, $realSpentToday - $this->dailyQuota) : 0.0;
+        $isOverQuota = !$isDepleted && $overAmount >= 1.0;
+
+        $isPaceCritical  = !$isDepleted && !$isOverQuota && !$isFinalDay && $pace['isOverPace'];
+        $isDailyQuotaHit = !$isDepleted && !$isOverQuota && !$isPaceCritical && $this->safeToSpend < 1.0;
+
+        // Rate to advise: once today's quota is spent, spread what is left over the days after today.
+        $remainingDailyRate = ($this->safeToSpend < 1.0 && $daysAfterToday > 0)
+            ? $remaining / $daysAfterToday
+            : $pace['paceQuota'];
 
         $totalAllowance      = max(1, $cycle['effectiveTotalAllowance']);
-        $remainingPercentage = round(($this->currentBudget->remaining_allowance / $totalAllowance) * 100);
+        $remainingPercentage = round(($remaining / $totalAllowance) * 100);
 
         if ($isDepleted) {
             $dashboardState = 'depleted';
+        } elseif ($isOverQuota) {
+            $dashboardState = 'over_quota';
         } elseif ($isPaceCritical) {
             $dashboardState = 'pace_critical';
         } elseif ($isDailyQuotaHit) {
@@ -197,6 +228,14 @@ class Dashboard extends Component
         } else {
             $dashboardState = 'on_track';
         }
+
+        // Dismissible alert. Stays hidden until the overspend grows by another ₱1 or a new day starts.
+        $dismissed = session('overspend_alert_dismissed');
+        $alertDismissed = $dismissed
+            && ($dismissed['date'] ?? null) === $cycle['spentTodayDate']->toDateString()
+            && $overAmount < ((float) ($dismissed['over'] ?? 0)) + 1.0;
+
+        $showOverspendAlert = $isOverQuota && !$alertDismissed;
 
         if ($startDate->isSameMonth($endDate)) {
             $weekRangeLabel = $startDate->format('M j') . ' – ' . $endDate->format('j');
@@ -280,6 +319,11 @@ class Dashboard extends Component
 
         $rolloverAmount = max(0, $totalAllowance - (float) $this->currentBudget->total_allowance - (float) $this->currentBudget->added_funds);
 
+        $addedFunds   = (float) $this->currentBudget->added_funds;
+        $baseAllowance = (float) $this->currentBudget->total_allowance;
+        $baseDailyRate = $baseAllowance / max(1, $cycleDurationDays);
+        $hasBuffer    = ($rolloverAmount + $addedFunds) >= 0.5;
+
         $savingsGoalsForTotals = SavingsGoal::where('user_id', auth()->id())
             ->whereIn('status', ['active', 'achieved'])
             ->get();
@@ -298,6 +342,9 @@ class Dashboard extends Component
             'cycleEnd'               => $endDate,
             'nextResetDate'          => $nextResetDate,
             'rolloverAmount'         => $rolloverAmount,
+            'addedFunds'             => $addedFunds,
+            'baseDailyRate'          => $baseDailyRate,
+            'hasBuffer'              => $hasBuffer,
             'totalSpent'             => $totalSpent,
             'hasNoSpendingYet'       => $hasNoSpendingYet,
             'dailyVelocity'          => $dailyVelocity,
@@ -326,6 +373,12 @@ class Dashboard extends Component
             'dailyCategoryBreakdown' => $dailyCategoryBreakdown,
             'maxDaily'               => $maxDaily,
             'step'                   => $step,
+            'isOverQuota'            => $isOverQuota,
+            'overAmount'             => $overAmount,
+            'showOverspendAlert'     => $showOverspendAlert,
+            'realSpentToday'         => $realSpentToday,
+            'savedToday'             => $savedToday,
+            'daysAfterToday'         => $daysAfterToday,
         ])->layout('layouts.student');
     }
 }

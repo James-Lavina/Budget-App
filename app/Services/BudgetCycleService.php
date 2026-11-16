@@ -10,6 +10,41 @@ use Illuminate\Support\Facades\DB;
 
 class BudgetCycleService
 {
+    public const PACE_TOLERANCE = 0.10;
+
+    /**
+     * Shared pace maths for the Dashboard and RiskDetectionService.
+     *
+     * $remaining      weekly_budgets.remaining_allowance
+     * $realSpent      cycle spend excluding savings transfers
+     * $realSpentToday today's spend excluding savings transfers
+     * $saved          money moved to savings goals this cycle
+     */
+    public function pace(array $cycle, float $remaining, float $realSpent, float $realSpentToday, float $saved): array
+    {
+        $daysElapsed       = max(1, (int) $cycle['daysElapsed']);
+        $daysLeftInclToday = max(1, (int) $cycle['daysRemaining']);
+        $daysAfterToday    = max(0, $daysLeftInclToday - 1);
+
+        $velocity  = $realSpent / $daysElapsed;
+        $spendable = $remaining + $saved;
+
+        // Same figure as the Dashboard's "Safe per Day", with savings neutralised.
+        $paceQuota = ($spendable + $realSpentToday) / $daysLeftInclToday;
+
+        $isOverPace = $daysAfterToday > 0
+            && $velocity > 0
+            && $velocity > $paceQuota * (1 + self::PACE_TOLERANCE);
+
+        return [
+            'velocity'       => $velocity,
+            'paceQuota'      => $paceQuota,
+            'spendable'      => $spendable,
+            'daysAfterToday' => $daysAfterToday,
+            'isOverPace'     => $isOverPace,
+        ];
+    }
+
     /**
      * Read-only. Never mutates the budget. The weekly reset is performed
      * explicitly through rollover() after the student confirms the new allowance.

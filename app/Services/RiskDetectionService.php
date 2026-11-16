@@ -78,21 +78,24 @@ class RiskDetectionService
         $safePerDay = ($remaining + $spentTodayAll) / $daysLeftInclToday;
 
         // ---- 1. Pace check (per day) ---------------------------------------
+        $pace = $this->cycleService->pace($cycle, $remaining, $spent, $spentToday, $saved);
+
         $allowedDailyVelocity = $pool / $cycleLength;
-        $daysAfterToday       = max(0.5, $cycleLength - $daysElapsed);
-        $velocity             = max($spent / $daysElapsed, $spentToday);
-        $runwayDays = $velocity > 0 ? $riskRemaining / $velocity : $cycleLength;
+        $velocity             = max($pace['velocity'], $spentToday);
+        $runwayDays           = $velocity > 0 ? $riskRemaining / $velocity : $cycleLength;
+        $tierDays             = max(0.5, $pace['daysAfterToday']);
 
         $paceType      = $daysElapsed <= 3 ? 'early_week_depletion' : 'rapid_overspending';
         $otherPaceType = $paceType === 'early_week_depletion' ? 'rapid_overspending' : 'early_week_depletion';
-        $paceTriggered = ($runwayDays < $daysAfterToday && $velocity > $allowedDailyVelocity)
+
+        $paceTriggered = $pace['isOverPace']
             || ($spentToday >= $allowedDailyVelocity * 2);
 
         $this->resolveOpenLogs($user, $otherPaceType);
 
         $this->syncRiskAlert($user, $paceType, $paceTriggered, $todayStart->copy(),
-            function () use ($daysAfterToday, $runwayDays, $velocity, $remaining, $safePerDay, $resetDay) {
-                $deficit = $daysAfterToday - $runwayDays;
+            function () use ($tierDays, $runwayDays, $velocity, $remaining, $safePerDay, $resetDay) {
+                $deficit = $tierDays - $runwayDays;
 
                 if ($deficit >= 3.0 || $runwayDays <= 1.0) {
                     $tier = 'high';
@@ -145,7 +148,7 @@ class RiskDetectionService
         // ---- 4-6. Remaining checks -----------------------------------------
         $this->checkCategoryConcentration($user, $cycleStart, $cycleEnd, $pool);
         $this->checkRapidSpending($user, $cycle['spentTodayDate'], $pool, $settings);
-        $this->syncLowAllowance($user, $remaining, $pool, $cycleStart, $settings, $saved);
+        $this->syncLowAllowance($user, $remaining, $pool, $cycleStart, $settings);
     }
 
     private function generateFeedbackString(float $velocity, float $remaining, float $safePerDay, string $resetDay): string
@@ -292,14 +295,14 @@ class RiskDetectionService
             ->each(fn ($n) => $this->markNotification($n, true));
     }
 
-    private function syncLowAllowance($user, float $remaining, float $pool, Carbon $cycleStart, RiskSetting $settings, float $saved = 0.0): void
+    private function syncLowAllowance($user, float $remaining, float $pool, Carbon $cycleStart, RiskSetting $settings): void
     {
         $type = 'low_allowance_threshold';
 
         $this->expireBefore($user, $type, $cycleStart);
 
         $isLow = $settings->low_remaining_budget_enabled
-            && ($remaining + $saved) <= $pool * ($settings->low_remaining_budget_threshold / 100);
+            && $remaining <= $pool * ($settings->low_remaining_budget_threshold / 100);
 
         $existing = $this->notificationsSince($user, $type, $cycleStart);
         $open     = $existing->filter(fn ($n) => !($n->data['resolved'] ?? false));
@@ -313,12 +316,12 @@ class RiskDetectionService
             $latest = $open->sortByDesc('created_at')->first();
             $fresh  = (new LowAllowanceWarning((int) round(($remaining / $pool) * 100), $remaining))->toArray($user);
             $data   = $latest->data;
-        
+
             if (($data['description'] ?? null) !== $fresh['description']) {
                 $data['description'] = $fresh['description'];
                 $latest->update(['data' => $data]);
             }
-        
+
             return;
         }
 
@@ -332,7 +335,6 @@ class RiskDetectionService
         try {
             $user->notify(new LowAllowanceWarning((int) round(($remaining / $pool) * 100), $remaining));
         } catch (\Throwable $e) {
-            // FIX
             NotificationLogger::logFailure($user, LowAllowanceWarning::class, $e);
         }
     }

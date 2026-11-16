@@ -6,7 +6,6 @@ use App\Models\SavingsGoal;
 use App\Models\WeeklyBudget;
 use App\Services\SavingsGoalService;
 use Livewire\Component;
-use Illuminate\Validation\ValidationException;
 
 class SavingsWidget extends Component
 {
@@ -29,6 +28,9 @@ class SavingsWidget extends Component
 
     public function addFunds()
     {
+        // The input is displayed as "1,231.00"; strip formatting before validating.
+        $this->fund_amount = str_replace([',', ' ', '₱'], '', (string) $this->fund_amount);
+
         $goal = SavingsGoal::where('id', $this->fundingGoalId)
             ->where('user_id', auth()->id())
             ->firstOrFail();

@@ -1,299 +1,211 @@
 @php
-    // Status pill + banner copy/color/icon driven by $dashboardState, so the
-    // header pill and the "safe to spend" banner never disagree with each
-    // other — both read off the same single ranked state the component
-    // already computes.
-    $statusPillMap = [
-       'depleted'       => ['label' => 'Budget exhausted', 'class' => 'bg-rose-50 text-rose-600'],
-       'pace_critical'  => ['label' => 'Spending too fast', 'class' => 'bg-rose-50 text-rose-600'],
-       'quota_hit'      => ['label' => "Today's budget met", 'class' => 'bg-amber-50 text-amber-600'],
-       'fresh_start'    => ['label' => 'Fresh start this week', 'class' => 'bg-slate-100 text-slate-500'],
-       'on_track'       => ['label' => 'On track this week', 'class' => 'bg-emerald-50 text-emerald-600'],
-   ];
-   $pill = $statusPillMap[$dashboardState] ?? $statusPillMap['on_track'];
+    $theme = [
+    'depleted'      => ['label' => 'Budget used up',        'pill' => 'bg-rose-100 text-rose-700',       'bg' => 'from-rose-50',    'glow' => 'bg-rose-300/40',    'num' => 'text-rose-600',    'ring' => 'text-rose-500',    'icon' => 'exclamation-circle'],
+    'over_quota'    => ['label' => "Over today's limit",    'pill' => 'bg-rose-100 text-rose-700',       'bg' => 'from-rose-50',    'glow' => 'bg-rose-300/40',    'num' => 'text-rose-600',    'ring' => 'text-rose-500',    'icon' => 'exclamation'],
+    'pace_critical' => ['label' => 'Spending too fast',     'pill' => 'bg-rose-100 text-rose-700',       'bg' => 'from-rose-50',    'glow' => 'bg-rose-300/40',    'num' => 'text-rose-600',    'ring' => 'text-rose-500',    'icon' => 'trending-up'],
+    'quota_hit'     => ['label' => "Today's limit reached", 'pill' => 'bg-amber-100 text-amber-700',     'bg' => 'from-amber-50',   'glow' => 'bg-amber-300/40',   'num' => 'text-amber-600',   'ring' => 'text-amber-500',   'icon' => 'clock'],
+    'fresh_start'   => ['label' => 'Fresh start',           'pill' => 'bg-slate-100 text-slate-600',     'bg' => 'from-slate-100',  'glow' => 'bg-slate-300/40',   'num' => 'text-slate-900',   'ring' => 'text-slate-500',   'icon' => 'sparkles'],
+    'on_track'      => ['label' => 'On track',              'pill' => 'bg-emerald-100 text-emerald-700', 'bg' => 'from-emerald-50', 'glow' => 'bg-emerald-300/40', 'num' => 'text-emerald-600', 'ring' => 'text-emerald-500', 'icon' => 'check-circle'],
+    ];
+    $th = $theme[$dashboardState] ?? $theme['on_track'];
 
-   $bannerMap = [
-       'depleted'       => ['class' => 'bg-rose-50 border-rose-100 text-rose-800', 'icon' => 'exclamation-circle'],
-       'pace_critical'  => ['class' => 'bg-rose-50 border-rose-100 text-rose-800', 'icon' => 'trending-up'],
-       'quota_hit'      => ['class' => 'bg-amber-50 border-amber-100 text-amber-800', 'icon' => 'clock'],
-       'fresh_start'    => ['class' => 'bg-slate-50 border-slate-200 text-slate-600', 'icon' => 'sparkles'],
-       'on_track'       => ['class' => 'bg-emerald-50 border-emerald-100 text-emerald-800', 'icon' => 'check-circle'],
-   ];
-   $banner = $bannerMap[$dashboardState] ?? $bannerMap['on_track'];
+    $peso = fn ($n) => '₱' . number_format($n, 2);
+
+    // Only floor the "can spend" figure so the page never promises more than is left.
+    $pesoFloor = fn ($n) => '₱' . number_format(floor(round($n * 100, 4)) / 100, 2);
+
+    [$canWhole, $canCents] = explode('.', number_format(floor(round($safeToSpend * 100, 4)) / 100, 2));
+
+    $todayPct = $dailyQuota > 0
+        ? min(100, (int) round(($spentToday / $dailyQuota) * 100))
+        : ($spentToday > 0 ? 100 : 0);
+
+    $ringC      = 2 * M_PI * 52;                       // circle circumference (r = 52)
+    $ringOffset = $ringC * (1 - $todayPct / 100);
+
+    $reset = $currentBudget->reset_day;
+
+    if ($isDepleted) {
+        $message = "Your budget is used up. {$daysRemaining} " . Str::plural('day', $daysRemaining) . " to go until {$reset}. Add funds or hold off on spending.";
+    } elseif ($isOverQuota) {
+        $message = "You're {$peso($overAmount)} over today's limit. Go easy for the rest of today."
+            . ($daysAfterToday > 0 ? " From tomorrow you can spend about {$peso($remainingDailyRate)} a day." : '');
+    } elseif ($isPaceCritical) {
+        $message = "You're spending a bit fast. Keep to about {$peso($remainingDailyRate)} a day so your money lasts until {$reset}.";
+    } elseif ($isDailyQuotaHit) {
+        $message = "You've reached today's limit. Try not to spend more today."
+            . ($daysAfterToday > 0 ? " Tomorrow you'll have about {$peso($remainingDailyRate)}." : '');
+    } elseif ($hasNoSpendingYet) {
+        $message = "Fresh week! Log your first expense and we'll start tracking your pace.";
+    } else {
+        $message = "You're doing great. Stay under this amount and your money will last until {$reset}.";
+    }
 @endphp
 
 <div class="min-h-screen py-3 sm:py-6 md:py-8 px-2.5 sm:px-6 lg:px-8 text-slate-800 antialiased relative pb-28 sm:pb-24 w-full max-w-full overflow-x-hidden">
-    <div class="max-w-7xl mx-auto space-y-3 sm:space-y-6 w-full min-w-0">
+    <div class="max-w-5xl mx-auto space-y-4 sm:space-y-6 w-full min-w-0">
 
-        {{-- HEADER: GREETING + STATUS PILL + NOTIFICATIONS --}}
-        <div class="flex flex-col md:flex-row md:items-center justify-between gap-2 sm:gap-4 w-full min-w-0">
+        {{-- HEADER --}}
+        <div class="flex items-center justify-between gap-3 w-full min-w-0">
             <div class="min-w-0">
-                <h1 class="text-lg sm:text-2xl md:text-3xl font-extrabold text-slate-900 tracking-tight flex items-center gap-1.5 truncate">
+                <h1 class="text-lg sm:text-2xl md:text-3xl font-extrabold text-slate-900 tracking-tight truncate">
                     Good {{ \Carbon\Carbon::now()->format('H') < 12 ? 'Morning' : (\Carbon\Carbon::now()->format('H') < 18 ? 'Afternoon' : 'Evening') }}, {{ auth()->user()->name }} 👋
                 </h1>
-                <p class="text-[12px] sm:text-xs md:text-sm text-slate-500 font-medium mt-1">
-                    Your allowance covers <span class="font-bold text-slate-700">{{ $cycleStart->format('M j') }} – {{ $cycleEnd->format('j, Y') }}</span>
-                    — Resets {{ $currentBudget->reset_day }}, {{ $nextResetDate->format('M j') }}.
+                <p class="text-xs sm:text-sm text-slate-500 font-medium mt-1">
+                    {{ $cycleStart->format('M j') }} – {{ $cycleEnd->format('M j, Y') }}
                 </p>
             </div>
-            <div class="flex items-center gap-3 self-start md:self-auto shrink-0">
-                <span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold {{ $pill['class'] }}">
-                    <x-heroicon-o-check-circle class="w-3.5 h-3.5" />
-                    {{ $pill['label'] }}
-                </span>
-                <div class="hidden lg:block">
-                    <livewire:student.notification-center />
-                </div>
+            <div class="hidden lg:block shrink-0">
+                <livewire:student.notification-center />
             </div>
         </div>
 
-        {{-- HERO CARD: REMAINING THIS WEEK + STATS (RIGHT) + STATE BANNER (INSIDE CARD) --}}
-        <div class="bg-white rounded-2xl sm:rounded-3xl p-5 sm:p-6 border border-slate-100 shadow-sm w-full min-w-0">
-
-            {{-- Date chip + Add Funds --}}
-            <div class="flex items-center justify-between gap-3 flex-wrap">
-                <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-100 text-slate-600 text-[11px] font-bold">
-                    <x-heroicon-o-calendar class="w-3.5 h-3.5" />
-                    {{ $cycleStart->format('M j') }} – {{ $cycleEnd->format('j, Y') }}
-                </span>
-
-                <a href="{{ route('student.budget.add') }}"
-                    class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[rgba(var(--brand-rgb),0.08)] text-[var(--brand)] hover:bg-[rgba(var(--brand-rgb),0.14)] text-[11px] font-bold transition-colors">
-                    <x-heroicon-o-plus-circle class="w-3.5 h-3.5" />
-                    Add Funds
-                </a>
+        {{-- OVERSPEND ALERT (only when over today's limit, dismissible) --}}
+        @if($showOverspendAlert)
+            <div wire:key="overspend-alert"
+                 class="rounded-2xl sm:rounded-3xl bg-gradient-to-r from-rose-500 to-rose-600 text-white shadow-lg shadow-rose-500/25 p-4 sm:p-5 flex items-start gap-3.5">
+                <div class="h-10 w-10 rounded-2xl bg-white/20 flex items-center justify-center shrink-0">
+                    <x-heroicon-o-exclamation class="w-5 h-5" />
+                </div>
+                <div class="min-w-0 flex-1 space-y-1">
+                    <h3 class="text-sm sm:text-base font-extrabold leading-tight">
+                        You're {{ $peso($overAmount) }} over today's limit
+                    </h3>
+                    <a href="{{ route('student.simulation') }}" class="inline-flex items-center gap-1 text-xs font-bold underline underline-offset-2 hover:opacity-80">
+                        Check a purchase before you spend
+                        <x-heroicon-o-arrow-right class="w-3.5 h-3.5" />
+                    </a>
+                </div>
+                <button type="button" wire:click="dismissOverspendAlert" title="Dismiss"
+                    class="shrink-0 p-1.5 rounded-lg text-white/80 hover:text-white hover:bg-white/15 transition-colors">
+                    <x-heroicon-o-x class="w-5 h-5" />
+                </button>
             </div>
+        @endif
 
-            {{-- Top row: remaining amount (left) + compact stats (right) --}}
-            <div class="mt-4 flex flex-col lg:flex-row lg:items-start gap-4 lg:gap-6">
+        {{-- HERO: ONE QUESTION, ONE ANSWER, TWO ACTIONS --}}
+        <div class="relative overflow-hidden rounded-[2rem] border border-slate-100 bg-gradient-to-br {{ $th['bg'] }} via-white to-white shadow-[0_20px_50px_-20px_rgba(15,23,42,0.14)] p-5 sm:p-8">
 
-                {{-- LEFT: Remaining this week --}}
-                <div class="min-w-0 lg:flex-1">
-                    <span class="text-xs sm:text-sm font-semibold text-slate-500 block">Remaining this week</span>
-                    <div class="text-3xl sm:text-4xl font-black text-slate-900 font-mono mt-1">
-                        ₱{{ number_format($currentBudget->remaining_allowance, 2) }}
-                    </div>
-                    <p class="text-[12px] sm:text-xs font-medium text-slate-600 mt-1">
-                        ₱{{ number_format($totalSpent, 2) }} spent of ₱{{ number_format($weeklyAllowanceDisplay, 2) }}
-                        · <span class="font-bold text-slate-800">{{ $remainingPercentage }}% left</span>
-                    </p>
-                    @if($rolloverAmount > 0)
-                        <div class="mt-2 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-700 text-[11px] font-bold">
-                            <x-heroicon-o-trending-up class="w-3.5 h-3.5" />
-                            +₱{{ number_format($rolloverAmount, 2) }} rolled over from last week
+            {{-- Decorative glow --}}
+            <div class="pointer-events-none absolute -top-24 -right-24 h-64 w-64 rounded-full blur-3xl {{ $th['glow'] }}"></div>
+            <div class="pointer-events-none absolute -bottom-32 -left-20 h-56 w-56 rounded-full blur-3xl bg-[rgba(var(--brand-rgb),0.08)]"></div>
+
+            <div class="relative space-y-6">
+
+                {{-- Top row --}}
+                <div class="flex items-center justify-between gap-3 flex-wrap">
+                    <span class="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-bold {{ $th['pill'] }}">
+                        <x-dynamic-component :component="'heroicon-o-' . $th['icon']" class="w-3.5 h-3.5" />
+                        {{ $th['label'] }}
+                    </span>
+                    <a href="{{ route('student.budget.add') }}"
+                    class="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-white/80 backdrop-blur border border-slate-200 text-slate-600 hover:text-[var(--brand)] hover:border-[var(--brand)] text-[11px] font-bold transition-all">
+                        <x-heroicon-o-plus-circle class="w-3.5 h-3.5" />
+                        Add Funds
+                    </a>
+                </div>
+
+                {{-- Number + ring --}}
+                <div class="flex items-center justify-between gap-4 sm:gap-8">
+                    <div class="min-w-0">
+                        <span class="text-xs font-bold text-slate-500 uppercase tracking-[0.15em] block">You can spend today</span>
+
+                        <div class="mt-2 flex items-start font-black tabular-nums tracking-tighter leading-none {{ $th['num'] }}">
+                            <span class="text-2xl sm:text-4xl mt-1.5 sm:mt-2.5 mr-1 opacity-60">₱</span>
+                            <span class="text-6xl sm:text-8xl">{{ $canWhole }}</span>
+                            <span class="text-xl sm:text-3xl mt-1.5 sm:mt-2.5 opacity-60">.{{ $canCents }}</span>
                         </div>
-                    @endif
-                </div>
 
-                {{-- RIGHT: compact stats --}}
-                <div class="flex items-start gap-4 sm:gap-6 lg:gap-8 pt-3 lg:pt-0.5 lg:pl-6 border-t border-slate-100 lg:border-t-0 lg:border-l lg:shrink-0">
-                    <div class="min-w-0">
-                        <span class="flex items-center gap-1 lg:gap-1.5 text-[9px] sm:text-[11px] lg:text-xs font-extrabold text-slate-500 uppercase tracking-wider whitespace-nowrap">
-                            <x-heroicon-o-calendar class="w-3 h-3 lg:w-4 lg:h-4 shrink-0" />
-                            Days Left
-                        </span>
-                        <span class="text-xs sm:text-sm lg:text-lg font-bold text-slate-900 block mt-0.5 lg:mt-1 whitespace-nowrap">
-                            @if($daysRemaining === 1)
-                                Last day · {{ $cycleEnd->format('M j') }}
-                            @else
-                                {{ $daysRemaining }} · to {{ $cycleEnd->format('M j') }}
+                        <p class="mt-3 text-xs sm:text-sm font-medium text-slate-500">
+                            {{ $peso($spentToday) }} spent of your {{ $pesoFloor($dailyQuota) }} limit
+                            @if($savedToday >= 1)
+                                <span class="text-slate-400">· incl. {{ $peso($savedToday) }} saved</span>
                             @endif
-                        </span>
+                        </p>
                     </div>
-                
-                    <div class="min-w-0">
-                        <span class="flex items-center gap-1 lg:gap-1.5 text-[9px] sm:text-[11px] lg:text-xs font-extrabold text-slate-500 uppercase tracking-wider whitespace-nowrap">
-                            <x-heroicon-o-shield-check class="w-3 h-3 lg:w-4 lg:h-4 shrink-0" />
-                            Safe per Day
-                        </span>
-                        <span class="text-xs sm:text-sm lg:text-lg font-bold text-slate-900 block mt-0.5 lg:mt-1 whitespace-nowrap">
-                            ₱{{ number_format($dailyQuota, 2) }}
-                        </span>
-                    </div>
-                
-                    <div class="min-w-0">
-                        <span class="flex items-center gap-1 lg:gap-1.5 text-[9px] sm:text-[11px] lg:text-xs font-extrabold text-slate-500 uppercase tracking-wider whitespace-nowrap">
-                            <x-heroicon-o-trending-up class="w-3 h-3 lg:w-4 lg:h-4 shrink-0" />
-                            Biggest Category
-                        </span>
-                        <span class="text-xs sm:text-sm lg:text-lg font-bold text-slate-900 block mt-0.5 lg:mt-1 leading-tight max-w-[13rem]">
-                            {{ $biggestCategoryName ?? '—' }}
-                        </span>
-                    </div>
-                </div>
-            </div>
 
-            {{-- Progress bar --}}
-            <div class="mt-5 space-y-1.5">
-                <div class="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
-                    <div class="h-full rounded-full transition-all duration-500 {{ (100 - $remainingPercentage) >= 80 ? 'bg-rose-500' : ((100 - $remainingPercentage) >= 50 ? 'bg-amber-500' : 'bg-emerald-500') }}"
-                        style="width: {{ min(100, 100 - $remainingPercentage) }}%"></div>
-                </div>
-                <div class="flex justify-between text-[12px] font-semibold text-slate-600">
-                    <span>₱0</span>
-                    <span>₱{{ number_format($weeklyAllowanceDisplay, 0) }}</span>
-                </div>
-            </div>
-
-            {{-- STATE BANNER (inside the card, below the progress bar) --}}
-            <div class="mt-4 rounded-xl border p-3 sm:p-3.5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 {{ $banner['class'] }}">
-                <div class="flex items-center gap-2.5">
-                    <x-dynamic-component :component="'heroicon-o-' . $banner['icon']" class="w-4 h-4 shrink-0" />
-                    <p class="text-xs sm:text-sm font-semibold leading-snug">
-                        @if($isDepleted)
-                            You've used your full budget. {{ $daysRemaining }} {{ Str::plural('day', $daysRemaining) }} left until reset.
-                        @elseif($isPaceCritical)
-                            At ₱{{ number_format($dailyVelocity, 2) }}/day, aim for ₱{{ number_format($remainingDailyRate, 2) }}/day to catch back up.
-                        @elseif($isDailyQuotaHit)
-                            Today's daily budget is used. ₱{{ number_format($remainingDailyRate, 2) }}/day left for the rest of the week.
-                        @elseif($hasNoSpendingYet)
-                            You haven't logged anything yet — about ₱{{ number_format($safeToSpend, 2) }}/day if spent evenly.
-                        @else
-                            @if($spentToday > 0)
-                                You have ₱{{ number_format($safeToSpend, 2) }} left to spend today (₱{{ number_format($dailyQuota, 2) }} daily budget).
-                            @else
-                                You can spend up to ₱{{ number_format($dailyQuota, 2) }} a day and still finish the week on budget.
-                            @endif
-                        @endif
-                    </p>
-                </div>
-                <a href="{{ route('student.simulation') }}" class="text-xs font-bold flex items-center gap-1 shrink-0 self-end sm:self-auto hover:opacity-75 transition-opacity">
-                    <span>Plan a purchase</span>
-                    <x-heroicon-o-arrow-right class="w-3.5 h-3.5" />
-                </a>
-            </div>
-        </div>
-
-        {{-- 4 METRIC CARDS --}}
-        <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 w-full min-w-0">
-            {{-- Total Expenses --}}
-            <div class="bg-white rounded-2xl sm:rounded-3xl p-4 sm:p-5 border border-slate-100 shadow-sm flex flex-col justify-between min-w-0">
-                <div class="flex items-center justify-between gap-3">
-                    <span class="text-[11px] sm:text-xs font-semibold text-slate-500">Total Expenses</span>
-                    <div class="h-7 w-7 rounded-lg bg-rose-50 text-rose-500 flex items-center justify-center shrink-0">
-                        <x-heroicon-o-document-report class="w-3.5 h-3.5" />
-                    </div>
-                </div>
-                <div class="text-xl sm:text-2xl font-black text-slate-900 font-mono mt-4 whitespace-nowrap">
-                    ₱{{ number_format($totalSpent, 2) }}
-                </div>
-                <div class="text-[10px] sm:text-[11px] font-medium text-slate-600 mt-2">
-                    {{ 100 - $remainingPercentage }}% of allowance used
-                </div>
-            </div>
-
-            {{-- Weekly Allowance --}}
-            <div class="bg-white rounded-2xl sm:rounded-3xl p-4 sm:p-5 border border-slate-100 shadow-sm flex flex-col justify-between min-w-0">
-                <div class="flex items-center justify-between gap-3">
-                    <span class="text-[11px] sm:text-xs font-semibold text-slate-500">Weekly Allowance</span>
-                    <div class="h-7 w-7 rounded-lg bg-[rgba(var(--brand-rgb),0.08)] text-[var(--brand)] flex items-center justify-center shrink-0">
-                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M20.25 6.375c0 2.278-3.694 4.125-8.25 4.125S3.75 8.653 3.75 6.375m16.5 0c0-2.278-3.694-4.125-8.25-4.125S3.75 4.097 3.75 6.375m16.5 0v11.25c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125V6.375m16.5 5.625c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125" />
+                    {{-- Progress ring --}}
+                    <div class="relative shrink-0 h-24 w-24 sm:h-36 sm:w-36">
+                        <svg viewBox="0 0 120 120" class="h-full w-full -rotate-90">
+                            <circle cx="60" cy="60" r="52" fill="none" stroke="currentColor" stroke-width="10" class="text-slate-200/70" />
+                            <circle cx="60" cy="60" r="52" fill="none" stroke="currentColor" stroke-width="10" stroke-linecap="round"
+                                    class="{{ $th['ring'] }} transition-all duration-700"
+                                    style="stroke-dasharray: {{ $ringC }}; stroke-dashoffset: {{ $ringOffset }};" />
                         </svg>
+                        <div class="absolute inset-0 flex flex-col items-center justify-center">
+                            <span class="text-xl sm:text-3xl font-black text-slate-900 tabular-nums leading-none">{{ $todayPct }}%</span>
+                            <span class="text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-slate-400 mt-1">of today</span>
+                        </div>
                     </div>
                 </div>
-                <div class="text-xl sm:text-2xl font-black text-slate-900 font-mono mt-4 whitespace-nowrap">
-                    ₱{{ number_format($weeklyAllowanceDisplay, 2) }}
-                </div>
-                <div class="flex items-center gap-1 text-[10px] sm:text-[11px] font-medium text-slate-400 mt-2 flex-wrap">
-                    <span>Resets {{ $currentBudget->reset_day }}</span>
-                    @if($rolloverAmount > 0)
-                        <span>·</span>
-                        <span class="text-emerald-600 font-semibold">₱{{ number_format($currentBudget->total_allowance, 2) }} base + ₱{{ number_format($rolloverAmount, 2) }} rollover</span>
-                    @endif
-                    <span>·</span>
-                    <a href="{{ route('student.settings') }}" class="text-slate-600 hover:text-[var(--brand)] font-semibold">Edit</a>
-                </div>
-            </div>
 
-            {{-- Daily Safe-to-Spend --}}
-            <div class="bg-white rounded-2xl sm:rounded-3xl p-4 sm:p-5 border border-slate-100 shadow-sm flex flex-col justify-between min-w-0">
-                <div class="flex items-center justify-between gap-3">
-                    <span class="text-[11px] sm:text-xs font-semibold text-slate-500">Daily Safe-to-Spend</span>
-                    @php
-                        if ($dashboardState === 'depleted' || $dashboardState === 'pace_critical') {
-                            $safeToSpendIconStyle = 'bg-rose-50 text-rose-600';
-                        } elseif ($dashboardState === 'quota_hit') {
-                            $safeToSpendIconStyle = 'bg-amber-50 text-amber-600';
-                        } else {
-                            $safeToSpendIconStyle = 'bg-emerald-50 text-emerald-600';
-                        }
-                    @endphp
-                    <div class="h-7 w-7 rounded-lg {{ $safeToSpendIconStyle }} flex items-center justify-center shrink-0">
-                        <x-heroicon-o-shield-check class="w-3.5 h-3.5" />
+                {{-- Message --}}
+                <div class="flex items-start gap-3 rounded-2xl bg-white/70 backdrop-blur border border-white p-4 shadow-sm">
+                    <div class="h-8 w-8 rounded-xl bg-white shadow-sm flex items-center justify-center shrink-0 {{ $th['ring'] }}">
+                        <x-dynamic-component :component="'heroicon-o-' . $th['icon']" class="w-4 h-4" />
                     </div>
+                    <p class="text-sm font-semibold text-slate-700 leading-snug pt-1">{{ $message }}</p>
                 </div>
-                <div class="mt-4 flex items-baseline flex-wrap gap-x-2 gap-y-1">
-                    <span class="text-xl sm:text-2xl font-black text-slate-900 font-mono whitespace-nowrap">
-                        ₱{{ number_format($dailyQuota, 2) }}
-                    </span>
-                    <span class="text-slate-300 font-bold">/</span>
-                    <span class="text-base sm:text-lg font-bold text-slate-500 font-mono whitespace-nowrap">
-                        ₱{{ number_format($spentToday, 2) }}
-                    </span>
-                </div>
-                <div class="text-[10px] sm:text-[11px] font-medium text-slate-500 mt-2">
-                    ₱{{ number_format($safeToSpend, 2) }} left today
-                </div>
-            </div>
 
-            {{-- Savings Progress --}}
-            <div class="bg-white rounded-2xl sm:rounded-3xl p-4 sm:p-5 border border-slate-100 shadow-sm flex flex-col justify-between min-w-0">
-                <div class="flex items-center justify-between gap-3">
-                    <span class="text-[11px] sm:text-xs font-semibold text-slate-500">Savings Progress</span>
-                    <div class="h-7 w-7 rounded-lg bg-amber-50 text-amber-500 flex items-center justify-center shrink-0">
-                        <x-heroicon-o-save-as class="w-3.5 h-3.5" />
-                    </div>
+                {{-- Actions --}}
+                <div class="flex flex-col sm:flex-row gap-2.5">
+                    <a href="{{ route('student.expenses.create') }}"
+                    class="flex-1 inline-flex items-center justify-center gap-2 px-5 py-3.5 rounded-2xl bg-gradient-to-r from-[var(--brand)] to-[var(--brand-dark)] text-white text-sm font-extrabold shadow-lg shadow-[0_10px_20px_-6px_rgba(var(--brand-rgb),0.45)] hover:brightness-110 transition-all active:scale-[0.98]">
+                        <x-heroicon-o-plus-circle class="w-5 h-5" />
+                        Add expense
+                    </a>
+                    <a href="{{ route('student.receipt-scanner') }}"
+                    class="flex-1 inline-flex items-center justify-center gap-2 px-5 py-3.5 rounded-2xl bg-white/80 backdrop-blur border border-slate-200 hover:border-[var(--brand)] hover:text-[var(--brand)] text-slate-700 text-sm font-extrabold transition-all active:scale-[0.98]">
+                        <x-heroicon-o-camera class="w-5 h-5" />
+                        Scan receipt
+                    </a>
                 </div>
-                <div class="text-xl sm:text-2xl font-black text-slate-900 font-mono mt-4 whitespace-nowrap">
-                    {{ $savingsProgressPercent }}%
-                </div>
-                <div class="text-[10px] sm:text-[11px] font-medium text-slate-500 mt-2">
-                    {{ $savingsGoalsCount }} {{ Str::plural('goal', $savingsGoalsCount) }} · ₱{{ number_format($totalSavingsSaved, 2) }} saved
+
+                <div class="text-center">
+                    <a href="{{ route('student.simulation') }}" class="text-xs font-bold text-slate-500 hover:text-[var(--brand)] transition-colors">
+                        Thinking of buying something? Check it first →
+                    </a>
                 </div>
             </div>
         </div>
 
-        {{-- QUICK-ACTION WIDGETS: ADD EXPENSE / SCAN RECEIPT / PURCHASE-SIMULATOR --}}
-        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 w-full min-w-0">
-            <a href="{{ route('student.expenses.create') }}"
-                class="bg-white rounded-2xl sm:rounded-3xl p-4 sm:p-5 border border-slate-100 shadow-sm flex items-center gap-3.5 hover:border-slate-300 hover:shadow-md transition-all group">
-                <div class="h-11 w-11 rounded-2xl bg-[rgba(var(--brand-rgb),0.08)] text-[var(--brand)] flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
-                    <x-heroicon-o-plus-circle class="w-5 h-5" />
+        {{-- THREE SMALL FACTS --}}
+        <div class="grid grid-cols-3 gap-3 sm:gap-4">
+            <div class="rounded-[1.5rem] border border-slate-100 bg-white shadow-[0_20px_50px_-24px_rgba(15,23,42,0.15)] p-4 sm:p-5 min-w-0">
+                <div class="h-8 w-8 sm:h-9 sm:w-9 rounded-xl bg-[rgba(var(--brand-rgb),0.1)] text-[var(--brand)] flex items-center justify-center">
+                    <x-heroicon-o-cash class="w-4 h-4 sm:w-5 sm:h-5" />
                 </div>
-                <div class="min-w-0">
-                    <h4 class="text-sm font-extrabold text-slate-900 truncate">Add expenses</h4>
-                    <p class="text-[11px] text-slate-500 font-medium truncate">Log what you spent today</p>
-                </div>
-            </a>
+                <span class="text-[10px] sm:text-xs font-bold text-slate-400 uppercase tracking-wider block mt-3">Left this week</span>
+                <div class="text-base sm:text-xl font-black text-slate-900 tabular-nums mt-0.5 truncate">{{ $peso($currentBudget->remaining_allowance) }}</div>
+                <p class="text-[10px] sm:text-[11px] font-medium text-slate-400 mt-0.5 truncate">
+                    of {{ $peso($weeklyAllowanceDisplay) }}
+                    <a href="{{ route('student.settings') }}" class="font-bold text-slate-500 hover:text-[var(--brand)]">· Edit</a>
+                </p>
+            </div>
 
-            <a href="{{ route('student.receipt-scanner') }}"
-                class="bg-white rounded-2xl sm:rounded-3xl p-4 sm:p-5 border border-slate-100 shadow-sm flex items-center gap-3.5 hover:border-slate-300 hover:shadow-md transition-all group">
-                <div class="h-11 w-11 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
-                    <x-heroicon-o-camera class="w-5 h-5" />
+            <div class="rounded-[1.5rem] border border-slate-100 bg-white shadow-[0_20px_50px_-24px_rgba(15,23,42,0.15)] p-4 sm:p-5 min-w-0">
+                <div class="h-8 w-8 sm:h-9 sm:w-9 rounded-xl bg-amber-100 text-amber-600 flex items-center justify-center">
+                    <x-heroicon-o-calendar class="w-4 h-4 sm:w-5 sm:h-5" />
                 </div>
-                <div class="min-w-0">
-                    <h4 class="text-sm font-extrabold text-slate-900 truncate">Scan a receipt</h4>
-                    <p class="text-[11px] text-slate-500 font-medium truncate">Fill a row automatically</p>
-                </div>
-            </a>
+                <span class="text-[10px] sm:text-xs font-bold text-slate-400 uppercase tracking-wider block mt-3">Days left</span>
+                <div class="text-base sm:text-xl font-black text-slate-900 tabular-nums mt-0.5">{{ $daysRemaining === 1 ? 'Last day' : $daysRemaining }}</div>
+                <p class="text-[10px] sm:text-[11px] font-medium text-slate-400 mt-0.5 truncate">Resets {{ $reset }}</p>
+            </div>
 
-            <a href="{{ route('student.simulation') }}"
-                class="bg-white rounded-2xl sm:rounded-3xl p-4 sm:p-5 border border-slate-100 shadow-sm flex items-center gap-3.5 hover:border-slate-300 hover:shadow-md transition-all group">
-                <div class="h-11 w-11 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
-                    <x-heroicon-o-calculator class="w-5 h-5" />
+            <div class="rounded-[1.5rem] border border-slate-100 bg-white shadow-[0_20px_50px_-24px_rgba(15,23,42,0.15)] p-4 sm:p-5 min-w-0">
+                <div class="h-8 w-8 sm:h-9 sm:w-9 rounded-xl bg-emerald-100 text-emerald-600 flex items-center justify-center">
+                    <x-heroicon-o-save-as class="w-4 h-4 sm:w-5 sm:h-5" />
                 </div>
-                <div class="min-w-0">
-                    <h4 class="text-sm font-extrabold text-slate-900 truncate">Purchase Simulator</h4>
-                    <p class="text-[11px] text-slate-500 font-medium truncate">Check before you spend</p>
-                </div>
-            </a>
+                <span class="text-[10px] sm:text-xs font-bold text-slate-400 uppercase tracking-wider block mt-3">Saved</span>
+                <div class="text-base sm:text-xl font-black text-slate-900 tabular-nums mt-0.5">{{ $savingsProgressPercent }}%</div>
+                <p class="text-[10px] sm:text-[11px] font-medium text-slate-400 mt-0.5 truncate">{{ $peso($totalSavingsSaved) }} in goals</p>
+            </div>
         </div>
 
-        {{-- MAIN WORKSPACE: SPENDING CHART + CATEGORY WIDGET --}}
+        {{-- MAIN WORKSPACE: SPENDING CHART + CATEGORY WIDGET (unchanged below this line) --}}
         <div class="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-6 items-stretch w-full min-w-0">
             {{-- SPENDING BY DAY --}}
-            <div class="lg:col-span-7 bg-white rounded-2xl sm:rounded-3xl p-3.5 sm:p-6 border border-slate-100 shadow-sm flex flex-col justify-between w-full min-w-0 overflow-hidden">
+            <div class="lg:col-span-7 rounded-[2rem] border border-slate-100 bg-white shadow-[0_20px_50px_-24px_rgba(15,23,42,0.15)] p-4 sm:p-7 flex flex-col justify-between w-full min-w-0 overflow-hidden">
                 <div class="flex items-center justify-between gap-2 pb-3 border-b border-slate-100">
                     <div>
                         <h3 class="text-xs sm:text-sm font-extrabold text-slate-900 truncate">Spending by day</h3>
@@ -375,7 +287,7 @@
         </div>
 
         {{-- RECENT EXPENSES SECTION --}}
-        <div class="bg-white rounded-2xl sm:rounded-3xl p-4 sm:p-6 border border-slate-100 shadow-sm w-full min-w-0 overflow-hidden">
+        <div class="rounded-[2rem] border border-slate-100 bg-white shadow-[0_20px_50px_-24px_rgba(15,23,42,0.15)] p-4 sm:p-7 w-full min-w-0 overflow-hidden">
             <div class="pb-4 border-b border-slate-100 flex items-center justify-between gap-3">
                 <div class="min-w-0">
                     <h3 class="text-base sm:text-lg font-bold text-slate-900 truncate">Recent Transactions</h3>
@@ -420,7 +332,7 @@
         </div>
 
         {{-- FLOATING "+ ADD EXPENSE" BUTTON WITH CHOICE MENU --}}
-        <div class="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-49" data-add-expense-widget>
+        {{-- <div class="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-49" data-add-expense-widget>
             <div data-add-expense-menu class="hidden absolute bottom-full right-0 mb-3 w-56 bg-white rounded-2xl shadow-xl border border-slate-100 p-2 space-y-1">
                 <a href="{{ route('student.expenses.create') }}"
                 class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold text-slate-700 hover:bg-slate-50 transition-colors">
@@ -445,7 +357,7 @@
                 </svg>
                 <span>Add Expense</span>
             </button>
-        </div>
+        </div> --}}
     </div>
 
     {{-- DELETE CONFIRMATION MODAL --}}

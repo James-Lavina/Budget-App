@@ -1,4 +1,4 @@
-<div class="bg-white rounded-3xl border border-slate-100 shadow-sm p-5 sm:p-6 w-full flex-1 h-full flex flex-col justify-start" wire:init="loadCategoryBreakdown">
+<div class="rounded-[2rem] border border-slate-100 bg-white shadow-[0_20px_50px_-24px_rgba(15,23,42,0.15)] p-5 sm:p-7 w-full flex-1 h-full flex flex-col justify-start" wire:init="loadCategoryBreakdown">
 
     <!-- HEADER SECTION -->
     <div class="pb-2">

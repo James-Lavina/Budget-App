@@ -9,6 +9,7 @@ use App\Models\SavingsGoal;
 use App\Models\WeeklyBudget;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Validator;
 use Livewire\Component;
 
 class BudgetSetup extends Component
@@ -80,9 +81,24 @@ class BudgetSetup extends Component
         ];
     }
 
+    /**
+     * Strips thousands separators / peso sign / spaces so a client-side formatting
+     * failure can never break numeric validation.
+     */
+    private function normalizeMoney(): void
+    {
+        foreach (['total_allowance', 'goal_amount'] as $prop) {
+            $clean = str_replace([',', ' ', '₱'], '', (string) $this->{$prop});
+            $this->{$prop} = $clean === '' ? null : $clean;
+        }
+    }
+
     public function next()
     {
+        $this->normalizeMoney();
+
         $rules = $this->stepRules($this->step);
+
         if (!empty($rules)) {
             $this->validate($rules);
         }
@@ -114,11 +130,33 @@ class BudgetSetup extends Component
             return redirect()->route('student.dashboard');
         }
 
-        // Re-validate every step server-side; never trust the client's step counter.
-        $this->validate($this->stepRules(1));
-        $goalRules = $this->stepRules(3);
-        if (!empty($goalRules)) {
-            $this->validate($goalRules);
+        $this->normalizeMoney();
+
+        // Re-validate every step server-side. On failure, jump to the step that
+        // owns the error so the message is actually visible.
+        foreach ([1, 3] as $stepToCheck) {
+            $rules = $this->stepRules($stepToCheck);
+
+            if (empty($rules)) {
+                continue;
+            }
+
+            $validator = Validator::make(
+                [
+                    'total_allowance' => $this->total_allowance,
+                    'goal_name'       => $this->goal_name,
+                    'goal_amount'     => $this->goal_amount,
+                    'goal_date'       => $this->goal_date,
+                ],
+                $rules,
+                $this->messages
+            );
+
+            if ($validator->fails()) {
+                $this->setErrorBag($validator->errors());
+                $this->step = $stepToCheck;
+                return;
+            }
         }
 
         $user      = auth()->user();
@@ -167,6 +205,7 @@ class BudgetSetup extends Component
         ]);
 
         session()->flash('success', "You're all set! Your budget is live.");
+
         return redirect()->route('student.dashboard');
     }
 

@@ -216,5 +216,69 @@
     </script>
     @livewireScripts
     <script src="{{ asset('js/app.js') }}"></script>
+    <script>
+        if (!window.__moneyInputsBound) {
+            window.__moneyInputsBound = true;
+    
+            const groupInteger = (digits) => digits.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+    
+            // Live formatting while typing: 1231323.5 -> 1,231,323.5 (caret preserved)
+            document.addEventListener('input', function (e) {
+                const el = e.target;
+                if (!el.matches || !el.matches('[data-money]') || e.isFormatting) return;
+    
+                const caret = el.selectionStart;
+                const before = el.value;
+                const digitsBeforeCaret = before.slice(0, caret).replace(/[^\d]/g, '').length;
+    
+                let cleaned = before.replace(/[^\d.]/g, '');
+                const firstDot = cleaned.indexOf('.');
+                if (firstDot !== -1) {
+                    cleaned = cleaned.slice(0, firstDot + 1) + cleaned.slice(firstDot + 1).replace(/\./g, '');
+                }
+    
+                let [intPart, decPart] = cleaned.split('.');
+                intPart = (intPart || '').replace(/^0+(?=\d)/, '');
+                const formatted = groupInteger(intPart) + (decPart !== undefined ? '.' + decPart.slice(0, 2) : '');
+    
+                if (formatted === before) return;
+    
+                el.value = formatted;
+    
+                // Restore caret after the same number of digits.
+                let digitsSeen = 0, pos = 0;
+                while (pos < formatted.length && digitsSeen < digitsBeforeCaret) {
+                    if (/\d/.test(formatted[pos])) digitsSeen++;
+                    pos++;
+                }
+                el.setSelectionRange(pos, pos);
+    
+                // Push the formatted value to wire:model.defer.
+                const evt = new Event('input', { bubbles: true });
+                evt.isFormatting = true;
+                el.dispatchEvent(evt);
+            });
+    
+            // On blur: pad to 2 decimals -> 1,231,323.00
+            document.addEventListener('focusout', function (e) {
+                const el = e.target;
+                if (!el.matches || !el.matches('[data-money]')) return;
+    
+                const raw = el.value.replace(/,/g, '').trim();
+                if (raw === '' || isNaN(Number(raw))) return;
+    
+                el.value = Number(raw).toLocaleString('en-US', {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                });
+    
+                const evt = new Event('input', { bubbles: true });
+                evt.isFormatting = true;
+                el.dispatchEvent(evt);
+            });
+        }
+    </script>
+    
+    @livewireScripts
 </body>
 </html>

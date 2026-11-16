@@ -35,8 +35,14 @@
                         <span class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-800 font-extrabold text-base">
                             ₱
                         </span>
-                        <input id="amount" type="number" step="0.01" min="0" wire:model.defer="amount" placeholder="0.00"
-                            onblur="formatAmount(this)"
+                        
+                        <!-- Hidden input that securely syncs the raw value to Livewire -->
+                        <input type="hidden" id="amount_raw" wire:model.defer="amount" value="{{ $amount }}">
+
+                        <!-- Visible text input for comma-separated display -->
+                        <input id="amount" type="text" inputmode="decimal" placeholder="0.00"
+                            value="{{ $amount ? number_format($amount, 2, '.', ',') : '' }}"
+                            onblur="formatAmount(this, 'amount')"
                             class="w-full pl-9 pr-4 py-3 bg-slate-100/80 border-0 rounded-2xl text-slate-900 font-extrabold text-base placeholder-slate-400 focus:bg-white focus:ring-2 focus:ring-[rgba(var(--brand-rgb),0.2)] transition-all">
                     </div>
                     @error('amount')
@@ -109,10 +115,51 @@
 </div>
 
 <script>
-    function formatAmount(input) {
-        if (input.value !== '') {
-            input.value = parseFloat(input.value).toFixed(2);
-            input.dispatchEvent(new Event('input', { bubbles: true }));
+    function formatAmount(input, propertyName = 'amount') {
+        const cleaned = input.value.replace(/,/g, '').trim();
+        const rawInputId = propertyName + '_raw';
+        const rawInput = document.getElementById(rawInputId);
+
+        if (cleaned === '') {
+            input.value = '';
+            if (rawInput) {
+                rawInput.value = '';
+                rawInput.dispatchEvent(new Event('input', { bubbles: true }));
+            }
+            if (typeof @this !== 'undefined') {
+                @this.set(propertyName, '');
+            }
+            return;
+        }
+
+        const value = parseFloat(cleaned);
+        if (isNaN(value) || value < 0) {
+            input.value = '';
+            if (rawInput) {
+                rawInput.value = '';
+                rawInput.dispatchEvent(new Event('input', { bubbles: true }));
+            }
+            if (typeof @this !== 'undefined') {
+                @this.set(propertyName, '');
+            }
+            return;
+        }
+
+        // Format display with commas and 2 decimal places
+        input.value = value.toLocaleString('en-US', {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
+        });
+
+        // Update hidden raw input and sync with Livewire
+        const rawVal = value.toFixed(2);
+        if (rawInput) {
+            rawInput.value = rawVal;
+            rawInput.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+
+        if (typeof @this !== 'undefined') {
+            @this.set(propertyName, rawVal);
         }
     }
 </script>
