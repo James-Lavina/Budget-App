@@ -282,13 +282,13 @@
 
             <div class="flex items-center gap-2">
                 @if($step < $totalSteps)
-                    <button type="button" onclick="continueSetup({{ $step }})" wire:loading.attr="disabled"
+                    <button type="button" wire:key="btn-continue" onclick="continueSetup({{ $step }})" wire:loading.attr="disabled"
                         class="inline-flex items-center gap-1.5 px-7 py-3 bg-[var(--brand)] hover:bg-[var(--brand-dark)] text-white rounded-full font-bold text-sm shadow-[0_8px_16px_-4px_rgba(var(--brand-rgb),0.35)] transition-all active:scale-95 disabled:opacity-50">
                         Continue
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
                     </button>
                 @else
-                    <button type="button" wire:click="finish" wire:loading.attr="disabled"
+                    <button type="button" wire:key="btn-finish" wire:click="finish" wire:loading.attr="disabled"
                         class="inline-flex items-center gap-1.5 px-7 py-3 bg-[var(--brand)] hover:bg-[var(--brand-dark)] text-white rounded-full font-bold text-sm shadow-[0_8px_16px_-4px_rgba(var(--brand-rgb),0.35)] transition-all active:scale-95 disabled:opacity-50">
                         <span wire:loading.remove wire:target="finish">Start Tracking</span>
                         <span wire:loading wire:target="finish">Setting up...</span>

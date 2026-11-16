@@ -214,7 +214,6 @@
             }
         });
     </script>
-    @livewireScripts
     <script src="{{ asset('js/app.js') }}"></script>
     <script>
         if (!window.__moneyInputsBound) {
