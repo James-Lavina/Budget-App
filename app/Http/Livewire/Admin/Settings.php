@@ -14,12 +14,13 @@ class Settings extends Component
     use WithFileUploads, EnsuresAdmin;
 
     public const COLOR_PRESETS = [
-        'indigo'  => ['label' => 'Indigo',  'value' => '#4f39fa'],
-        'blue'    => ['label' => 'Blue',    'value' => '#2563eb'],
-        'emerald' => ['label' => 'Emerald', 'value' => '#059669'],
-        'rose'    => ['label' => 'Rose',    'value' => '#e11d48'],
-        'amber'   => ['label' => 'Amber',   'value' => '#d97706'],
-        'purple'  => ['label' => 'Purple',  'value' => '#7c3aed'],
+        'Midnight Navy'  => ['label' => 'Midnight Navy',  'value' => '#1B2430'],
+        'Fern Green'    => ['label' => 'Fern Green',    'value' => '#4E9A5B'],
+        'Royal Amethyst' => ['label' => 'Royal Amethyst', 'value' => '#6E4FA3'],
+        'Cerulean'    => ['label' => 'Cerulean',    'value' => '#00A3C4'],
+        'Dark Espresso'   => ['label' => 'Dark Espresso',   'value' => '#351404'],
+        'Lime Green'  => ['label' => 'Lime Green',  'value' => '#8AC926'],
+        'Dark Plum'  => ['label' => 'Dark Plum',  'value' => '#4E1930'],
     ];
 
     public $application_name;
