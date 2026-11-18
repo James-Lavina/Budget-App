@@ -16,82 +16,154 @@
         @endif
 
         {{-- Filter bar --}}
-        <div class="bg-white rounded-2xl sm:rounded-3xl p-4 sm:p-5 border border-slate-100 shadow-sm flex flex-col sm:flex-row items-center gap-3">
+        <div class="bg-white rounded-2xl sm:rounded-3xl p-4 sm:p-5 border border-slate-100 shadow-sm flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
             <div class="relative w-full sm:flex-1">
                 <svg class="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"/>
                 </svg>
                 <input type="text" wire:model.debounce.300ms="search" placeholder="Search name, email, or school..."
-                    class="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-600/20 focus:border-indigo-600 focus:bg-white transition-all">
+                    class="w-full pl-10 pr-9 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-600/20 focus:border-indigo-600 focus:bg-white transition-all">
+                @if(filled($search))
+                    <button type="button" wire:click="$set('search', '')" title="Clear search" aria-label="Clear search"
+                        class="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-600 rounded-md hover:bg-slate-100 transition-colors">
+                        <x-heroicon-o-x class="w-3.5 h-3.5" />
+                    </button>
+                @endif
             </div>
-            <div class="flex items-center gap-2 w-full sm:w-auto shrink-0">
-                <span class="text-xs font-bold text-slate-500">Status:</span>
-                <select wire:model="statusFilter"
-                    class="px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-600/20 focus:border-indigo-600 focus:bg-white transition-all">
-                    <option value="">All</option>
-                    <option value="active">Active</option>
-                    <option value="suspended">Inactive</option>
-                </select>
+            <div class="flex items-center justify-between sm:justify-end gap-3 shrink-0">
+                <div class="flex items-center gap-2">
+                    <span class="text-xs font-bold text-slate-500">Status:</span>
+                    <select wire:model="statusFilter"
+                        class="px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-600/20 focus:border-indigo-600 focus:bg-white transition-all">
+                        <option value="">All</option>
+                        <option value="active">Active</option>
+                        <option value="suspended">Inactive</option>
+                    </select>
+                </div>
+                <span class="text-[11px] font-bold text-slate-400 whitespace-nowrap">
+                    {{ number_format($users->total()) }} {{ \Illuminate\Support\Str::plural('user', $users->total()) }}
+                </span>
             </div>
         </div>
 
-        {{-- Table --}}
+        {{-- Results --}}
         <div class="bg-white rounded-2xl sm:rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
             @if($users->isEmpty())
-                <div class="p-12 text-center">
-                    <p class="text-xs font-semibold text-slate-400">No matching users found.</p>
+                <div class="py-16 px-6 text-center space-y-2">
+                    <div class="h-11 w-11 bg-slate-50 border border-slate-100 text-slate-400 rounded-2xl flex items-center justify-center mx-auto">
+                        <x-heroicon-o-users class="w-5 h-5" />
+                    </div>
+                    <p class="text-sm font-bold text-slate-700">No matching users found</p>
+                    <p class="text-xs font-medium text-slate-400">Try a different search term or status filter.</p>
                 </div>
             @else
-                <div class="overflow-x-auto">
+
+                {{-- DESKTOP / TABLET TABLE --}}
+                <div class="hidden md:block">
                     <table class="w-full text-sm">
                         <thead>
-                            <tr class="text-left text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-                                <th class="px-5 sm:px-6 py-3">Profile</th>
-                                <th class="px-5 sm:px-6 py-3">Full Name</th>
-                                <th class="px-5 sm:px-6 py-3">Email</th>
-                                <th class="px-5 sm:px-6 py-3">School</th>
-                                <th class="px-5 sm:px-6 py-3">Base Allowance</th>
-                                <th class="px-5 sm:px-6 py-3">Remaining</th>
-                                <th class="px-5 sm:px-6 py-3">Status</th>
-                                <th class="px-5 sm:px-6 py-3">Registered</th>
-                                <th class="px-5 sm:px-6 py-3">Actions</th>
+                            <tr class="text-left text-[11px] font-bold text-slate-400 uppercase tracking-wider bg-slate-50/60 border-b border-slate-100">
+                                <th class="pl-6 pr-3 py-3">User</th>
+                                <th class="px-3 py-3 hidden xl:table-cell">School</th>
+                                <th class="px-3 py-3 min-w-[200px]">Weekly Budget</th>
+                                <th class="px-3 py-3">Status</th>
+                                <th class="px-3 py-3 hidden 2xl:table-cell">Registered</th>
+                                <th class="pl-3 pr-6 py-3 text-right">Actions</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-slate-100">
                             @foreach($users as $user)
-                                <tr class="{{ $user->status === 'suspended' ? 'opacity-60' : '' }}">
-                                    <td class="px-5 sm:px-6 py-3.5">
-                                        <div class="h-8 w-8 rounded-full bg-[var(--brand-primary)] text-white font-extrabold text-[11px] flex items-center justify-center shrink-0">
-                                            {{ strtoupper(substr($user->name, 0, 1) . substr(strrchr(' '.$user->name, ' '), 1, 1)) }}
+                                @php
+                                    $budget    = $user->latestWeeklyBudget;
+                                    $base      = (float) ($budget->total_allowance ?? $user->default_allowance ?? 0);
+                                    $remaining = $budget ? (float) $budget->remaining_allowance : null;
+                                    $pct       = ($budget && $base > 0) ? max(0, min(100, (int) round(($remaining / $base) * 100))) : 0;
+                                    $barColor  = $pct <= 15 ? 'bg-rose-500' : ($pct <= 40 ? 'bg-amber-500' : 'bg-emerald-500');
+                                    $suspended = $user->status === 'suspended';
+                                    $initials  = strtoupper(substr($user->name, 0, 1) . substr(strrchr(' ' . $user->name, ' '), 1, 1));
+                                @endphp
+                                <tr wire:key="user-row-{{ $user->id }}"
+                                    wire:click="viewUser({{ $user->id }})"
+                                    class="group cursor-pointer hover:bg-slate-50/70 transition-colors {{ $suspended ? 'opacity-60' : '' }}">
+
+                                    {{-- User --}}
+                                    <td class="pl-6 pr-3 py-3.5">
+                                        <div class="flex items-center gap-3 min-w-0">
+                                            <div class="h-9 w-9 rounded-full bg-[var(--brand-primary)] text-white font-extrabold text-[11px] flex items-center justify-center shrink-0">
+                                                {{ $initials }}
+                                            </div>
+                                            <div class="min-w-0">
+                                                <p class="font-bold text-slate-900 truncate max-w-[220px]">{{ $user->name }}</p>
+                                                <p class="text-xs font-medium text-slate-500 truncate max-w-[220px]">{{ $user->email }}</p>
+                                                {{-- School shown here when its own column is hidden --}}
+                                                <p class="text-[11px] font-medium text-slate-400 truncate max-w-[220px] xl:hidden">{{ $user->school ?? 'No school' }}</p>
+                                            </div>
                                         </div>
                                     </td>
-                                    <td class="px-5 sm:px-6 py-3.5 font-semibold text-slate-800 whitespace-nowrap">{{ $user->name }}</td>
-                                    <td class="px-5 sm:px-6 py-3.5 text-[var(--brand-primary)] font-medium whitespace-nowrap">{{ $user->email }}</td>
-                                    <td class="px-5 sm:px-6 py-3.5 text-slate-600 whitespace-nowrap">{{ $user->school ?? '—' }}</td>
-                                    <td class="px-5 sm:px-6 py-3.5 text-slate-700 font-mono font-semibold whitespace-nowrap">
-                                        ₱{{ number_format($user->latestWeeklyBudget->total_allowance ?? $user->default_allowance ?? 0, 2) }}
+
+                                    {{-- School --}}
+                                    <td class="px-3 py-3.5 text-slate-600 font-medium hidden xl:table-cell">
+                                        <span class="block truncate max-w-[180px]">{{ $user->school ?? '—' }}</span>
                                     </td>
-                                    <td class="px-5 sm:px-6 py-3.5 text-slate-700 font-mono font-semibold whitespace-nowrap">
-                                        @if($user->latestWeeklyBudget)
-                                            ₱{{ number_format($user->latestWeeklyBudget->remaining_allowance, 2) }}
+
+                                    {{-- Budget --}}
+                                    <td class="px-3 py-3.5">
+                                        @if($budget)
+                                            <div class="space-y-1.5 max-w-[220px]">
+                                                <div class="flex items-baseline justify-between gap-2">
+                                                    <span class="font-mono font-bold text-slate-900 text-[13px]">₱{{ number_format($remaining, 2) }}</span>
+                                                    <span class="font-mono text-[11px] font-semibold text-slate-400">of ₱{{ number_format($base, 2) }}</span>
+                                                </div>
+                                                <div class="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                                                    <div class="h-full rounded-full {{ $barColor }}" style="width: {{ $pct }}%"></div>
+                                                </div>
+                                            </div>
                                         @else
-                                            <span class="text-slate-300">—</span>
+                                            <div class="space-y-0.5">
+                                                <span class="font-mono font-bold text-slate-700 text-[13px]">₱{{ number_format($base, 2) }}</span>
+                                                <span class="block text-[11px] font-semibold text-slate-400">No budget set up yet</span>
+                                            </div>
                                         @endif
                                     </td>
-                                    <td class="px-5 sm:px-6 py-3.5">
-                                        <span class="inline-flex items-center px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wide {{ $user->status === 'suspended' ? 'bg-amber-50 text-amber-700' : 'bg-emerald-50 text-emerald-700' }}">
-                                            {{ $user->status === 'suspended' ? 'inactive' : 'active' }}
+
+                                    {{-- Status --}}
+                                    <td class="px-3 py-3.5">
+                                        <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wide {{ $suspended ? 'bg-amber-50 text-amber-700' : 'bg-emerald-50 text-emerald-700' }}">
+                                            <span class="h-1.5 w-1.5 rounded-full {{ $suspended ? 'bg-amber-500' : 'bg-emerald-500' }}"></span>
+                                            {{ $suspended ? 'Inactive' : 'Active' }}
                                         </span>
                                     </td>
-                                    <td class="px-5 sm:px-6 py-3.5 text-slate-500 whitespace-nowrap">{{ $user->created_at->format('Y-m-d') }}</td>
-                                    <td class="px-5 sm:px-6 py-3.5">
-                                        <div class="flex items-center gap-1.5 flex-wrap">
-                                            <button wire:click="viewUser({{ $user->id }})" class="px-2.5 py-1.5 text-[11px] font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors">View</button>
-                                            <button wire:click="openEdit({{ $user->id }})" class="px-2.5 py-1.5 text-[11px] font-bold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-colors">Edit</button>
-                                            <button wire:click="confirmSuspend({{ $user->id }})" class="px-2.5 py-1.5 text-[11px] font-bold text-amber-700 bg-amber-50 hover:bg-amber-100 rounded-lg transition-colors">
-                                                {{ $user->status === 'suspended' ? 'Reactivate' : 'Suspend' }}
+
+                                    {{-- Registered --}}
+                                    <td class="px-3 py-3.5 text-slate-500 font-medium whitespace-nowrap hidden 2xl:table-cell">
+                                        {{ $user->created_at->format('M j, Y') }}
+                                    </td>
+
+                                    {{-- Actions --}}
+                                    <td class="pl-3 pr-6 py-3.5">
+                                        <div class="flex items-center justify-end gap-1 whitespace-nowrap">
+                                            <button type="button" wire:click.stop="viewUser({{ $user->id }})" title="View details" aria-label="View details"
+                                                class="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors">
+                                                <x-heroicon-o-eye class="w-4 h-4" />
                                             </button>
-                                            <button wire:click="confirmDelete({{ $user->id }})" class="px-2.5 py-1.5 text-[11px] font-bold text-rose-600 bg-rose-50 hover:bg-rose-100 rounded-lg transition-colors">Delete</button>
+                                            <button type="button" wire:click.stop="openEdit({{ $user->id }})" title="Edit user" aria-label="Edit user"
+                                                class="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors">
+                                                <x-heroicon-o-pencil class="w-4 h-4" />
+                                            </button>
+                                            <button type="button" wire:click.stop="confirmSuspend({{ $user->id }})"
+                                                title="{{ $suspended ? 'Reactivate user' : 'Suspend user' }}"
+                                                aria-label="{{ $suspended ? 'Reactivate user' : 'Suspend user' }}"
+                                                class="p-2 rounded-lg transition-colors {{ $suspended ? 'text-emerald-500 hover:text-emerald-700 hover:bg-emerald-50' : 'text-slate-400 hover:text-amber-600 hover:bg-amber-50' }}">
+                                                @if($suspended)
+                                                    <x-heroicon-o-check-circle class="w-4 h-4" />
+                                                @else
+                                                    <x-heroicon-o-ban class="w-4 h-4" />
+                                                @endif
+                                            </button>
+                                            <button type="button" wire:click.stop="confirmDelete({{ $user->id }})" title="Delete user" aria-label="Delete user"
+                                                class="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors">
+                                                <x-heroicon-o-trash class="w-4 h-4" />
+                                            </button>
                                         </div>
                                     </td>
                                 </tr>
@@ -99,6 +171,81 @@
                         </tbody>
                     </table>
                 </div>
+
+                {{-- MOBILE CARDS --}}
+                <div class="md:hidden divide-y divide-slate-100">
+                    @foreach($users as $user)
+                        @php
+                            $budget    = $user->latestWeeklyBudget;
+                            $base      = (float) ($budget->total_allowance ?? $user->default_allowance ?? 0);
+                            $remaining = $budget ? (float) $budget->remaining_allowance : null;
+                            $pct       = ($budget && $base > 0) ? max(0, min(100, (int) round(($remaining / $base) * 100))) : 0;
+                            $barColor  = $pct <= 15 ? 'bg-rose-500' : ($pct <= 40 ? 'bg-amber-500' : 'bg-emerald-500');
+                            $suspended = $user->status === 'suspended';
+                            $initials  = strtoupper(substr($user->name, 0, 1) . substr(strrchr(' ' . $user->name, ' '), 1, 1));
+                        @endphp
+                        <div wire:key="user-card-{{ $user->id }}" class="p-4 space-y-3 {{ $suspended ? 'opacity-60' : '' }}">
+                            <div class="flex items-start justify-between gap-3">
+                                <div class="flex items-center gap-3 min-w-0">
+                                    <div class="h-10 w-10 rounded-full bg-[var(--brand-primary)] text-white font-extrabold text-xs flex items-center justify-center shrink-0">
+                                        {{ $initials }}
+                                    </div>
+                                    <div class="min-w-0">
+                                        <p class="font-bold text-slate-900 truncate">{{ $user->name }}</p>
+                                        <p class="text-xs font-medium text-slate-500 truncate">{{ $user->email }}</p>
+                                        <p class="text-[11px] font-medium text-slate-400 truncate">{{ $user->school ?? 'No school' }}</p>
+                                    </div>
+                                </div>
+                                <span class="shrink-0 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wide {{ $suspended ? 'bg-amber-50 text-amber-700' : 'bg-emerald-50 text-emerald-700' }}">
+                                    <span class="h-1.5 w-1.5 rounded-full {{ $suspended ? 'bg-amber-500' : 'bg-emerald-500' }}"></span>
+                                    {{ $suspended ? 'Inactive' : 'Active' }}
+                                </span>
+                            </div>
+
+                            @if($budget)
+                                <div class="space-y-1.5">
+                                    <div class="flex items-baseline justify-between">
+                                        <span class="font-mono font-bold text-slate-900 text-sm">₱{{ number_format($remaining, 2) }}</span>
+                                        <span class="font-mono text-[11px] font-semibold text-slate-400">of ₱{{ number_format($base, 2) }}</span>
+                                    </div>
+                                    <div class="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                                        <div class="h-full rounded-full {{ $barColor }}" style="width: {{ $pct }}%"></div>
+                                    </div>
+                                </div>
+                            @else
+                                <p class="text-[11px] font-semibold text-slate-400">No budget set up yet · default ₱{{ number_format($base, 2) }}</p>
+                            @endif
+
+                            <div class="flex items-center justify-between pt-1">
+                                <span class="text-[11px] font-medium text-slate-400">Joined {{ $user->created_at->format('M j, Y') }}</span>
+                                <div class="flex items-center gap-1">
+                                    <button type="button" wire:click="viewUser({{ $user->id }})" aria-label="View details"
+                                        class="p-2 text-slate-500 bg-slate-50 hover:bg-slate-100 rounded-lg transition-colors">
+                                        <x-heroicon-o-eye class="w-4 h-4" />
+                                    </button>
+                                    <button type="button" wire:click="openEdit({{ $user->id }})" aria-label="Edit user"
+                                        class="p-2 text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-colors">
+                                        <x-heroicon-o-pencil class="w-4 h-4" />
+                                    </button>
+                                    <button type="button" wire:click="confirmSuspend({{ $user->id }})"
+                                        aria-label="{{ $suspended ? 'Reactivate user' : 'Suspend user' }}"
+                                        class="p-2 rounded-lg transition-colors {{ $suspended ? 'text-emerald-700 bg-emerald-50 hover:bg-emerald-100' : 'text-amber-700 bg-amber-50 hover:bg-amber-100' }}">
+                                        @if($suspended)
+                                            <x-heroicon-o-check-circle class="w-4 h-4" />
+                                        @else
+                                            <x-heroicon-o-ban class="w-4 h-4" />
+                                        @endif
+                                    </button>
+                                    <button type="button" wire:click="confirmDelete({{ $user->id }})" aria-label="Delete user"
+                                        class="p-2 text-rose-600 bg-rose-50 hover:bg-rose-100 rounded-lg transition-colors">
+                                        <x-heroicon-o-trash class="w-4 h-4" />
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    @endforeach
+                </div>
+
                 <div class="px-5 sm:px-6 py-4 border-t border-slate-100 bg-slate-50/50">
                     {{ $users->links() }}
                 </div>

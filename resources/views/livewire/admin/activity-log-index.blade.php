@@ -5,7 +5,7 @@
         <p class="text-sm text-slate-500 mt-1">Review important actions performed within the {{ \App\Models\AppSetting::current()->application_name }} system.</p>
     </div>
 
-    <div class="bg-white rounded-3xl border border-slate-100 shadow-sm p-6 space-y-5">
+    <div class="bg-white rounded-3xl border border-slate-100 shadow-sm p-4 sm:p-6 space-y-5">
 
         {{-- Search --}}
         <div class="relative">
@@ -22,25 +22,27 @@
                 @php
                     $status = $this->statusFor($log->event_type);
                 @endphp
-                <div class="p-4 bg-slate-50/60 border border-slate-100 rounded-2xl flex items-center justify-between gap-4">
-                    <div class="flex items-center gap-3.5 min-w-0">
+                <div wire:key="log-{{ $log->id }}" class="p-4 bg-slate-50/60 border border-slate-100 rounded-2xl flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5 sm:gap-4">
+                    <div class="flex items-start sm:items-center gap-3 sm:gap-3.5 min-w-0">
                         <div class="h-9 w-9 rounded-xl bg-[var(--brand-primary)]/10 text-[var(--brand-primary)] flex items-center justify-center shrink-0">
                             <x-heroicon-o-sparkles class="w-4 h-4" />
                         </div>
                         <div class="min-w-0">
-                            <p class="text-sm font-bold text-slate-800 truncate">
+                            <p class="text-sm font-bold text-slate-800 break-words sm:truncate">
                                 {{ $log->user->name ?? 'Unknown User' }}
                                 <span class="font-medium text-slate-500">{{ $this->labelFor($log->event_type) }}</span>
                             </p>
                             @if($log->details)
-                                <p class="text-xs text-slate-400 font-medium truncate mt-0.5">{{ $log->details }}</p>
+                                <p class="text-xs text-slate-400 font-medium mt-0.5 break-words sm:truncate">{{ $log->details }}</p>
                             @endif
                         </div>
                     </div>
 
-                    <div class="flex items-center gap-4 shrink-0">
+                    {{-- Mobile: second row aligned under the text. Desktop: right-aligned inline. --}}
+                    <div class="flex items-center justify-between sm:justify-end gap-3 shrink-0 pl-12 sm:pl-0">
                         <span class="text-xs font-semibold text-slate-400 whitespace-nowrap">
                             {{ $log->created_at->format('M j, Y') }}
+                            <span class="sm:hidden">· {{ $log->created_at->format('g:i A') }}</span>
                         </span>
                         <span class="inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wide {{ $status['class'] }}">
                             {{ $status['label'] }}
@@ -67,6 +69,5 @@
                 {{ $logs->links() }}
             </div>
         @endif
-
     </div>
 </div>

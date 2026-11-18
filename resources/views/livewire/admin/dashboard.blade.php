@@ -166,8 +166,9 @@
             <div class="p-10 text-center">
                 <p class="text-xs font-semibold text-slate-400">No activity logged yet.</p>
             </div>
-        @else
-            <div class="overflow-x-auto">
+            @else
+            {{-- DESKTOP / TABLET TABLE --}}
+            <div class="hidden md:block overflow-x-auto">
                 <table class="w-full text-sm">
                     <thead>
                         <tr class="text-left text-[11px] font-bold text-slate-400 uppercase tracking-wider">
@@ -179,17 +180,17 @@
                     </thead>
                     <tbody class="divide-y divide-slate-100">
                         @foreach($recentActivities as $activity)
-                            <tr>
+                            @php $status = $this->statusFor($activity->event_type); @endphp
+                            <tr wire:key="act-row-{{ $activity->id }}">
                                 <td class="px-5 sm:px-6 py-3.5 font-semibold text-[var(--brand-primary)]">
                                     {{ $activity->user->name ?? 'Unknown User' }}
                                 </td>
                                 <td class="px-5 sm:px-6 py-3.5 text-slate-700 font-medium">
                                     {{ \App\Support\ActivityLabels::for($activity->event_type) }}
                                 </td>
-                                <td class="px-5 sm:px-6 py-3.5 text-slate-500">
+                                <td class="px-5 sm:px-6 py-3.5 text-slate-500 whitespace-nowrap">
                                     {{ $activity->created_at->format('M j, Y') }}
                                 </td>
-                                @php $status = $this->statusFor($activity->event_type); @endphp
                                 <td class="px-5 sm:px-6 py-3.5">
                                     <span class="inline-flex items-center px-2.5 py-1 rounded-lg text-[10px] font-bold {{ $status['class'] }}">
                                         {{ $status['label'] }}
@@ -199,6 +200,31 @@
                         @endforeach
                     </tbody>
                 </table>
+            </div>
+        
+            {{-- MOBILE LIST --}}
+            <div class="md:hidden divide-y divide-slate-100">
+                @foreach($recentActivities as $activity)
+                    @php $status = $this->statusFor($activity->event_type); @endphp
+                    <div wire:key="act-card-{{ $activity->id }}" class="px-4 py-3.5 flex items-start justify-between gap-3">
+                        <div class="min-w-0">
+                            <p class="text-sm font-bold text-[var(--brand-primary)] break-words">
+                                {{ $activity->user->name ?? 'Unknown User' }}
+                            </p>
+                            <p class="text-xs font-medium text-slate-600 mt-0.5 break-words">
+                                {{ \App\Support\ActivityLabels::for($activity->event_type) }}
+                            </p>
+                        </div>
+                        <div class="shrink-0 text-right space-y-1">
+                            <span class="inline-flex items-center px-2 py-0.5 rounded-lg text-[10px] font-bold {{ $status['class'] }}">
+                                {{ $status['label'] }}
+                            </span>
+                            <p class="text-[11px] font-semibold text-slate-400 whitespace-nowrap">
+                                {{ $activity->created_at->format('M j, Y') }}
+                            </p>
+                        </div>
+                    </div>
+                @endforeach
             </div>
         @endif
     </div>
