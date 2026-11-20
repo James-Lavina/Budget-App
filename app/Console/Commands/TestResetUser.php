@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Console\Concerns\BlocksProduction;
 use App\Models\User;
 use App\Models\WeeklyBudget;
 use App\Models\Expense;
@@ -12,6 +13,9 @@ use Illuminate\Notifications\DatabaseNotification;
 
 class TestResetUser extends Command
 {
+
+    use BlocksProduction;
+
     /**
      * php artisan test:reset-user you@example.com --expenses
      * php artisan test:reset-user you@example.com --expenses --budgets
@@ -32,6 +36,10 @@ class TestResetUser extends Command
 
     public function handle()
     {
+        if ($this->blockedInProduction()) {
+            return 1;
+        }
+
         $user = User::where('email', $this->argument('email'))->first();
 
         if (!$user) {

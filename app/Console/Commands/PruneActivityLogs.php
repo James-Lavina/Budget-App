@@ -10,7 +10,7 @@ class PruneActivityLogs extends Command
 {
     protected $signature = 'logs:prune-activity {--days=180 : Delete records older than this many days (minimum 30)}';
 
-    protected $description = 'Deletes old activity logs (IP addresses and user agents) and old read notifications.';
+    protected $description = 'Deletes old activity logs (IP addresses and user agents) and old read notifications. Unresolved alerts are kept because alert dedupe depends on them.';
 
     public function handle()
     {
@@ -19,9 +19,22 @@ class PruneActivityLogs extends Command
 
         $logs = ActivityLog::where('created_at', '<', $cutoff)->delete();
 
-        $notifications = DatabaseNotification::whereNotNull('read_at')
+        $notifications = 0;
+
+        DatabaseNotification::whereNotNull('read_at')
             ->where('read_at', '<', $cutoff)
-            ->delete();
+            ->chunkById(500, function ($chunk) use (&$notifications) {
+                // Notifications without a "resolved" key (goal achieved, milestones,
+                // weekly review) are prunable. Unresolved alerts are kept.
+                $ids = $chunk
+                    ->filter(fn ($n) => ($n->data['resolved'] ?? true) === true)
+                    ->pluck('id')
+                    ->all();
+
+                if (!empty($ids)) {
+                    $notifications += DatabaseNotification::whereIn('id', $ids)->delete();
+                }
+            });
 
         $this->info("Deleted {$logs} activity log(s) and {$notifications} read notification(s) older than {$days} days.");
 

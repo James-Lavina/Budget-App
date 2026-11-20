@@ -155,6 +155,14 @@ class Dashboard extends Component
 
     public function render()
     {
+        if (!$this->currentBudget) {
+            $this->currentBudget = WeeklyBudget::where('user_id', auth()->id())->latest()->first();
+        }
+
+        // Derive safe-to-spend, spent-today, quota and days remaining from current DB state
+        // on every render, so a top-up made elsewhere can never leave them stale.
+        $this->computeBehavioralMetrics();
+
         $cycle = app(BudgetCycleService::class)->resolve($this->currentBudget, auth()->user());
 
         $startDate     = $cycle['startDate'];
@@ -182,7 +190,6 @@ class Dashboard extends Component
             ->sum('amount');
 
         $savedToday = max(0.0, (float) $this->spentToday - $realSpentToday);
-
         $savedSoFar = max(0.0, (float) $totalSpent - $realSpent);
         $remaining  = (float) $this->currentBudget->remaining_allowance;
 
@@ -196,14 +203,18 @@ class Dashboard extends Component
 
         // Today is already deducted from $remaining, so only project the days after today.
         $projectedRemaining = max(0, $remaining - ($dailyVelocity * $daysAfterToday));
-        $projectedDaysLeft  = $dailyVelocity > 0 ? ($remaining + $savedSoFar) / $dailyVelocity : $this->daysRemaining;
+        $projectedDaysLeft  = $dailyVelocity > 0
+            ? ($remaining + $savedSoFar) / $dailyVelocity
+            : $this->daysRemaining;
 
         $isDepleted = $remaining <= 0;
 
         // Real spending today minus today's safe amount. ₱1 grace absorbs centavo rounding.
-        $overAmount  = $this->daysRemaining > 0 ? max(0.0, $realSpentToday - $this->dailyQuota) : 0.0;
-        $isOverQuota = !$isDepleted && $overAmount >= 1.0;
+        $overAmount = $this->daysRemaining > 0
+            ? max(0.0, $realSpentToday - $this->dailyQuota)
+            : 0.0;
 
+        $isOverQuota     = !$isDepleted && $overAmount >= 1.0;
         $isPaceCritical  = !$isDepleted && !$isOverQuota && !$isFinalDay && $pace['isOverPace'];
         $isDailyQuotaHit = !$isDepleted && !$isOverQuota && !$isPaceCritical && $this->safeToSpend < 1.0;
 
@@ -231,6 +242,7 @@ class Dashboard extends Component
 
         // Dismissible alert. Stays hidden until the overspend grows by another ₱1 or a new day starts.
         $dismissed = session('overspend_alert_dismissed');
+
         $alertDismissed = $dismissed
             && ($dismissed['date'] ?? null) === $cycle['spentTodayDate']->toDateString()
             && $overAmount < ((float) ($dismissed['over'] ?? 0)) + 1.0;
@@ -243,16 +255,18 @@ class Dashboard extends Component
             $weekRangeLabel = $startDate->format('M j') . ' – ' . $endDate->format('M j');
         }
 
-        $daysOfWeek = [];
-        $dailyTotals = [];
+        $daysOfWeek             = [];
+        $dailyTotals            = [];
         $dailyCategoryBreakdown = [];
+
         $cycleDurationDays = max(1, (int) $startDate->diffInDays($nextResetDate));
 
         for ($i = 0; $i < $cycleDurationDays; $i++) {
             $currentLoopDate = $startDate->copy()->addDays($i);
-            $dateKey = $currentLoopDate->format('Y-m-d');
-            $daysOfWeek[$dateKey] = $currentLoopDate->format('D');
-            $dailyTotals[$dateKey] = 0;
+            $dateKey         = $currentLoopDate->format('Y-m-d');
+
+            $daysOfWeek[$dateKey]             = $currentLoopDate->format('D');
+            $dailyTotals[$dateKey]            = 0;
             $dailyCategoryBreakdown[$dateKey] = [];
         }
 
@@ -291,11 +305,12 @@ class Dashboard extends Component
 
         foreach ($cycleExpenses as $exp) {
             $expDateKey = Carbon::parse($exp->transaction_date)->format('Y-m-d');
-            $catName = $exp->category->name ?? 'Uncategorized';
+            $catName    = $exp->category->name ?? 'Uncategorized';
 
             if (array_key_exists($expDateKey, $dailyTotals)) {
                 $dailyTotals[$expDateKey] += (float) $exp->amount;
-                $dailyCategoryBreakdown[$expDateKey][$catName] = ($dailyCategoryBreakdown[$expDateKey][$catName] ?? 0) + (float) $exp->amount;
+                $dailyCategoryBreakdown[$expDateKey][$catName] =
+                    ($dailyCategoryBreakdown[$expDateKey][$catName] ?? 0) + (float) $exp->amount;
             }
         }
 
@@ -317,20 +332,25 @@ class Dashboard extends Component
             $chartColors[] = $categoryColorMap[$cat] ?? $appSettings->primary_color;
         }
 
-        $rolloverAmount = max(0, $totalAllowance - (float) $this->currentBudget->total_allowance - (float) $this->currentBudget->added_funds);
-
-        $addedFunds   = (float) $this->currentBudget->added_funds;
+        $rolloverAmount = max(
+            0,
+            $totalAllowance
+                - (float) $this->currentBudget->total_allowance
+                - (float) $this->currentBudget->added_funds
+        );
+        $addedFunds    = (float) $this->currentBudget->added_funds;
         $baseAllowance = (float) $this->currentBudget->total_allowance;
         $baseDailyRate = $baseAllowance / max(1, $cycleDurationDays);
-        $hasBuffer    = ($rolloverAmount + $addedFunds) >= 0.5;
+        $hasBuffer     = ($rolloverAmount + $addedFunds) >= 0.5;
 
         $savingsGoalsForTotals = SavingsGoal::where('user_id', auth()->id())
             ->whereIn('status', ['active', 'achieved'])
             ->get();
 
-        $savingsGoalsCount   = SavingsGoal::where('user_id', auth()->id())->where('status', 'active')->count();
-        $totalSavingsSaved   = (float) $savingsGoalsForTotals->sum('current_saved');
-        $totalSavingsTarget  = (float) $savingsGoalsForTotals->sum('target_amount');
+        $savingsGoalsCount  = SavingsGoal::where('user_id', auth()->id())->where('status', 'active')->count();
+        $totalSavingsSaved  = (float) $savingsGoalsForTotals->sum('current_saved');
+        $totalSavingsTarget = (float) $savingsGoalsForTotals->sum('target_amount');
+
         $savingsProgressPercent = $totalSavingsTarget > 0
             ? min(100, round(($totalSavingsSaved / $totalSavingsTarget) * 100))
             : 0;

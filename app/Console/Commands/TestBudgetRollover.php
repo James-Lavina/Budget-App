@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Console\Concerns\BlocksProduction;
 use App\Models\User;
 use App\Models\WeeklyBudget;
 use App\Services\BudgetCycleService;
@@ -10,6 +11,9 @@ use Illuminate\Console\Command;
 
 class TestBudgetRollover extends Command
 {
+
+    use BlocksProduction;
+
     /**
      * Usage examples:
      * php artisan test:trigger-rollover you@example.com
@@ -28,6 +32,10 @@ class TestBudgetRollover extends Command
 
     public function handle()
     {
+        if ($this->blockedInProduction()) {
+            return 1;
+        }
+
         $email = $this->argument('email');
 
         $user = $email

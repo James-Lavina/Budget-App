@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Console\Concerns\BlocksProduction;
 use App\Models\User;
 use App\Models\WeeklyBudget;
 use App\Models\Expense;
@@ -14,6 +15,9 @@ use Illuminate\Notifications\DatabaseNotification;
 
 class SeedTestWeek extends Command
 {
+
+    use BlocksProduction;
+
     /**
      * php artisan test:seed-week you@example.com
      * php artisan test:seed-week you@example.com --days=3 --allowance=1500
@@ -36,6 +40,10 @@ class SeedTestWeek extends Command
 
     public function handle()
     {
+        if ($this->blockedInProduction()) {
+            return 1;
+        }
+
         $email = $this->argument('email');
         $user = $email
             ? User::where('email', $email)->first()

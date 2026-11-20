@@ -25,49 +25,56 @@ class CheckExpenseLogGaps extends Command
             return 0;
         }
 
-        if ($this->option('date')) {
+        $simulating = (bool) $this->option('date');
+
+        if ($simulating) {
             Carbon::setTestNow($this->option('date'));
             $this->warn('Simulating "today" as ' . Carbon::today()->format('Y-m-d') . ' for this run.');
         }
 
-        $threshold = (int) $settings->no_expense_logs_days;
-        $today     = Carbon::today();
+        try {
+            $threshold = (int) $settings->no_expense_logs_days;
+            $today     = Carbon::today();
 
-        $students = User::where('role', 'student')
-            ->where('status', 'active')
-            ->whereHas('weeklyBudgets')
-            ->get();
+            User::where('role', 'student')
+                ->where('status', 'active')
+                ->whereHas('weeklyBudgets')
+                ->chunkById(200, function ($students) use ($threshold, $today) {
+                    foreach ($students as $user) {
+                        // Savings transfers are not "logging an expense".
+                        $lastExpenseDate = Expense::where('user_id', $user->id)
+                            ->whereNull('savings_goal_id')
+                            ->max('transaction_date');
 
-        foreach ($students as $user) {
-            // Savings transfers are not "logging an expense".
-            $lastExpenseDate = Expense::where('user_id', $user->id)
-            ->whereNull('savings_goal_id')
-            ->max('transaction_date');
+                        $anchorDate = $lastExpenseDate
+                            ? Carbon::parse($lastExpenseDate)->startOfDay()
+                            : Carbon::parse($user->created_at)->startOfDay();
 
-            $anchorDate = $lastExpenseDate
-                ? Carbon::parse($lastExpenseDate)->startOfDay()
-                : Carbon::parse($user->created_at)->startOfDay();
+                        $daysSinceLastLog = $anchorDate->diffInDays($today);
 
-            $daysSinceLastLog = $anchorDate->diffInDays($today);
+                        if ($daysSinceLastLog < $threshold) {
+                            continue;
+                        }
 
-            if ($daysSinceLastLog < $threshold) {
-                continue;
+                        $alreadyAlerted = DatabaseNotification::where('notifiable_id', $user->id)
+                            ->where('notifiable_type', 'App\Models\User')
+                            ->where('data->anomaly_type', 'no_expense_logs')
+                            ->where('data->resolved', false)
+                            ->exists();
+
+                        if ($alreadyAlerted) {
+                            continue;
+                        }
+
+                        $user->notify(new NoExpenseLogsWarning($daysSinceLastLog));
+
+                        $this->info("Alerted {$user->email} — {$daysSinceLastLog} days since last log.");
+                    }
+                });
+        } finally {
+            if ($simulating) {
+                Carbon::setTestNow();
             }
-
-            $alreadyAlerted = DatabaseNotification::where('notifiable_id', $user->id)
-                ->where('notifiable_type', 'App\Models\User')
-                ->where('data->anomaly_type', 'no_expense_logs')
-                ->where('data->resolved', false)
-                ->exists();
-
-            if (!$alreadyAlerted) {
-                $user->notify(new NoExpenseLogsWarning($daysSinceLastLog));
-                $this->info("Alerted {$user->email} — {$daysSinceLastLog} days since last log.");
-            }
-        }
-
-        if ($this->option('date')) {
-            Carbon::setTestNow();
         }
 
         return 0;
