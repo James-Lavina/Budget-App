@@ -11,11 +11,27 @@ class BudgetRiskNotification extends Notification
 {
     use Queueable;
 
+    // anomaly_type => [title, email intro]
+    public const COPY = [
+        'early_week_depletion'   => ["You're spending faster than planned", 'Your spending pace is faster than planned for this week.'],
+        'rapid_overspending'     => ["You're spending faster than planned", 'Your spending pace is faster than planned for this week.'],
+        'overspending_threshold' => ["Most of this week's allowance is used", "You've used most of this week's allowance."],
+        'daily_safe_to_spend'    => ["You're close to today's limit", "You're close to today's safe-to-spend amount."],
+        'rapid_spending'         => ['Several big purchases today', "You've made several large purchases today."],
+    ];
+
+    public const FALLBACK = ['Budget update', 'We noticed something in your spending.'];
+
     public $riskLog;
 
     public function __construct(RiskLog $riskLog)
     {
         $this->riskLog = $riskLog;
+    }
+
+    public static function titleFor(string $type): string
+    {
+        return (self::COPY[$type] ?? self::FALLBACK)[0];
     }
 
     public function via($notifiable)
@@ -31,26 +47,19 @@ class BudgetRiskNotification extends Notification
 
     public function toMail($notifiable)
     {
-        $severity  = ucfirst(strtolower($this->riskLog->severity_tier));
-        $paceIntro = 'Your spending pace is running faster than planned for this cycle.';
+        [$title, $intro] = self::COPY[$this->riskLog->anomaly_type] ?? self::FALLBACK;
 
-        $copy = [
-            'early_week_depletion'   => ['Pace Check', $paceIntro],
-            'rapid_overspending'     => ['Pace Check', $paceIntro],
-            'overspending_threshold' => ['Budget Alert', "You've used most of this week's allowance."],
-            'daily_safe_to_spend'    => ['Daily Limit', "You're close to today's safe-to-spend amount."],
-            'rapid_spending'         => ['Rapid Spending', "You've made several large purchases today."],
-        ];
-
-        [$label, $intro] = $copy[$this->riskLog->anomaly_type] ?? ['Budget Update', 'We noticed something in your spending.'];
+        $subject = strtolower($this->riskLog->severity_tier) === 'high'
+            ? "Urgent: {$title}"
+            : $title;
 
         return (new MailMessage)
-            ->subject("[{$label}: {$severity} Priority] Budget Alert")
+            ->subject($subject)
             ->greeting("Hello {$notifiable->name},")
             ->line($intro)
-            ->line("**Alert Details:** {$this->riskLog->description}")
-            ->action('View Dashboard Analytics', route('student.dashboard'))
-            ->line('Keeping an eye on your daily spending cap helps make sure your allowance lasts until reset day.');
+            ->line($this->riskLog->description)
+            ->action('Open my dashboard', route('student.dashboard'))
+            ->line('Checking your daily limit on the dashboard helps your allowance last until reset day.');
     }
 
     public function toArray($notifiable)
@@ -59,6 +68,7 @@ class BudgetRiskNotification extends Notification
             'risk_log_id'   => $this->riskLog->id,
             'anomaly_type'  => $this->riskLog->anomaly_type,
             'severity_tier' => $this->riskLog->severity_tier,
+            'title'         => self::titleFor($this->riskLog->anomaly_type),
             'description'   => $this->riskLog->description,
             'resolved'      => false,
         ];

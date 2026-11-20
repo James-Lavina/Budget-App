@@ -16,9 +16,9 @@ class LargeTransactionAlert extends Notification
 
     public function __construct($expenseId, $itemName, $amount, $percentage)
     {
-        $this->expenseId = $expenseId;
-        $this->itemName = $itemName;
-        $this->amount = $amount;
+        $this->expenseId  = $expenseId;
+        $this->itemName   = $itemName;
+        $this->amount     = $amount;
         $this->percentage = $percentage;
     }
 
@@ -33,7 +33,9 @@ class LargeTransactionAlert extends Notification
             'anomaly_type'  => 'large_transaction',
             'severity_tier' => 'medium',
             'expense_id'    => $this->expenseId,
-            'description'   => "Big Purchase Flagged 💸: \"{$this->itemName}\" used ₱" . number_format($this->amount, 2) . " ({$this->percentage}% of your weekly allowance) in one go.",
+            'title'         => 'Big purchase logged',
+            'description'   => "\"{$this->itemName}\" cost ₱" . number_format($this->amount, 2)
+                . ", which is {$this->percentage}% of the money you have available this week.",
             'resolved'      => false,
         ];
     }

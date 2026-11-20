@@ -4,6 +4,7 @@ namespace App\Notifications;
 
 use Illuminate\Bus\Queueable;
 use Illuminate\Notifications\Notification;
+use Illuminate\Support\Str;
 
 class NoExpenseLogsWarning extends Notification
 {
@@ -23,10 +24,14 @@ class NoExpenseLogsWarning extends Notification
 
     public function toArray($notifiable)
     {
+        $days = (int) $this->daysSinceLastLog;
+
         return [
             'anomaly_type'  => 'no_expense_logs',
             'severity_tier' => 'low',
-            'description'   => "Tracking Check-In 📋: You haven't logged an expense in {$this->daysSinceLastLog} days. Log a purchase to keep your budget accurate.",
+            'title'         => 'Time to log your spending',
+            'description'   => "You haven't logged an expense in {$days} " . Str::plural('day', $days)
+                . '. Add your recent purchases so your daily limit stays accurate.',
             'resolved'      => false,
         ];
     }

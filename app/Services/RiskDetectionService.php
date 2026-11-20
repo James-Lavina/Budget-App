@@ -117,10 +117,10 @@ class RiskDetectionService
             $cycleStart->copy()->startOfDay(),
             function () use ($percentUsed, $spent, $pool, $daysLeftInclToday, $remaining) {
                 return ['high',
-                    "Budget Alert 🚨: You've used " . round($percentUsed) . "% of this week's allowance (₱"
-                    . number_format($spent, 2) . ' of ₱' . number_format($pool, 2) . ') with '
-                    . $daysLeftInclToday . ' ' . Str::plural('day', $daysLeftInclToday)
-                    . ' left. Keep it to about ₱' . number_format($remaining / $daysLeftInclToday, 2) . '/day to finish on budget.',
+                    "You've used " . round($percentUsed) . "% of this week's allowance (₱"
+                    . number_format($spent, 2) . ' of ₱' . number_format($pool, 2) . ") and have {$daysLeftInclToday} "
+                    . Str::plural('day', $daysLeftInclToday) . ' left. Spending about ₱'
+                    . number_format($remaining / $daysLeftInclToday, 2) . ' a day will help you finish the week.',
                 ];
             }
         );
@@ -139,8 +139,8 @@ class RiskDetectionService
                 $left = max(0.0, $safePerDay - $spentToday);
 
                 return ['medium',
-                    "Daily Limit Warning ⏳: You've used " . round(100 - $quotaLeftPercent)
-                    . "% of today's safe-to-spend amount — only ₱" . number_format($left, 2) . ' left for today.',
+                    "You've used " . round(100 - $quotaLeftPercent) . "% of today's limit. Only ₱"
+                    . number_format($left, 2) . ' left to spend today.',
                 ];
             }
         );
@@ -153,9 +153,9 @@ class RiskDetectionService
 
     private function generateFeedbackString(float $velocity, float $remaining, float $safePerDay, string $resetDay): string
     {
-        return "Pace Check ⚡: You're spending about ₱" . number_format($velocity, 2)
-            . '/day and have ₱' . number_format($remaining, 2)
-            . " left. To make it to your {$resetDay} reset, keep it to about ₱" . number_format($safePerDay, 2) . '/day.';
+        return "You're spending about ₱" . number_format($velocity, 2)
+            . '/day, but only ₱' . number_format($remaining, 2)
+            . " is left until your {$resetDay} reset. Try to keep it to about ₱" . number_format($safePerDay, 2) . '/day.';
     }
 
     // ---------------------------------------------------------------------
@@ -178,14 +178,14 @@ class RiskDetectionService
         $openLog = (clone $inWindow)->where('resolved', false)->latest('id')->first();
 
         if ($openLog) {
-            $notificationExists = DatabaseNotification::where('notifiable_id', $user->id)
-                ->where('notifiable_type', 'App\Models\User')
-                ->where('data->risk_log_id', $openLog->id)
-                ->exists();
+            // Keep the stored text and tier in step with the latest numbers.
+            [$tier, $description] = $build();
 
-            if (!$notificationExists) {
-                $this->notifyRisk($user, $openLog);
+            if ($openLog->description !== $description || $openLog->severity_tier !== $tier) {
+                $openLog->update(['severity_tier' => $tier, 'description' => $description]);
             }
+
+            $this->syncRiskNotifications($user, $openLog);
 
             return;
         }
@@ -193,18 +193,15 @@ class RiskDetectionService
         $reopen = (clone $inWindow)->where('resolved', true)->latest('id')->first();
 
         if ($reopen) {
-            $reopen->update(['resolved' => false]);
+            [$tier, $description] = $build();
 
-            $notifications = DatabaseNotification::where('notifiable_id', $user->id)
-                ->where('notifiable_type', 'App\Models\User')
-                ->where('data->risk_log_id', $reopen->id)
-                ->get();
+            $reopen->update([
+                'resolved'      => false,
+                'severity_tier' => $tier,
+                'description'   => $description,
+            ]);
 
-            if ($notifications->isNotEmpty()) {
-                $notifications->each(fn ($n) => $this->markNotification($n, false));
-            } else {
-                $this->notifyRisk($user, $reopen);
-            }
+            $this->syncRiskNotifications($user, $reopen, false);
 
             return;
         }
@@ -222,12 +219,58 @@ class RiskDetectionService
         $this->notifyRisk($user, $riskLog);
     }
 
+    /**
+     * Brings every notification tied to a risk log up to date with the log's text, tier
+     * and title. Creates the notification when none exists. Pass $resolved = false to
+     * reopen: the notification becomes unread, unresolved and shows as new.
+     */
+    private function syncRiskNotifications($user, RiskLog $log, ?bool $resolved = null): void
+    {
+        $notifications = DatabaseNotification::where('notifiable_id', $user->id)
+            ->where('notifiable_type', 'App\Models\User')
+            ->where('data->risk_log_id', $log->id)
+            ->get();
+
+        if ($notifications->isEmpty()) {
+            $this->notifyRisk($user, $log);
+            return;
+        }
+
+        $title = BudgetRiskNotification::titleFor($log->anomaly_type);
+
+        $notifications->each(function ($n) use ($log, $title, $resolved) {
+            $data    = $n->data;
+            $changed = ($data['description'] ?? null) !== $log->description
+                || ($data['severity_tier'] ?? null) !== $log->severity_tier
+                || ($data['title'] ?? null) !== $title;
+
+            if (!$changed && $resolved !== false) {
+                return;
+            }
+
+            $data['description']   = $log->description;
+            $data['severity_tier'] = $log->severity_tier;
+            $data['title']         = $title;
+
+            $attributes = [];
+
+            if ($resolved === false) {
+                $data['resolved']         = false;
+                $attributes['read_at']    = null;
+                $attributes['created_at'] = now();
+            }
+
+            $attributes['data'] = $data;
+
+            $n->update($attributes);
+        });
+    }
+
     private function notifyRisk($user, RiskLog $riskLog): void
     {
         try {
             $user->notify(new BudgetRiskNotification($riskLog));
         } catch (\Throwable $e) {
-            // FIX: was \Log::warning() only — invisible to admins in-app.
             NotificationLogger::logFailure($user, BudgetRiskNotification::class, $e, $riskLog->anomaly_type);
         }
     }
@@ -269,7 +312,9 @@ class RiskDetectionService
         $attributes = ['data' => $data];
 
         if (!$resolved) {
-            $attributes['read_at'] = null;
+            // A reopened alert is new again: unread, and aged from now.
+            $attributes['read_at']    = null;
+            $attributes['created_at'] = now();
         }
 
         $notification->update($attributes);
@@ -312,13 +357,16 @@ class RiskDetectionService
             return;
         }
 
+        $percentLeft = (int) round(($remaining / $pool) * 100);
+
         if ($open->isNotEmpty()) {
             $latest = $open->sortByDesc('created_at')->first();
-            $fresh  = (new LowAllowanceWarning((int) round(($remaining / $pool) * 100), $remaining))->toArray($user);
+            $fresh  = (new LowAllowanceWarning($percentLeft, $remaining))->toArray($user);
             $data   = $latest->data;
 
-            if (($data['description'] ?? null) !== $fresh['description']) {
+            if (($data['description'] ?? null) !== $fresh['description'] || ($data['title'] ?? null) !== $fresh['title']) {
                 $data['description'] = $fresh['description'];
+                $data['title']       = $fresh['title'];
                 $latest->update(['data' => $data]);
             }
 
@@ -328,12 +376,20 @@ class RiskDetectionService
         $previous = $existing->sortByDesc('created_at')->first();
 
         if ($previous) {
-            $this->markNotification($previous, false);
+            $fresh = (new LowAllowanceWarning($percentLeft, $remaining))->toArray($user);
+            $data  = $previous->data;
+
+            $data['description'] = $fresh['description'];
+            $data['title']       = $fresh['title'];
+            $previous->update(['data' => $data]);
+
+            $this->markNotification($previous->fresh(), false);
+
             return;
         }
 
         try {
-            $user->notify(new LowAllowanceWarning((int) round(($remaining / $pool) * 100), $remaining));
+            $user->notify(new LowAllowanceWarning($percentLeft, $remaining));
         } catch (\Throwable $e) {
             NotificationLogger::logFailure($user, LowAllowanceWarning::class, $e);
         }
@@ -342,6 +398,7 @@ class RiskDetectionService
     private function checkCategoryConcentration($user, Carbon $cycleStart, Carbon $cycleEnd, float $pool): void
     {
         $type = 'category_concentration';
+
         $this->expireBefore($user, $type, $cycleStart);
 
         $totalSpent = (float) Expense::where('user_id', $user->id)
@@ -364,6 +421,7 @@ class RiskDetectionService
 
             if ($top) {
                 $percentage = (int) round(($top->total / $totalSpent) * 100);
+
                 if ($percentage >= 50) {
                     $dominant = $top;
                 }
@@ -397,13 +455,14 @@ class RiskDetectionService
 
             $data = $same->data;
 
-            if (($data['description'] ?? null) !== $fresh['description']) {
+            if (($data['description'] ?? null) !== $fresh['description'] || ($data['title'] ?? null) !== $fresh['title']) {
                 $data['description'] = $fresh['description'];
+                $data['title']       = $fresh['title'];
                 $same->update(['data' => $data]);
             }
 
             if (!$isOpen($same)) {
-                $this->markNotification($same, false);
+                $this->markNotification($same->fresh(), false);
             }
 
             return;
@@ -443,8 +502,8 @@ class RiskDetectionService
             Carbon::today(),
             function () use ($count, $floor, $total) {
                 return ['medium',
-                    "Rapid Spending Detected ⚡: You logged {$count} purchases of ₱" . number_format($floor, 0)
-                    . ' or more today (₱' . number_format($total, 2) . ' total). Take a moment before your next one.',
+                    "You've made {$count} purchases of ₱" . number_format($floor, 0) . ' or more today (₱'
+                    . number_format($total, 2) . ' in all). Take a moment before the next one.',
                 ];
             }
         );
@@ -492,6 +551,7 @@ class RiskDetectionService
             if ($existing) {
                 $this->markNotification($existing, true);
             }
+
             return;
         }
 
@@ -510,7 +570,6 @@ class RiskDetectionService
         try {
             $user->notify($alert);
         } catch (\Throwable $e) {
-            // FIX
             NotificationLogger::logFailure($user, LargeTransactionAlert::class, $e, $expense->item_name);
         }
     }

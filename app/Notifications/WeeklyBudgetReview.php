@@ -45,15 +45,25 @@ class WeeklyBudgetReview extends Notification
         return $text . ' and rolled over ₱' . number_format($this->unspentSavings, 2) . ' into your new budget.';
     }
 
+    // Only added when last week used 90% or more of the budget.
+    private function tip(): string
+    {
+        return $this->severity === 'medium'
+            ? ' Last week was tight, so try to pace your spending early this week.'
+            : '';
+    }
+
     public function toMail($notifiable): MailMessage
     {
         return (new MailMessage)
-            ->subject('🎉 Weekly Budget Reset & Rollover Summary')
+            ->subject('Your new budget week has started')
             ->greeting("Hello {$notifiable->name}!")
-            ->line('Your weekly budget cycle has officially reset.')
-            ->line($this->summary())
+            ->line('Your weekly budget has been reset.')
+            ->line($this->summary() . $this->tip())
             ->action('View Dashboard', route('student.dashboard'))
-            ->line('Keep up the great financial discipline!');
+            ->line($this->severity === 'medium'
+                ? 'Checking your daily limit each day makes it easier to stay on track.'
+                : 'Nice work last week. Keep logging your spending to stay on track.');
     }
 
     public function toArray($notifiable): array
@@ -61,7 +71,8 @@ class WeeklyBudgetReview extends Notification
         return [
             'anomaly_type'  => 'weekly_review',
             'severity_tier' => $this->severity,
-            'description'   => '🎉 New Week, Fresh Start! ' . $this->summary(),
+            'title'         => 'Your new budget week has started',
+            'description'   => $this->summary() . $this->tip(),
         ];
     }
 }

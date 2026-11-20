@@ -29,14 +29,15 @@ class CategoryConcentrationWarning extends Notification
 
     public function toArray($notifiable)
     {
-        $of = $this->totalSpent !== null ? ' of ₱' . number_format($this->totalSpent, 2) . ' spent' : '';
+        $amounts = '₱' . number_format($this->categoryTotal, 2)
+            . ($this->totalSpent !== null ? ' of ₱' . number_format($this->totalSpent, 2) : '');
 
         return [
             'anomaly_type'  => 'category_concentration',
             'severity_tier' => 'medium',
             'category'      => $this->categoryName,
-            'description'   => "Category Watch 👀: {$this->percentage}% of what you've spent this week (₱"
-                . number_format($this->categoryTotal, 2) . "{$of}) went to {$this->categoryName}. Check if there's room to trim it.",
+            'title'         => 'One category is taking most of your money',
+            'description'   => "{$this->categoryName} is {$this->percentage}% of your spending this week ({$amounts}). See if you can cut back there.",
             'resolved'      => false,
         ];
     }

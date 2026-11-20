@@ -32,7 +32,8 @@ class SavingsMilestoneReached extends Notification
             'milestone'     => $this->milestone,
             'goal_id'       => $this->goalId,
             'severity_tier' => 'success',
-            'description'   => "Milestone Unlocked! 📈 You've saved {$this->milestone}% of your target for '{$this->goalName}'.",
+            'title'         => 'Savings milestone reached',
+            'description'   => "You've saved {$this->milestone}% of your target for '{$this->goalName}'. Keep it up!",
         ];
     }
 }

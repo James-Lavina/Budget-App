@@ -30,19 +30,14 @@
     <div class="bg-white rounded-3xl border border-slate-200/70 shadow-sm overflow-hidden">
         @forelse($notifications as $notification)
             @php
-                $data = $notification->data;
+                $data     = $notification->data;
                 $isUnread = is_null($notification->read_at);
-                // NEW: surfaces the 'resolved' flag RiskDetectionService now
-                // maintains on low_allowance_threshold, pacing/velocity,
-                // category_concentration, overspending_threshold,
-                // rapid_spending, no_expense_logs, and large_transaction
-                // notifications. Notifications created before that flag
-                // existed simply won't have this key, so they fall through
-                // to "not resolved" (i.e. display unchanged) — expected,
-                // not a bug.
+
+                // The 'resolved' flag is maintained by RiskDetectionService. Older rows
+                // without the key are simply treated as not resolved.
                 $isResolved = $data['resolved'] ?? false;
-                $severity = $data['severity_tier'] ?? 'info';
-                $type = $data['anomaly_type'] ?? 'default';
+                $severity   = $data['severity_tier'] ?? 'info';
+                $type       = $data['anomaly_type'] ?? 'default';
 
                 $iconMap = [
                     'goal_achieved'           => ['bg' => 'bg-emerald-100', 'text' => 'text-emerald-600', 'path' => 'M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z'],
@@ -52,23 +47,17 @@
                     'early_week_depletion'    => ['bg' => 'bg-red-100', 'text' => 'text-red-600', 'path' => 'M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z'],
                     'rapid_overspending'      => ['bg' => 'bg-red-100', 'text' => 'text-red-600', 'path' => 'M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z'],
                     'default'                 => ['bg' => 'bg-[rgba(var(--brand-rgb),0.12)]', 'text' => 'text-[var(--brand)]', 'path' => 'M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z'],
-                    'category_concentration' => ['bg' => 'bg-purple-100', 'text' => 'text-purple-700', 'path' => 'M11 3.055A9.003 9.003 0 1020.945 13H11V3.055z'],
+                    'category_concentration'  => ['bg' => 'bg-purple-100', 'text' => 'text-purple-700', 'path' => 'M11 3.055A9.003 9.003 0 1020.945 13H11V3.055z'],
                     'large_transaction'       => ['bg' => 'bg-orange-100', 'text' => 'text-orange-700', 'path' => 'M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1'],
-                    // NEW: Risk Detection Rules — Overspending Threshold
                     'overspending_threshold'  => ['bg' => 'bg-red-100', 'text' => 'text-red-600', 'path' => 'M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z'],
-                    // NEW: Risk Detection Rules — Rapid Spending Detection
                     'rapid_spending'          => ['bg' => 'bg-orange-100', 'text' => 'text-orange-700', 'path' => 'M13 10V3L4 14h7v7l9-11h-7z'],
-                    // NEW: Risk Detection Rules — Consecutive No Expense Logs
                     'no_expense_logs'         => ['bg' => 'bg-slate-100', 'text' => 'text-slate-500', 'path' => 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z'],
-                    'daily_safe_to_spend' => ['bg' => 'bg-amber-100', 'text' => 'text-amber-600', 'path' => 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z'],
+                    'daily_safe_to_spend'     => ['bg' => 'bg-amber-100', 'text' => 'text-amber-600', 'path' => 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z'],
                 ];
 
                 $icon = $iconMap[$type] ?? $iconMap['default'];
 
-                // NEW: resolved notifications get their icon muted to slate,
-                // regardless of type — visually signals "this no longer
-                // applies" at a glance, distinct from the colorful "still
-                // active" icons above.
+                // Resolved notifications get a muted icon so "no longer applies" is clear at a glance.
                 if ($isResolved) {
                     $icon = ['bg' => 'bg-slate-100', 'text' => 'text-slate-400', 'path' => $icon['path']];
                 }
@@ -85,9 +74,8 @@
                         break;
                     case 'low_allowance_threshold':
                     case 'weekly_review':
-                        $link = route('student.dashboard');
-                        break;
                     case 'category_concentration':
+                    case 'daily_safe_to_spend':
                         $link = route('student.dashboard');
                         break;
                     case 'large_transaction':
@@ -97,12 +85,10 @@
                     case 'no_expense_logs':
                         $link = route('student.expenses.create');
                         break;
-                    case 'daily_safe_to_spend':
-                        $link = route('student.dashboard');
-                        break;
                     default:
                         $link = null;
                 }
+
                 $stillActive = in_array($type, \App\Http\Livewire\Student\NotificationIndex::RESURFACING_ALERTS, true) && !$isResolved;
             @endphp
 
@@ -117,13 +103,19 @@
 
                     {{-- Content --}}
                     <div class="space-y-1">
-                        <p class="text-sm font-medium leading-relaxed {{ $isResolved ? 'text-slate-500' : 'text-slate-800' }}">
-                            {{ $data['description'] ?? ($data['message'] ?? ($data['title'] ?? 'System notification received.')) }}
+                        @if(!empty($data['title']))
+                            <p class="text-sm font-extrabold {{ $isResolved ? 'text-slate-500' : 'text-slate-900' }}">{{ $data['title'] }}</p>
+                        @endif
+
+                        <p class="text-sm font-medium leading-relaxed {{ $isResolved ? 'text-slate-500' : 'text-slate-700' }}">
+                            {{ $data['description'] ?? ($data['message'] ?? 'System notification received.') }}
                         </p>
+
                         <div class="flex items-center gap-3 flex-wrap">
                             <span class="text-xs font-semibold text-slate-400">
                                 {{ $notification->created_at->diffForHumans() }}
                             </span>
+
                             @if($isResolved)
                                 <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide bg-emerald-50 text-emerald-600 border border-emerald-100">
                                     <svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24">
@@ -132,6 +124,7 @@
                                     Resolved
                                 </span>
                             @endif
+
                             @if($link && !$isResolved)
                                 <a href="{{ $link }}" class="text-xs font-semibold text-[var(--brand)] hover:opacity-80">View →</a>
                             @endif
@@ -151,6 +144,7 @@
                             </svg>
                         </button>
                     @endif
+
                     @if(!$stillActive)
                         <button
                             wire:click="delete('{{ $notification->id }}')"
