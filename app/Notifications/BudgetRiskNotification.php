@@ -13,6 +13,8 @@ class BudgetRiskNotification extends Notification
 
     // anomaly_type => [title, email intro]
     public const COPY = [
+        'pace_warning'           => ["You're spending faster than planned", 'Your spending pace is faster than planned for this week.'],
+        // Legacy types: kept so old notification rows still show a proper title.
         'early_week_depletion'   => ["You're spending faster than planned", 'Your spending pace is faster than planned for this week.'],
         'rapid_overspending'     => ["You're spending faster than planned", 'Your spending pace is faster than planned for this week.'],
         'overspending_threshold' => ["Most of this week's allowance is used", "You've used most of this week's allowance."],

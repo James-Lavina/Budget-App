@@ -220,7 +220,7 @@
         </div>
     @endif
 
-    <!-- MODAL 3: CONFIRM PERMANENT DELETION -->
+    {{-- MODAL 3: CONFIRM PERMANENT DELETION --}}
     @if($confirmingDeleteId)
         <div class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm transform-gpu z-50 flex items-center justify-center p-4">
             <div class="bg-white w-full max-w-sm rounded-3xl shadow-2xl border border-slate-100 p-6 space-y-4">
@@ -228,7 +228,7 @@
                     <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
                     Permanently Delete Goal?
                 </h3>
-                <p class="text-xs text-slate-500 font-medium leading-relaxed">Warning! This action cannot be undone. All matching expense allocation records associated with this specific milestone will be permanently removed to keep ledger balances clean.</p>
+                <p class="text-xs text-slate-500 font-medium leading-relaxed">This can't be undone. Money you saved into this goal this week is returned to your budget. Money saved in earlier weeks is not, and the goal's transaction history is removed.</p>
                 <div class="flex items-center gap-2 pt-2">
                     <button type="button" wire:click="$set('confirmingDeleteId', null)" class="px-4 py-2.5 rounded-2xl border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-50 transition-colors">Cancel</button>
                     <button type="button" wire:click="executeDelete" class="flex-1 px-4 py-2.5 rounded-2xl text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 shadow-md shadow-rose-200 transition-all text-center">Permanently Delete</button>

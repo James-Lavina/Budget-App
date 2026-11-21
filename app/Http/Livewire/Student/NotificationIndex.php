@@ -14,6 +14,7 @@ class NotificationIndex extends Component
 
     // Alerts that RiskDetectionService re-creates on the next evaluation if the row is missing.
     public const RESURFACING_ALERTS = [
+        'pace_warning',
         'early_week_depletion',
         'rapid_overspending',
         'overspending_threshold',

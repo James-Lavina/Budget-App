@@ -7,6 +7,7 @@ use App\Models\Expense;
 use App\Models\SavingsGoal;
 use App\Models\WeeklyBudget;
 use App\Notifications\SavingsGoalAchieved;
+use App\Services\BudgetCycleService;
 use App\Services\NotificationLogger;
 use App\Services\SavingsGoalService;
 use Illuminate\Support\Facades\DB;
@@ -36,10 +37,10 @@ class GoalsManager extends Component
     public $confirmingDeleteId = null;
 
     protected $rules = [
-        'target_name' => 'required|string|max:255',
+        'target_name'   => 'required|string|max:255',
         'target_amount' => 'required|numeric|min:1|max:999999',
         'already_saved' => 'nullable|numeric|min:0',
-        'target_date' => 'nullable|date|after_or_equal:today',
+        'target_date'   => 'nullable|date|after_or_equal:today',
     ];
 
     protected $listeners = ['refreshSavings' => '$refresh'];
@@ -78,26 +79,24 @@ class GoalsManager extends Component
         $status = ($initialSaved >= $targetAmount && $targetAmount > 0) ? 'achieved' : 'active';
 
         $goal = SavingsGoal::create([
-            'user_id' => auth()->id(),
-            'target_name' => $this->target_name,
+            'user_id'       => auth()->id(),
+            'target_name'   => $this->target_name,
             'target_amount' => $targetAmount,
             'current_saved' => $initialSaved,
-            'target_date' => $this->target_date ?: null,
-            'status' => $status,
+            'target_date'   => $this->target_date ?: null,
+            'status'        => $status,
         ]);
 
         if ($status === 'achieved') {
             try {
                 auth()->user()->notify(new SavingsGoalAchieved($goal));
             } catch (\Throwable $e) {
-                // FIX
                 NotificationLogger::logFailure(auth()->user(), SavingsGoalAchieved::class, $e, $goal->target_name);
             }
         } else {
             app(SavingsGoalService::class)->checkAndNotifySavingsMilestone(auth()->user(), $goal);
         }
 
-        // NEW: financial event, no previous audit trail.
         ActivityLog::create([
             'user_id'    => auth()->id(),
             'event_type' => 'savings_goal_created',
@@ -107,7 +106,6 @@ class GoalsManager extends Component
                 . ($initialSaved > 0 ? ', starting with ₱' . number_format($initialSaved, 2) . ' already saved' : ''),
         ]);
 
-        // A newly created goal lands on page 1 of the Active tab.
         $this->resetPage();
         $this->closeCreateModal();
 
@@ -117,13 +115,13 @@ class GoalsManager extends Component
     public function openFundingModal($id)
     {
         $this->fundingGoalId = $id;
-        $this->fund_amount = null;
+        $this->fund_amount   = null;
     }
 
     public function addFunds()
     {
         $this->fund_amount = str_replace([',', ' ', '₱'], '', (string) $this->fund_amount);
-        
+
         $goal = SavingsGoal::where('id', $this->fundingGoalId)
             ->where('user_id', auth()->id())
             ->firstOrFail();
@@ -145,19 +143,18 @@ class GoalsManager extends Component
                 'regex:/^\d+(\.\d{1,2})?$/',
                 'max:' . $currentBudget->remaining_allowance,
                 'max:' . $remainingNeeded,
-            ]
+            ],
         ], [
-            'fund_amount.max' => 'Transfer halted! The amount exceeds either your remaining budget (₱' . number_format($currentBudget->remaining_allowance, 2) . ') or what is left to finish this goal (₱' . number_format($remainingNeeded, 2) . ').',
-            'fund_amount.regex' => 'Use at most 2 decimal places.'
+            'fund_amount.max'   => 'Transfer halted! The amount exceeds either your remaining budget (₱' . number_format($currentBudget->remaining_allowance, 2) . ') or what is left to finish this goal (₱' . number_format($remainingNeeded, 2) . ').',
+            'fund_amount.regex' => 'Use at most 2 decimal places.',
         ]);
 
-        // NOTE: the funds-transferred activity log is written inside
-        // SavingsGoalService::addFunds() itself, since SavingsWidget calls
-        // the same method — logging there instead of here avoids a
-        // duplicate/missing entry depending on which entry point was used.
+        // The funds-transferred activity log is written inside SavingsGoalService::addFunds().
         $result = app(SavingsGoalService::class)->addFunds(auth()->user(), $goal, (float) $this->fund_amount);
 
         $this->fundingGoalId = null;
+
+        $this->emit('refreshBudgetMetrics');
         $this->emit('refreshNotifications');
 
         session()->flash('success', $result['goalWasAchieved']
@@ -179,9 +176,9 @@ class GoalsManager extends Component
             ->firstOrFail();
 
         $goal->update(['status' => 'abandoned']);
+
         $this->confirmingAbandonId = null;
 
-        // NEW
         ActivityLog::create([
             'user_id'    => auth()->id(),
             'event_type' => 'savings_goal_archived',
@@ -201,7 +198,6 @@ class GoalsManager extends Component
 
         $goal->update(['status' => 'active']);
 
-        // NEW
         ActivityLog::create([
             'user_id'    => auth()->id(),
             'event_type' => 'savings_goal_unarchived',
@@ -229,22 +225,30 @@ class GoalsManager extends Component
         $goalName   = $goal->target_name;
         $goalStatus = $goal->status;
         $refund     = 0.0;
+        $keptTotal  = 0.0;
 
-        DB::transaction(function () use ($goal, $goalStatus, &$refund) {
-            // Achieved goals count as money spent; everything else returns to the budget.
+        DB::transaction(function () use ($goal, $goalStatus, &$refund, &$keptTotal) {
+            // Achieved goals count as money spent. Otherwise only contributions made in the
+            // CURRENT cycle go back to the budget; earlier cycles are closed.
             if ($goalStatus !== 'achieved') {
-                $refund = (float) Expense::where('savings_goal_id', $goal->id)->sum('amount');
+                $budget = WeeklyBudget::where('user_id', auth()->id())
+                    ->latest()
+                    ->lockForUpdate()
+                    ->first();
 
-                if ($refund > 0) {
-                    $budget = WeeklyBudget::where('user_id', auth()->id())
-                        ->latest()
-                        ->lockForUpdate()
-                        ->first();
+                if ($budget) {
+                    $cycle = app(BudgetCycleService::class)->resolve($budget, auth()->user());
 
-                    if ($budget) {
+                    $allTime = (float) Expense::where('savings_goal_id', $goal->id)->sum('amount');
+
+                    $refund = (float) Expense::where('savings_goal_id', $goal->id)
+                        ->whereBetween('transaction_date', [$cycle['startDate'], $cycle['endDate']])
+                        ->sum('amount');
+
+                    $keptTotal = max(0.0, $allTime - $refund);
+
+                    if ($refund > 0) {
                         $budget->increment('remaining_allowance', $refund);
-                    } else {
-                        $refund = 0.0;
                     }
                 }
             }
@@ -259,25 +263,27 @@ class GoalsManager extends Component
             'ip_address' => request()->ip(),
             'user_agent' => request()->userAgent(),
             'details'    => "Permanently deleted savings goal \"{$goalName}\" and its transaction logs"
-                . ($refund > 0 ? ', ₱' . number_format($refund, 2) . ' refunded to budget' : ''),
+                . ($refund > 0 ? ', ₱' . number_format($refund, 2) . ' from this week refunded to budget' : '')
+                . ($keptTotal > 0 ? ', ₱' . number_format($keptTotal, 2) . ' from earlier weeks not refunded' : ''),
         ]);
 
         app(\App\Services\RiskDetectionService::class)->evaluateSpendingRisk(auth()->user());
 
         $this->confirmingDeleteId = null;
+
         $this->emit('refreshBudgetMetrics');
         $this->emit('refreshNotifications');
 
         session()->flash('success', $refund > 0
-            ? 'Savings goal deleted. ₱' . number_format($refund, 2) . ' was returned to your remaining budget.'
-            : 'Savings goal and its associated transaction logs were cleared.');
+            ? 'Savings goal deleted. ₱' . number_format($refund, 2) . ' saved this week was returned to your remaining budget.'
+            : 'Savings goal and its transaction logs were cleared.');
     }
 
     private function resetForm()
     {
-        $this->target_name = '';
+        $this->target_name   = '';
         $this->target_amount = '';
-        $this->target_date = '';
+        $this->target_date   = '';
         $this->resetErrorBag();
     }
 

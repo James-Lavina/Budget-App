@@ -23,26 +23,23 @@ class AllExpenses extends Component
 
     public $search = '';
     public $selectedCategory = '';
-
     public $selected = [];
     public $selectAll = false;
-
     public $confirmingBulkDelete = false;
     public $bulkDeleteTotal = 0;
-
     public $confirmingDeleteId = null;
 
     public function updatingSearch()
     {
         $this->resetPage();
-        $this->selected = [];
+        $this->selected  = [];
         $this->selectAll = false;
     }
 
     public function updatingSelectedCategory()
     {
         $this->resetPage();
-        $this->selected = [];
+        $this->selected  = [];
         $this->selectAll = false;
     }
 
@@ -50,7 +47,7 @@ class AllExpenses extends Component
     {
         $this->reset(['search', 'selectedCategory']);
         $this->resetPage();
-        $this->selected = [];
+        $this->selected  = [];
         $this->selectAll = false;
     }
 
@@ -138,8 +135,8 @@ class AllExpenses extends Component
 
         if ($expenses->isEmpty()) {
             $this->confirmingBulkDelete = false;
-            $this->selected = [];
-            $this->selectAll = false;
+            $this->selected             = [];
+            $this->selectAll            = false;
             return;
         }
 
@@ -159,8 +156,8 @@ class AllExpenses extends Component
         }
 
         if ($deletable->isEmpty()) {
-            $this->selected = [];
-            $this->selectAll = false;
+            $this->selected             = [];
+            $this->selectAll            = false;
             $this->confirmingBulkDelete = false;
             session()->flash('error', 'None of the selected expenses can be deleted — they belong to a previous budget cycle.');
             return;
@@ -216,8 +213,8 @@ class AllExpenses extends Component
             $riskService->resolveLargeTransactionAlert(auth()->user(), $expenseId);
         }
 
-        $this->selected = [];
-        $this->selectAll = false;
+        $this->selected             = [];
+        $this->selectAll            = false;
         $this->confirmingBulkDelete = false;
 
         $this->emit('refreshSavings');
@@ -304,13 +301,19 @@ class AllExpenses extends Component
 
     public function render()
     {
-        $query = $this->buildQuery();
+        $window = $this->cycleWindow();
 
-        $totalSpent = (clone $query)->sum('amount');
+        // Current cycle only, savings transfers included (they leave the budget like any expense).
+        // Search and category filters still apply.
+        $totalSpent = $window
+            ? (float) $this->buildQuery()
+                ->whereBetween('transaction_date', [$window['start'], $window['end']])
+                ->sum('amount')
+            : 0.0;
 
-        $allExpenses = $query->latest('transaction_date')->paginate(10);
-        $categories = ExpenseCategory::orderBy('name')->get();
-        $window     = $this->cycleWindow();
+        $allExpenses = $this->buildQuery()->latest('transaction_date')->paginate(10);
+        $categories  = ExpenseCategory::orderBy('name')->get();
+
         $cycleStart = $window['start'] ?? null;
         $cycleEnd   = $window['end'] ?? null;
 

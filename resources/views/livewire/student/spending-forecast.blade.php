@@ -11,15 +11,16 @@
         $state      = $m['state'];
 
         $theme = [
-            'on_track'    => ['label' => 'On track',         'pill' => 'bg-emerald-100 text-emerald-700', 'bg' => 'from-emerald-50', 'glow' => 'bg-emerald-300/40', 'num' => 'text-emerald-600', 'ring' => 'text-emerald-500', 'icon' => 'check-circle'],
-            'tight'       => ['label' => 'Tight week',       'pill' => 'bg-amber-100 text-amber-700',     'bg' => 'from-amber-50',   'glow' => 'bg-amber-300/40',   'num' => 'text-amber-600',   'ring' => 'text-amber-500',   'icon' => 'clock'],
-            'runs_out'    => ['label' => 'Spending too fast','pill' => 'bg-rose-100 text-rose-700',       'bg' => 'from-rose-50',    'glow' => 'bg-rose-300/40',    'num' => 'text-rose-600',    'ring' => 'text-rose-500',    'icon' => 'trending-up'],
-            'depleted'    => ['label' => 'Budget used up',   'pill' => 'bg-rose-100 text-rose-700',       'bg' => 'from-rose-50',    'glow' => 'bg-rose-300/40',    'num' => 'text-rose-600',    'ring' => 'text-rose-500',    'icon' => 'exclamation-circle'],
-            'final_day'   => ['label' => 'Last day',         'pill' => 'bg-slate-100 text-slate-600',     'bg' => 'from-slate-100',  'glow' => 'bg-slate-300/40',   'num' => 'text-slate-900',   'ring' => 'text-slate-500',   'icon' => 'clock'],
-            'fresh_start' => ['label' => 'Fresh start',      'pill' => 'bg-slate-100 text-slate-600',     'bg' => 'from-slate-100',  'glow' => 'bg-slate-300/40',   'num' => 'text-slate-900',   'ring' => 'text-slate-500',   'icon' => 'sparkles'],
-            'over_quota' => ['label' => "Over today's limit",    'pill' => 'bg-rose-100 text-rose-700',   'bg' => 'from-rose-50',  'glow' => 'bg-rose-300/40',  'num' => 'text-rose-600',  'ring' => 'text-rose-500',  'icon' => 'exclamation'],
-            'quota_hit'  => ['label' => "Today's limit reached", 'pill' => 'bg-amber-100 text-amber-700', 'bg' => 'from-amber-50', 'glow' => 'bg-amber-300/40', 'num' => 'text-amber-600', 'ring' => 'text-amber-500', 'icon' => 'clock'],
+            'on_track'    => ['label' => 'On track',              'pill' => 'bg-emerald-100 text-emerald-700', 'bg' => 'from-emerald-50', 'glow' => 'bg-emerald-300/40', 'num' => 'text-emerald-600', 'ring' => 'text-emerald-500', 'icon' => 'check-circle'],
+            'tight'       => ['label' => 'Tight week',            'pill' => 'bg-amber-100 text-amber-700',     'bg' => 'from-amber-50',   'glow' => 'bg-amber-300/40',   'num' => 'text-amber-600',   'ring' => 'text-amber-500',   'icon' => 'clock'],
+            'runs_out'    => ['label' => 'Spending too fast',     'pill' => 'bg-rose-100 text-rose-700',       'bg' => 'from-rose-50',    'glow' => 'bg-rose-300/40',    'num' => 'text-rose-600',    'ring' => 'text-rose-500',    'icon' => 'trending-up'],
+            'depleted'    => ['label' => 'Budget used up',        'pill' => 'bg-rose-100 text-rose-700',       'bg' => 'from-rose-50',    'glow' => 'bg-rose-300/40',    'num' => 'text-rose-600',    'ring' => 'text-rose-500',    'icon' => 'exclamation-circle'],
+            'over_quota'  => ['label' => "Over today's limit",    'pill' => 'bg-rose-100 text-rose-700',       'bg' => 'from-rose-50',    'glow' => 'bg-rose-300/40',    'num' => 'text-rose-600',    'ring' => 'text-rose-500',    'icon' => 'exclamation'],
+            'quota_hit'   => ['label' => "Today's limit reached", 'pill' => 'bg-amber-100 text-amber-700',     'bg' => 'from-amber-50',   'glow' => 'bg-amber-300/40',   'num' => 'text-amber-600',   'ring' => 'text-amber-500',   'icon' => 'clock'],
+            'final_day'   => ['label' => 'Last day',              'pill' => 'bg-slate-100 text-slate-600',     'bg' => 'from-slate-100',  'glow' => 'bg-slate-300/40',   'num' => 'text-slate-900',   'ring' => 'text-slate-500',   'icon' => 'clock'],
+            'fresh_start' => ['label' => 'Fresh start',           'pill' => 'bg-slate-100 text-slate-600',     'bg' => 'from-slate-100',  'glow' => 'bg-slate-300/40',   'num' => 'text-slate-900',   'ring' => 'text-slate-500',   'icon' => 'sparkles'],
         ];
+
         $th = $theme[$state] ?? $theme['on_track'];
 
         $toneMap = [
@@ -67,7 +68,6 @@
                 </a>
             </div>
         @else
-
             {{-- 1. HERO --}}
             <div class="relative overflow-hidden rounded-[2rem] border border-slate-100 bg-gradient-to-br {{ $th['bg'] }} via-white to-white shadow-[0_20px_50px_-20px_rgba(15,23,42,0.18)] p-5 sm:p-8">
                 <div class="pointer-events-none absolute -top-24 -right-24 h-64 w-64 rounded-full blur-3xl {{ $th['glow'] }}"></div>
@@ -79,6 +79,7 @@
                             <x-dynamic-component :component="'heroicon-o-' . $th['icon']" class="w-3.5 h-3.5" />
                             {{ $th['label'] }}
                         </span>
+
                         <span class="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-white/80 backdrop-blur border border-slate-200 text-[11px] font-bold text-slate-500">
                             <x-heroicon-o-calendar class="w-3.5 h-3.5" />
                             {{ $daysLabel }} · resets {{ $m['reset_day'] }}
@@ -107,6 +108,7 @@
                                         class="{{ $th['ring'] }} transition-all duration-700"
                                         style="stroke-dasharray: {{ $ringC }}; stroke-dashoffset: {{ $ringOffset }};" />
                             </svg>
+
                             <div class="absolute inset-0 flex flex-col items-center justify-center">
                                 <span class="text-xl sm:text-3xl font-black text-slate-900 tabular-nums leading-none">{{ $todayPct }}%</span>
                                 <span class="text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-slate-400 mt-1">of today</span>
@@ -120,13 +122,16 @@
                             <div class="h-9 w-9 rounded-xl bg-white shadow-sm flex items-center justify-center shrink-0 {{ $th['ring'] }}">
                                 <x-dynamic-component :component="'heroicon-o-' . $th['icon']" class="w-4 h-4" />
                             </div>
+
                             <div class="min-w-0 space-y-0.5">
                                 <h2 class="text-base sm:text-lg font-extrabold text-slate-900 leading-snug">{{ $t['headline'] }}</h2>
                                 <p class="text-xs sm:text-sm font-medium text-slate-500 leading-relaxed">{{ $t['sub'] }}</p>
                             </div>
                         </div>
+
                         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-3 border-t border-slate-200/70">
                             <p class="text-xs sm:text-sm font-bold text-slate-700 leading-snug">{{ $t['action'] }}</p>
+
                             <a href="{{ route('student.simulation') }}" class="text-xs font-bold whitespace-nowrap text-[var(--brand)] hover:opacity-75 transition-opacity self-end sm:self-auto">
                                 Plan a purchase →
                             </a>
@@ -140,8 +145,9 @@
                 <div class="flex items-start justify-between gap-3">
                     <div>
                         <h3 class="text-sm sm:text-base font-extrabold text-slate-900">Your week so far</h3>
-                        <p class="text-[11px] sm:text-xs text-slate-400 font-medium mt-0.5">Bars show what you spent each day.</p>
+                        <p class="text-[11px] sm:text-xs text-slate-400 font-medium mt-0.5">Bars show everything that left your budget each day.</p>
                     </div>
+
                     <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-100 text-[11px] font-bold text-slate-500 shrink-0">
                         <span class="w-3 inline-block border-t-2 border-dashed border-slate-400"></span>
                         Limit {{ $pesoFloor($limit) }}
@@ -153,32 +159,43 @@
                         @php
                             $isFuture = $d['status'] === 'future';
                             $isToday  = $d['status'] === 'today';
+                            $saved    = (float) ($d['saved'] ?? 0);
+                            $total    = $d['spent'] + $saved;
                             $barH     = $d['spent'] > 0 ? max(6, (int) round(($d['spent'] / $scale) * 100)) : 0;
-                            $wentOver = !$isFuture && $limit > 0 && $d['spent'] > $limit;
+                            $saveH    = $saved > 0 ? max(6, (int) round(($saved / $scale) * 100)) : 0;
+                            $wentOver = !$isFuture && $limit > 0 && $total > $limit;
                             $barColor = $wentOver
                                 ? 'bg-gradient-to-t from-rose-500 to-rose-300'
                                 : 'bg-gradient-to-t from-[var(--brand)] to-[rgba(var(--brand-rgb),0.55)]';
                         @endphp
+
                         <div class="flex-1 min-w-0 flex flex-col items-center gap-2 rounded-2xl py-2 px-0.5 {{ $isToday ? 'bg-[rgba(var(--brand-rgb),0.06)]' : '' }}">
                             <div class="relative w-full h-28 flex items-end justify-center">
-                                <div class="relative w-full max-w-[26px] h-full rounded-full bg-slate-100/80 overflow-hidden flex items-end">
+                                <div class="relative w-full max-w-[26px] h-full rounded-full bg-slate-100/80 overflow-hidden flex flex-col justify-end">
+                                    @if(!$isFuture && $saveH > 0)
+                                        <div class="w-full shrink-0 bg-gradient-to-t from-emerald-500 to-emerald-300 {{ $isToday ? '' : 'opacity-80' }}" style="height: {{ $saveH }}%"></div>
+                                    @endif
                                     @if(!$isFuture && $barH > 0)
-                                        <div class="w-full rounded-full {{ $barColor }} {{ $isToday ? '' : 'opacity-80' }}" style="height: {{ $barH }}%"></div>
+                                        <div class="w-full shrink-0 {{ $barColor }} {{ $isToday ? '' : 'opacity-80' }}" style="height: {{ $barH }}%"></div>
                                     @endif
                                 </div>
+
                                 <div class="absolute inset-x-0 border-t border-dashed border-slate-300/90" style="bottom: {{ $limitPct }}%"></div>
                             </div>
+
                             <span class="text-[11px] font-bold {{ $isToday ? 'text-[var(--brand)]' : 'text-slate-500' }}">{{ $isToday ? 'Today' : $d['label'] }}</span>
+
                             <span class="text-[10px] font-semibold tabular-nums {{ $isFuture ? 'text-slate-300' : ($wentOver ? 'text-rose-500' : 'text-slate-500') }}">
-                                {{ $isFuture ? '—' : $pesoShort($d['spent']) }}
+                                {{ $isFuture ? '—' : $pesoShort($total) }}
                             </span>
                         </div>
                     @endforeach
                 </div>
 
                 @if($m['saved'] > 0)
-                    <p class="text-[11px] font-medium text-slate-400">
-                        {{ $peso($m['saved']) }} moved to savings isn't counted as spending here.
+                    <p class="flex items-center gap-2 text-[11px] font-medium text-slate-400">
+                        <span class="inline-block w-2.5 h-2.5 rounded-full bg-emerald-400 shrink-0"></span>
+                        {{ $peso($m['saved']) }} moved to savings counts toward your daily limit, but not toward your spending pace.
                     </p>
                 @endif
             </div>
@@ -187,6 +204,7 @@
             @if(!empty($categories))
                 <div class="{{ $card }} p-5 sm:p-7 space-y-5">
                     <h3 class="text-sm sm:text-base font-extrabold text-slate-900">Where your money is going</h3>
+
                     <div class="space-y-4">
                         @foreach($categories as $cat)
                             <div class="space-y-2">
@@ -197,11 +215,13 @@
                                         </span>
                                         <span class="text-sm font-bold text-slate-800 truncate">{{ $cat['name'] }}</span>
                                     </div>
+
                                     <div class="text-right shrink-0">
                                         <span class="text-sm font-extrabold text-slate-900 tabular-nums block leading-tight">{{ $peso($cat['total']) }}</span>
                                         <span class="text-[11px] font-semibold text-slate-400">{{ $cat['percent'] }}%</span>
                                     </div>
                                 </div>
+
                                 <div class="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
                                     <div class="h-full rounded-full" style="width: {{ $cat['percent'] }}%; background-color: {{ $cat['color'] }};"></div>
                                 </div>
@@ -220,6 +240,7 @@
                         <div class="h-10 w-10 rounded-2xl {{ $toneMap[$item['tone']] ?? $toneMap['slate'] }} flex items-center justify-center shrink-0">
                             <x-dynamic-component :component="'heroicon-o-' . $item['icon']" class="w-5 h-5" />
                         </div>
+
                         <div class="min-w-0 space-y-0.5 pt-0.5">
                             <p class="text-sm font-extrabold text-slate-800 leading-snug">{{ $item['title'] }}</p>
                             <p class="text-xs sm:text-[13px] font-medium text-slate-500 leading-relaxed">{{ $item['body'] }}</p>
@@ -233,6 +254,7 @@
                             <div class="h-10 w-10 rounded-2xl bg-white shadow-sm text-[var(--brand)] flex items-center justify-center shrink-0">
                                 <x-heroicon-o-sparkles class="w-5 h-5" />
                             </div>
+
                             <div class="min-w-0 space-y-0.5 pt-0.5">
                                 <p class="text-[10px] font-extrabold uppercase tracking-[0.15em] text-[var(--brand)]">Extra tip</p>
                                 <p class="text-xs sm:text-[13px] font-semibold text-slate-600 leading-relaxed">{{ $tip }}</p>

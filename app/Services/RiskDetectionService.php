@@ -38,7 +38,6 @@ class RiskDetectionService
 
         $cycleStart        = $cycle['startDate'];
         $cycleEnd          = $cycle['endDate'];
-        $daysElapsed       = max(1, (int) $cycle['daysElapsed']);
         $daysLeftInclToday = max(1, (int) $cycle['daysRemaining']);
         $cycleLength       = max(1, (int) $cycleStart->diffInDays($cycle['nextResetDate']));
         $resetDay          = $cycle['targetResetDay'];
@@ -77,7 +76,7 @@ class RiskDetectionService
         // because the deposit lowers $remaining and raises $spentTodayAll by the same amount.
         $safePerDay = ($remaining + $spentTodayAll) / $daysLeftInclToday;
 
-        // ---- 1. Pace check (per day) ---------------------------------------
+        // ---- 1. Pace check (one alert type for the whole week) --------------
         $pace = $this->cycleService->pace($cycle, $remaining, $spent, $spentToday, $saved);
 
         $allowedDailyVelocity = $pool / $cycleLength;
@@ -85,13 +84,15 @@ class RiskDetectionService
         $runwayDays           = $velocity > 0 ? $riskRemaining / $velocity : $cycleLength;
         $tierDays             = max(0.5, $pace['daysAfterToday']);
 
-        $paceType      = $daysElapsed <= 3 ? 'early_week_depletion' : 'rapid_overspending';
-        $otherPaceType = $paceType === 'early_week_depletion' ? 'rapid_overspending' : 'early_week_depletion';
+        $paceType = 'pace_warning';
 
         $paceTriggered = $pace['isOverPace']
             || ($spentToday >= $allowedDailyVelocity * 2);
 
-        $this->resolveOpenLogs($user, $otherPaceType);
+        // Retire alerts created under the old two-type scheme so no stale duplicates stay open.
+        foreach (['early_week_depletion', 'rapid_overspending'] as $legacyType) {
+            $this->resolveOpenLogs($user, $legacyType);
+        }
 
         $this->syncRiskAlert($user, $paceType, $paceTriggered, $todayStart->copy(),
             function () use ($tierDays, $runwayDays, $velocity, $remaining, $safePerDay, $resetDay) {
@@ -178,7 +179,6 @@ class RiskDetectionService
         $openLog = (clone $inWindow)->where('resolved', false)->latest('id')->first();
 
         if ($openLog) {
-            // Keep the stored text and tier in step with the latest numbers.
             [$tier, $description] = $build();
 
             if ($openLog->description !== $description || $openLog->severity_tier !== $tier) {
@@ -219,11 +219,6 @@ class RiskDetectionService
         $this->notifyRisk($user, $riskLog);
     }
 
-    /**
-     * Brings every notification tied to a risk log up to date with the log's text, tier
-     * and title. Creates the notification when none exists. Pass $resolved = false to
-     * reopen: the notification becomes unread, unresolved and shows as new.
-     */
     private function syncRiskNotifications($user, RiskLog $log, ?bool $resolved = null): void
     {
         $notifications = DatabaseNotification::where('notifiable_id', $user->id)
@@ -312,7 +307,6 @@ class RiskDetectionService
         $attributes = ['data' => $data];
 
         if (!$resolved) {
-            // A reopened alert is new again: unread, and aged from now.
             $attributes['read_at']    = null;
             $attributes['created_at'] = now();
         }

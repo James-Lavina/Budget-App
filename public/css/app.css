@@ -2277,6 +2277,10 @@ input:where([type='file']):focus {
 .bg-emerald-300\/40 {
   background-color: rgb(110 231 183 / 0.4);
 }
+.bg-emerald-400 {
+  --tw-bg-opacity: 1;
+  background-color: rgb(52 211 153 / var(--tw-bg-opacity));
+}
 .bg-emerald-50 {
   --tw-bg-opacity: 1;
   background-color: rgb(236 253 245 / var(--tw-bg-opacity));
@@ -4095,6 +4099,13 @@ input:where([type='file']):focus {
   --tw-gradient-to-position:  ;
   --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to);
 }
+.from-emerald-500 {
+  --tw-gradient-from: #10b981 var(--tw-gradient-from-position);
+  --tw-gradient-from-position:  ;
+  --tw-gradient-to: rgb(16 185 129 / 0)  var(--tw-gradient-from-position);
+  --tw-gradient-to-position:  ;
+  --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to);
+}
 .from-rose-50 {
   --tw-gradient-from: #fff1f2 var(--tw-gradient-from-position);
   --tw-gradient-from-position:  ;
@@ -4142,6 +4153,10 @@ input:where([type='file']):focus {
 }
 .to-\[var\(--brand-dark\)\] {
   --tw-gradient-to: var(--brand-dark) var(--tw-gradient-to-position);
+  --tw-gradient-to-position:  ;
+}
+.to-emerald-300 {
+  --tw-gradient-to: #6ee7b7 var(--tw-gradient-to-position);
   --tw-gradient-to-position:  ;
 }
 .to-rose-300 {

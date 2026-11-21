@@ -14,8 +14,8 @@
                     <span class="inline-flex items-center text-xs font-bold px-3 py-1.5 bg-slate-100 text-slate-700 rounded-xl">
                         {{ $allExpenses->total() }} {{ Str::plural('Entry', $allExpenses->total()) }}
                     </span>
-                    <span class="inline-flex items-center text-xs font-bold px-3 py-1.5 bg-[rgba(var(--brand-rgb),0.08)] text-[var(--brand)] border border-[rgba(var(--brand-rgb),0.18)] rounded-xl">
-                        ₱{{ number_format($totalSpent, 2) }} Spent
+                    <span title="This week's spending, including money moved to savings" class="inline-flex items-center text-xs font-bold px-3 py-1.5 bg-[rgba(var(--brand-rgb),0.08)] text-[var(--brand)] border border-[rgba(var(--brand-rgb),0.18)] rounded-xl">
+                        ₱{{ number_format($totalSpent, 2) }} spent this week
                     </span>
                     <button wire:click="$emit('openExportModal')"
                         class="inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 border border-slate-200 text-slate-600 hover:bg-slate-50 rounded-xl transition-colors">

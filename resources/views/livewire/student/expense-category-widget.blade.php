@@ -1,6 +1,4 @@
 <div class="rounded-[2rem] border border-slate-100 bg-white shadow-[0_20px_50px_-24px_rgba(15,23,42,0.15)] p-5 sm:p-7 w-full flex-1 h-full flex flex-col justify-start" wire:init="loadCategoryBreakdown">
-
-    <!-- HEADER SECTION -->
     <div class="pb-2">
         <h3 class="text-sm font-extrabold text-slate-900">Expense Categories</h3>
         <span class="text-[11px] text-slate-500 font-semibold">Where your money went this week</span>
@@ -17,98 +15,127 @@
             <p class="text-xs text-slate-400 font-semibold max-w-[200px]">No transactions logged yet for this weekly cycle window.</p>
         </div>
     @else
-    @php
-        usort($categoriesData, function($a, $b) {
-            return strcmp($a['name'], $b['name']);
-        });
-    @endphp
+        @php
+            usort($categoriesData, function ($a, $b) {
+                return strcmp($a['name'], $b['name']);
+            });
+        @endphp
 
-    <div class="flex-1 flex flex-col justify-center gap-4">
-        <div class="py-2 flex items-center justify-center">
-            <div class="relative h-44 w-44 mx-auto shrink-0" wire:ignore>
-                <canvas id="categoryDistributionChart"></canvas>
+        <div class="flex-1 flex flex-col justify-center gap-4">
+            <div class="py-2 flex items-center justify-center">
+                <div class="relative h-44 w-44 mx-auto shrink-0" wire:ignore>
+                    <canvas id="categoryDistributionChart"></canvas>
+                </div>
+            </div>
+
+            <div class="space-y-2.5 max-h-[170px] overflow-y-auto pr-1 custom-dashboard-scrollbar">
+                @foreach($categoriesData as $category)
+                    <div class="flex items-center justify-between text-xs">
+                        <div class="flex items-center gap-2.5 min-w-0">
+                            <span class="w-2.5 h-2.5 rounded-full shrink-0" style="background-color: {{ $category['color'] ?? '#94a3b8' }};"></span>
+                            <span class="font-semibold text-slate-600 truncate">{{ $category['name'] }}</span>
+                        </div>
+
+                        <span class="font-black text-slate-900 font-mono shrink-0 pl-2 block sm:hidden">
+                            ₱{{ number_format($category['total'], 2) }}
+                        </span>
+                    </div>
+                @endforeach
             </div>
         </div>
-
-        <div class="space-y-2.5 max-h-[170px] overflow-y-auto pr-1 custom-dashboard-scrollbar">
-            @foreach($categoriesData as $category)
-                <div class="flex items-center justify-between text-xs">
-                    <div class="flex items-center gap-2.5 min-w-0">
-                        <span class="w-2.5 h-2.5 rounded-full shrink-0" style="background-color: {{ $category['color'] ?? '#94a3b8' }};"></span>
-                        <span class="font-semibold text-slate-600 truncate">{{ $category['name'] }}</span>
-                    </div>
-                    <span class="font-black text-slate-900 font-mono shrink-0 pl-2 block sm:hidden">
-                        ₱{{ number_format($category['total'], 2) }}
-                    </span>
-                </div>
-            @endforeach
-        </div>
-    </div>
     @endif
 
     <style>
-        .custom-dashboard-scrollbar::-webkit-scrollbar {
-            width: 4px;
-        }
-        .custom-dashboard-scrollbar::-webkit-scrollbar-track {
-            background: transparent;
-        }
-        .custom-dashboard-scrollbar::-webkit-scrollbar-thumb {
-            background: #e2e8f0;
-            border-radius: 10px;
-        }
-        .custom-dashboard-scrollbar::-webkit-scrollbar-thumb:hover {
-            background: #cbd5e1;
-        }
+        .custom-dashboard-scrollbar::-webkit-scrollbar { width: 4px; }
+        .custom-dashboard-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-dashboard-scrollbar::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }
+        .custom-dashboard-scrollbar::-webkit-scrollbar-thumb:hover { background: #cbd5e1; }
     </style>
 
     <script>
-        document.addEventListener('livewire:load', function () {
-            const chartCanvas = document.getElementById('categoryDistributionChart');
-            if (!chartCanvas) return;
+        if (!window.__categoryChartBound) {
+            window.__categoryChartBound = true;
 
-            const ctx = chartCanvas.getContext('2d');
-            let categoryChart = new Chart(ctx, {
-                type: 'doughnut',
-                data: {
-                    labels: [],
-                    datasets: [{
-                        data: [],
-                        backgroundColor: [],
-                        borderWidth: 2.5,
-                        borderColor: '#ffffff',
-                        hoverOffset: 4
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    cutout: '68%',
-                    plugins: {
-                        legend: { display: false },
-                        tooltip: {
-                            padding: 10,
-                            bodyFont: { size: 11, weight: 'bold' },
-                            callbacks: {
-                                label: (ctx) => ` ${ctx.label}: ₱${ctx.raw.toLocaleString()}`
+            (function () {
+                let chart = null;
+                let payload = null;
+
+                // Creates the chart whenever the canvas exists (it only exists once there
+                // is spending), and pushes the latest data into it.
+                function render() {
+                    const canvas = document.getElementById('categoryDistributionChart');
+
+                    if (!canvas) {
+                        if (chart) { chart.destroy(); chart = null; }
+                        return;
+                    }
+
+                    if (chart && chart.canvas !== canvas) {
+                        chart.destroy();
+                        chart = null;
+                    }
+
+                    if (!chart) {
+                        chart = new Chart(canvas.getContext('2d'), {
+                            type: 'doughnut',
+                            data: {
+                                labels: [],
+                                datasets: [{
+                                    data: [],
+                                    backgroundColor: [],
+                                    borderWidth: 2.5,
+                                    borderColor: '#ffffff',
+                                    hoverOffset: 4
+                                }]
+                            },
+                            options: {
+                                responsive: true,
+                                maintainAspectRatio: false,
+                                cutout: '68%',
+                                plugins: {
+                                    legend: { display: false },
+                                    tooltip: {
+                                        padding: 10,
+                                        bodyFont: { size: 11, weight: 'bold' },
+                                        callbacks: {
+                                            label: (ctx) => ` ${ctx.label}: ₱${ctx.raw.toLocaleString()}`
+                                        }
+                                    }
+                                }
                             }
-                        }
+                        });
+                    }
+
+                    if (payload) {
+                        chart.data.labels = payload.labels;
+                        chart.data.datasets[0].data = payload.values;
+                        chart.data.datasets[0].backgroundColor = payload.colors;
+                        chart.update();
                     }
                 }
-            });
 
-            window.addEventListener('updateCategoryChart', event => {
-                const sortedPairs = event.detail.labels.map((label, idx) => ({
-                    label: label,
-                    val: event.detail.values[idx],
-                    color: (event.detail.colors && event.detail.colors[idx]) || '#94a3b8'
-                })).sort((a, b) => a.label.localeCompare(b.label));
+                window.addEventListener('updateCategoryChart', (event) => {
+                    const pairs = event.detail.labels.map((label, idx) => ({
+                        label: label,
+                        val: event.detail.values[idx],
+                        color: (event.detail.colors && event.detail.colors[idx]) || '#94a3b8'
+                    })).sort((a, b) => a.label.localeCompare(b.label));
 
-                categoryChart.data.labels = sortedPairs.map(p => p.label);
-                categoryChart.data.datasets[0].data = sortedPairs.map(p => p.val);
-                categoryChart.data.datasets[0].backgroundColor = sortedPairs.map(p => p.color);
-                categoryChart.update();
-            });
-        });
+                    payload = {
+                        labels: pairs.map(p => p.label),
+                        values: pairs.map(p => p.val),
+                        colors: pairs.map(p => p.color)
+                    };
+
+                    render();
+                });
+
+                // The event can arrive before the new canvas is in the DOM, so render
+                // again once Livewire has finished patching the page.
+                document.addEventListener('livewire:load', function () {
+                    Livewire.hook('message.processed', render);
+                });
+            })();
+        }
     </script>
 </div>

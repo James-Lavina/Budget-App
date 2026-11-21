@@ -18,8 +18,10 @@ class SpendingForecastService
     /**
      * Fast, local-only forecast. No external HTTP calls, safe on every page load.
      *
-     * Pace and the advised daily rate come from BudgetCycleService::pace(), the same
-     * call the Dashboard uses, so both pages always agree.
+     * Savings transfers count as money out of the budget (daily limit, bars, categories),
+     * but never as spending pace, so a one-time transfer is not projected forward as a
+     * daily habit. Pace comes from BudgetCycleService::pace(), the same call the Dashboard
+     * uses, so both pages always agree.
      */
     public function computeLocalForecast($user)
     {
@@ -47,16 +49,24 @@ class SpendingForecastService
             ->whereBetween('transaction_date', [$startDate, $endDate])
             ->get();
 
-        $allByDay   = []; // everything that left the budget, savings transfers included
-        $spendByDay = []; // real spending only (drives pace, bars, categories)
-        $byCategory = [];
-        $byItem     = [];
+        $allByDay       = []; // everything that left the budget, savings transfers included
+        $spendByDay     = []; // real spending only (drives pace)
+        $byCategory     = []; // all outflow, savings included (what the student sees)
+        $realByCategory = []; // real spending only (drives advice)
+        $byItem         = [];
 
         foreach ($cycleExpenses as $e) {
-            $key    = $e->transaction_date->format('Y-m-d');
-            $amount = (float) $e->amount;
+            $key     = $e->transaction_date->format('Y-m-d');
+            $amount  = (float) $e->amount;
+            $catName = $e->category->name ?? 'Uncategorized';
+            $color   = ExpenseCategory::colorToHex($e->category->color ?? null);
 
             $allByDay[$key] = ($allByDay[$key] ?? 0) + $amount;
+
+            if (!isset($byCategory[$catName])) {
+                $byCategory[$catName] = ['name' => $catName, 'total' => 0.0, 'color' => $color];
+            }
+            $byCategory[$catName]['total'] += $amount;
 
             if ($e->isSavingsTransfer()) {
                 continue;
@@ -64,20 +74,17 @@ class SpendingForecastService
 
             $spendByDay[$key] = ($spendByDay[$key] ?? 0) + $amount;
 
-            $catName = $e->category->name ?? 'Uncategorized';
-            if (!isset($byCategory[$catName])) {
-                $byCategory[$catName] = [
-                    'name'  => $catName,
-                    'total' => 0.0,
-                    'color' => ExpenseCategory::colorToHex($e->category->color ?? null),
-                ];
+            if (!isset($realByCategory[$catName])) {
+                $realByCategory[$catName] = ['name' => $catName, 'total' => 0.0, 'color' => $color];
             }
-            $byCategory[$catName]['total'] += $amount;
+            $realByCategory[$catName]['total'] += $amount;
 
             $itemKey = Str::lower(trim($e->item_name));
+
             if (!isset($byItem[$itemKey])) {
                 $byItem[$itemKey] = ['name' => trim($e->item_name), 'count' => 0, 'total' => 0.0];
             }
+
             $byItem[$itemKey]['count']++;
             $byItem[$itemKey]['total'] += $amount;
         }
@@ -114,7 +121,8 @@ class SpendingForecastService
                 $running      += $dayAll;
                 $totalOutflow += $dayAll;
                 $totalSpent   += $daySpend;
-                $actual[]      = round(max(0, $pool - $running), 2);
+
+                $actual[] = round(max(0, $pool - $running), 2);
             } else {
                 $actual[] = null;
             }
@@ -124,7 +132,6 @@ class SpendingForecastService
 
         // ---- Projection (same pace logic as the Dashboard) ---------------------------------
         $realSpent = $totalSpent;
-
         $p = $cycleService->pace($cycle, $remaining, $realSpent, $realSpentToday, $totalSaved);
 
         $isFinalDay = $p['daysAfterToday'] <= 0;
@@ -133,13 +140,15 @@ class SpendingForecastService
         $overPace   = (bool) $p['isOverPace'];
 
         $projectedSpend     = $pace * $futureDays;
-        $spendable          = $remaining + $totalSaved;
+        $spendable          = $remaining + $totalSaved; // same basis as BudgetCycleService::pace()
         $projectedRemaining = max(0, $spendable - $projectedSpend);
         $shortfall          = max(0, $projectedSpend - $spendable);
 
         $projected = [];
+
         for ($i = 0; $i < $cycleLength; $i++) {
             $day = $i + 1;
+
             if ($isFinalDay || $day < $daysElapsed) {
                 $projected[] = null;
             } elseif ($day === $daysElapsed) {
@@ -193,41 +202,56 @@ class SpendingForecastService
             $state = 'on_track';
         }
 
-        // ---- Week strip --------------------------------------------------------------------
-        $days     = [];
-        $maxSpend = 0.0;
+        // ---- Week strip: real spending + savings per day -----------------------------------
+        $days       = [];
+        $maxOutflow = 0.0;
 
         for ($i = 0; $i < $cycleLength; $i++) {
             $date   = $startDate->copy()->addDays($i);
             $key    = $date->format('Y-m-d');
             $day    = $i + 1;
             $status = $day < $daysElapsed ? 'past' : ($day === $daysElapsed ? 'today' : 'future');
-            $spent  = $status === 'future' ? 0.0 : (float) ($spendByDay[$key] ?? 0);
 
-            $maxSpend = max($maxSpend, $spent);
-            $days[]   = [
+            $spent    = $status === 'future' ? 0.0 : (float) ($spendByDay[$key] ?? 0);
+            $savedDay = $status === 'future'
+                ? 0.0
+                : max(0.0, (float) ($allByDay[$key] ?? 0) - (float) ($spendByDay[$key] ?? 0));
+
+            $maxOutflow = max($maxOutflow, $spent + $savedDay);
+
+            $days[] = [
                 'label'  => $date->format('D'),
                 'date'   => $date->format('M j'),
                 'status' => $status,
                 'spent'  => round($spent, 2),
+                'saved'  => round($savedDay, 2),
             ];
         }
 
-        $scale = max(1.0, $quota, $maxSpend) * 1.15;
+        $scale = max(1.0, $quota, $maxOutflow) * 1.15;
 
-        // ---- Where the money went / repeat purchases ---------------------------------------
+        // ---- Where the money went: savings shown as a category, like the Dashboard ---------
         $categories = collect($byCategory)
+            ->map(function ($c) use ($totalOutflow) {
+                $c['total']   = round($c['total'], 2);
+                $c['percent'] = $totalOutflow > 0 ? (int) round(($c['total'] / $totalOutflow) * 100) : 0;
+                return $c;
+            })
+            ->sortByDesc('total')
+            ->take(4)
+            ->values()
+            ->all();
+
+        // Advice talks about real spending only ("trim this category" makes no sense for savings).
+        $topCategory = collect($realByCategory)
             ->map(function ($c) use ($realSpent) {
                 $c['total']   = round($c['total'], 2);
                 $c['percent'] = $realSpent > 0 ? (int) round(($c['total'] / $realSpent) * 100) : 0;
                 return $c;
             })
             ->sortByDesc('total')
-            ->take(3)
             ->values()
-            ->all();
-
-        $topCategory = $categories[0] ?? null;
+            ->first();
 
         $repeat = collect($byItem)
             ->filter(fn ($i) => $i['count'] >= 3)
@@ -237,6 +261,7 @@ class SpendingForecastService
         $cut = in_array($state, ['runs_out', 'tight'], true) ? max(0, $pace - $advisedRate) : 0.0;
 
         $goal = null;
+
         if ($state === 'on_track') {
             $goal = SavingsGoal::where('user_id', $user->id)
                 ->where('status', 'active')
@@ -252,6 +277,7 @@ class SpendingForecastService
             'quota'               => $advisedRate, // amount we tell the student to stay under
             'limit'               => $quota,       // today's daily limit
             'spent_today'         => $spentToday,
+            'over_today'          => $overAmount,
             'days_left'           => $daysRemaining,
             'days_elapsed'        => $daysElapsed,
             'is_final'            => $isFinalDay,
@@ -264,7 +290,6 @@ class SpendingForecastService
             'repeat'              => $repeat,
             'cut'                 => $cut,
             'goal_name'           => $goal->target_name ?? null,
-            'over_today' => $overAmount,
         ];
 
         return [
@@ -351,10 +376,10 @@ class SpendingForecastService
                     'headline' => "You're over today's limit.",
                     'sub'      => "You've spent {$fmt($c['over_today'])} more than today's safe amount.",
                     'action'   => $c['is_final']
-                        ? "Less will roll over to next week, so go easy for the rest of today."
+                        ? 'Less will roll over to next week, so go easy for the rest of today.'
                         : "Go easy for the rest of today. From tomorrow you can spend about {$fmt($c['quota'])} a day.",
                 ];
-            
+
             case 'quota_hit':
                 return [
                     'headline' => "You've reached today's limit.",
@@ -416,6 +441,7 @@ class SpendingForecastService
         }
 
         $top = $c['top_category'];
+
         if ($top && $top['percent'] >= 40 && ($over || $top['percent'] >= 50)) {
             $perDay = $c['days_elapsed'] > 0 ? $top['total'] / $c['days_elapsed'] : 0;
 
@@ -436,6 +462,7 @@ class SpendingForecastService
         }
 
         $rep = $c['repeat'];
+
         if ($rep) {
             $items[] = [
                 'icon'  => 'refresh',
@@ -447,6 +474,7 @@ class SpendingForecastService
 
         if ($state === 'on_track' && $c['goal_name']) {
             $amount = floor(($c['projected_remaining'] * 0.4) / 10) * 10;
+
             if ($amount >= 50) {
                 $items[] = [
                     'icon'  => 'cash',
@@ -505,6 +533,7 @@ class SpendingForecastService
         $cacheKey = 'forecast_ai:v4:' . $user->id . ':' . md5($userPrompt);
 
         $cached = Cache::get($cacheKey);
+
         if ($cached !== null) {
             return $cached;
         }
@@ -517,52 +546,61 @@ class SpendingForecastService
                 return $fallback;
             }
 
+            $payload = [
+                'model'      => $settings->groq_text_model,
+                'max_tokens' => 800,
+                'messages'   => [
+                    [
+                        'role'    => 'system',
+                        'content' => 'You are a friendly college-student peer in Maasin City, Southern Leyte, Philippines. '
+                            . 'Give 1 or 2 short, specific money tips that directly use the facts in the message '
+                            . '(the biggest category or the repeated purchase). Where it fits, suggest a realistic cheaper local option '
+                            . '(carinderia, palengke, baon, sharing tricycle or habal-habal fare, mobile load promo). '
+                            . 'Do not invent facts, do not repeat the numbers back, no generic advice, never mention big-city services. '
+                            . 'Plain friendly English. Separate tips ONLY with a pipe character (|). '
+                            . 'No hyphens, bullets or markdown. Each tip under 22 words.',
+                    ],
+                    ['role' => 'user', 'content' => $userPrompt],
+                ],
+            ];
+
+            if (str_contains(strtolower((string) $settings->groq_text_model), 'gpt-oss')) {
+                $payload['reasoning_effort'] = 'low';
+            }
+
             $response = Http::withToken($apiKey)
                 ->timeout(6)
-                ->post('https://api.groq.com/openai/v1/chat/completions', [
-                    'model'      => $settings->groq_text_model,
-                    'max_tokens' => 800,
-                    'messages'   => [
-                        [
-                            'role'    => 'system',
-                            'content' => 'You are a friendly college-student peer in Maasin City, Southern Leyte, Philippines. '
-                                . 'Give 1 or 2 short, specific money tips that directly use the facts in the message '
-                                . '(the biggest category or the repeated purchase). Where it fits, suggest a realistic cheaper local option '
-                                . '(carinderia, palengke, baon, sharing tricycle or habal-habal fare, mobile load promo). '
-                                . 'Do not invent facts, do not repeat the numbers back, no generic advice, never mention big-city services. '
-                                . 'Plain friendly English. Separate tips ONLY with a pipe character (|). '
-                                . 'No hyphens, bullets or markdown. Each tip under 22 words.',
-                        ],
-                        ['role' => 'user', 'content' => $userPrompt],
-                    ],
-                ] + (str_contains(strtolower((string) $settings->groq_text_model), 'gpt-oss')
-                    ? ['reasoning_effort' => 'low']
-                    : []));
+                ->post('https://api.groq.com/openai/v1/chat/completions', $payload);
 
             if (!$response->successful()) {
                 Log::warning('Spending Forecast: Groq request failed', [
                     'status' => $response->status(),
                     'body'   => Str::limit($response->body(), 300),
                 ]);
+
                 return $fallback;
             }
 
             $content = $response->json()['choices'][0]['message']['content'] ?? '';
+
             if (!str_contains($content, '|')) {
                 $content = preg_replace('/[\r\n]+/', '|', $content);
             }
 
-            $tips = array_values(array_filter(array_map(function ($item) {
-                return trim(preg_replace('/^[\s\-\*•\d\.\)]+/', '', $item));
-            }, explode('|', $content)), function ($tip) {
-                return $tip !== '' && mb_strlen($tip) <= 160;
-            }));
+            $tips = array_values(array_filter(
+                array_map(
+                    fn ($item) => trim(preg_replace('/^[\s\-\*•\d\.\)]+/', '', $item)),
+                    explode('|', $content)
+                ),
+                fn ($tip) => $tip !== '' && mb_strlen($tip) <= 160
+            ));
 
             if (count($tips) < 1) {
                 return $fallback;
             }
 
             $result = ['is_online' => true, 'tips' => array_slice($tips, 0, 2)];
+
             Cache::put($cacheKey, $result, now()->addHour());
 
             ActivityLog::create([
@@ -576,6 +614,7 @@ class SpendingForecastService
             return $result;
         } catch (\Exception $e) {
             Log::warning('Spending Forecast AI offline: ' . $e->getMessage());
+
             return $fallback;
         }
     }
