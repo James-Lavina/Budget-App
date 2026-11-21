@@ -133,8 +133,9 @@ class SpendingForecastService
         $overPace   = (bool) $p['isOverPace'];
 
         $projectedSpend     = $pace * $futureDays;
-        $projectedRemaining = max(0, $remaining - $projectedSpend);
-        $shortfall          = max(0, $projectedSpend - $remaining);
+        $spendable          = $remaining + $totalSaved;
+        $projectedRemaining = max(0, $spendable - $projectedSpend);
+        $shortfall          = max(0, $projectedSpend - $spendable);
 
         $projected = [];
         for ($i = 0; $i < $cycleLength; $i++) {
@@ -169,17 +170,23 @@ class SpendingForecastService
             $shortDays    = max(1, ($cycleLength + 1) - $firstMissing);
         }
 
-        // ---- Single verdict ----------------------------------------------------------------
-        $pctLeft = $pool > 0 ? (int) round(($projectedRemaining / $pool) * 100) : 0;
+        // ---- Single verdict (same order as the Dashboard) ----------------------------------
+        $pctLeft    = $pool > 0 ? (int) round(($projectedRemaining / $pool) * 100) : 0;
+        $overAmount = $daysRemaining > 0 ? max(0.0, $realSpentToday - $quota) : 0.0;
 
         if ($remaining <= 0) {
             $state = 'depleted';
+        } elseif ($overAmount >= 1.0) {
+            $state = 'over_quota';
+        } elseif (!$isFinalDay && $overPace) {
+            $state = 'runs_out';
+        } elseif ($safeToday < 1.0) {
+            $state = 'quota_hit';
         } elseif ($isFinalDay) {
             $state = 'final_day';
-        } elseif ($realSpent <= 0) {
+        } elseif ($totalOutflow <= 0) {
+            // Nothing at all logged: savings transfers count as activity too.
             $state = 'fresh_start';
-        } elseif ($overPace) {
-            $state = 'runs_out';
         } elseif ($pctLeft < 15) {
             $state = 'tight';
         } else {
@@ -257,6 +264,7 @@ class SpendingForecastService
             'repeat'              => $repeat,
             'cut'                 => $cut,
             'goal_name'           => $goal->target_name ?? null,
+            'over_today' => $overAmount,
         ];
 
         return [
@@ -336,6 +344,24 @@ class SpendingForecastService
                     'headline' => 'Fresh week — nothing logged yet.',
                     'sub'      => "Log your first expenses and we'll show where your money is heading.",
                     'action'   => 'Spending about ' . $cap($c['quota']) . ' a day will carry you to ' . $c['reset_day'] . '.',
+                ];
+
+            case 'over_quota':
+                return [
+                    'headline' => "You're over today's limit.",
+                    'sub'      => "You've spent {$fmt($c['over_today'])} more than today's safe amount.",
+                    'action'   => $c['is_final']
+                        ? "Less will roll over to next week, so go easy for the rest of today."
+                        : "Go easy for the rest of today. From tomorrow you can spend about {$fmt($c['quota'])} a day.",
+                ];
+            
+            case 'quota_hit':
+                return [
+                    'headline' => "You've reached today's limit.",
+                    'sub'      => "You've used {$fmt($c['spent_today'])} of today's {$fmt($c['limit'])} limit, including anything moved to savings.",
+                    'action'   => $c['is_final']
+                        ? "Anything you don't spend rolls over to next week."
+                        : "Try not to spend more today. Tomorrow you'll have about {$fmt($c['quota'])}.",
                 ];
 
             case 'runs_out':

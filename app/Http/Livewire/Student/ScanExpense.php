@@ -438,6 +438,11 @@ class ScanExpense extends Component
             'official receipt', 'vatable', 'vat-exempt', 'amount due', 'card',
         ];
 
+        // Whole-word match only, so "Cashew" or "Taxi" are not skipped.
+        $skipPattern = '/(?<![a-z])(?:'
+            . implode('|', array_map(fn ($k) => preg_quote($k, '/'), $skipKeywords))
+            . ')(?![a-z])/i';
+
         $merchantName = $lines[0] ?? null;
         if ($merchantName && mb_strlen($merchantName) > 60) {
             $merchantName = null;
@@ -446,22 +451,14 @@ class ScanExpense extends Component
         $items = [];
 
         foreach ($lines as $index => $line) {
-            $lower = Str::lower($line);
-
-            $skip = false;
-            foreach ($skipKeywords as $kw) {
-                if (str_contains($lower, $kw)) {
-                    $skip = true;
-                    break;
-                }
-            }
-            if ($skip) {
+            if (preg_match($skipPattern, $line)) {
                 continue;
             }
 
             if (preg_match('/^(?P<name>.+?)[\s.:\-]+(?:[xX@]\s*)?(?:PHP|P|₱)?\s*(?P<amount>\d{1,3}(?:,\d{3})*\.\d{2}|\d{1,6}[.,]\d{2})\s*$/u', $line, $m)) {
                 $name = trim(preg_replace('/[^\p{L}\p{N}\s\'\-\.&]/u', ' ', $m['name']));
                 $name = trim(preg_replace('/\s+/', ' ', $name));
+
                 $raw    = $m['amount'];
                 $amount = (float) (preg_match('/,\d{3}/', $raw) ? str_replace(',', '', $raw) : str_replace(',', '.', $raw));
 
@@ -475,15 +472,15 @@ class ScanExpense extends Component
 
                 $items[] = [
                     'item_name' => Str::limit($name, 255, ''),
-                    'amount' => $amount,
+                    'amount'    => $amount,
                 ];
             }
         }
 
         return [
-            'merchant_name' => $merchantName,
+            'merchant_name'    => $merchantName,
             'transaction_date' => null,
-            'items' => $items,
+            'items'            => $items,
         ];
     }
 
@@ -594,8 +591,7 @@ class ScanExpense extends Component
             });
 
             if ($leftBalance !== null) {
-                $this->addError('items', 'Insufficient allowance. Total ₱' . number_format($total, 2) .
-                    ' exceeds your remaining ₱' . number_format($leftBalance, 2) . '.');
+                $this->addError('items', 'Insufficient allowance. Total ₱' . number_format($total, 2) . ' exceeds your remaining ₱' . number_format($leftBalance, 2) . '. Use Add Funds if you received more money.');
                 return;
             }
 

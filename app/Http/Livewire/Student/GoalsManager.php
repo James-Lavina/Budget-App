@@ -135,7 +135,7 @@ class GoalsManager extends Component
             return;
         }
 
-        $remainingNeeded = $goal->target_amount - $goal->current_saved;
+        $remainingNeeded = round($goal->target_amount - $goal->current_saved, 2);
 
         $this->validate([
             'fund_amount' => [

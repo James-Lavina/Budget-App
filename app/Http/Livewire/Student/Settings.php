@@ -64,7 +64,6 @@ class Settings extends Component
             $currentBudget->update([
                 'total_allowance'     => $newTotalBaseline,
                 'remaining_allowance' => $finalRemaining,
-                'reset_day'           => $this->reset_day,
             ]);
 
             $changes[] = 'applied immediately to current week';

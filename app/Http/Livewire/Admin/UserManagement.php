@@ -305,17 +305,33 @@ class UserManagement extends Component
             ];
         }
 
-        $remaining     = (float) $budget->remaining_allowance;
-        $daysElapsed   = max(1, (int) $cycle['daysElapsed']);
-        $daysRemaining = max(1, (int) $cycle['daysRemaining']);
-        $isFinalDay    = $daysElapsed >= 7 || $daysRemaining <= 1;
+        $remaining = (float) $budget->remaining_allowance;
+        $range     = [$cycle['startDate'], $cycle['evalDate']->copy()->endOfDay()];
 
-        $totalSpent = (float) Expense::where('user_id', $user->id)
-            ->whereBetween('transaction_date', [$cycle['startDate'], $cycle['evalDate']->copy()->endOfDay()])
+        $totalAll = (float) Expense::where('user_id', $user->id)
+            ->whereBetween('transaction_date', $range)
             ->sum('amount');
 
-        $dailyVelocity     = $totalSpent / $daysElapsed;
-        $projectedDaysLeft = $dailyVelocity > 0 ? ($remaining / $dailyVelocity) : $daysRemaining;
+        $realSpent = (float) Expense::where('user_id', $user->id)
+            ->whereBetween('transaction_date', $range)
+            ->excludingSavings()
+            ->sum('amount');
+
+        $realToday = (float) Expense::where('user_id', $user->id)
+            ->whereDate('transaction_date', $cycle['spentTodayDate'])
+            ->excludingSavings()
+            ->sum('amount');
+
+        // Same pace maths as the student's Dashboard, so admin and student always agree.
+        $pace = app(BudgetCycleService::class)->pace(
+            $cycle,
+            $remaining,
+            $realSpent,
+            $realToday,
+            max(0.0, $totalAll - $realSpent)
+        );
+
+        $daysRemaining = max(1, (int) $cycle['daysRemaining']);
 
         if ($remaining <= 0) {
             return [
@@ -325,27 +341,27 @@ class UserManagement extends Component
             ];
         }
 
-        if (!$isFinalDay && $projectedDaysLeft < $daysRemaining) {
+        if ($pace['isOverPace']) {
             return [
                 'label' => 'Spending Warning',
                 'tone'  => 'rose',
-                'note'  => 'At ₱' . number_format($dailyVelocity, 2) . '/day, the remaining balance lasts about '
-                    . number_format($projectedDaysLeft, 1) . ' of the ' . $daysRemaining . ' day(s) left.',
+                'note'  => 'Averaging ₱' . number_format($pace['velocity'], 2) . '/day, above the ₱'
+                    . number_format($pace['paceQuota'], 2) . '/day that lasts until reset.',
             ];
         }
 
-        if ($totalSpent <= 0) {
+        if ($realSpent <= 0) {
             return [
                 'label' => 'Fresh Start',
                 'tone'  => 'slate',
-                'note'  => 'No spending logged yet this cycle.',
+                'note'  => 'No real spending logged yet this cycle.',
             ];
         }
 
         return [
             'label' => 'On Track',
             'tone'  => 'emerald',
-            'note'  => 'Averaging ₱' . number_format($dailyVelocity, 2) . '/day with ' . $daysRemaining . ' day(s) left.',
+            'note'  => 'Averaging ₱' . number_format($pace['velocity'], 2) . '/day with ' . $daysRemaining . ' day(s) left.',
         ];
     }
 

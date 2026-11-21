@@ -333,7 +333,7 @@ class LogExpense extends Component
         });
 
         if (!$newExpense) {
-            $this->addError('amount', 'Insufficient allowance. You only have ₱' . number_format($leftBalance ?? 0, 2) . ' left.');
+            $this->addError('amount', 'Insufficient allowance. You only have ₱' . number_format($leftBalance ?? 0, 2) . ' left. Use Add Funds if you received more money.');
             return null;
         }
 

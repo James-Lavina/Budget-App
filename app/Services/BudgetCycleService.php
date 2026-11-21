@@ -32,7 +32,11 @@ class BudgetCycleService
         // Same figure as the Dashboard's "Safe per Day", with savings neutralised.
         $paceQuota = ($spendable + $realSpentToday) / $daysLeftInclToday;
 
+        // Needs at least 2 elapsed days: on day 1 a single normal purchase would look like a
+        // runaway pace. Real day-1 spikes are still caught by the "2x daily share" rule in
+        // RiskDetectionService.
         $isOverPace = $daysAfterToday > 0
+            && $daysElapsed >= 2
             && $velocity > 0
             && $velocity > $paceQuota * (1 + self::PACE_TOLERANCE);
 
@@ -119,6 +123,7 @@ class BudgetCycleService
 
     /**
      * True when the stored cycle has ended and the student must set up the new week.
+     * Derived from the same next-reset date resolve() uses, so a cycle can never get stuck.
      */
     public function needsRollover(WeeklyBudget $budget, $user): bool
     {
@@ -126,10 +131,11 @@ class BudgetCycleService
         $startDate      = Carbon::parse($budget->cycle_start_date)->startOfDay();
         $targetResetDay = $budget->reset_day ?? $user->default_reset_day ?? 'Monday';
 
-        $isScheduledResetDay = strtolower($today->format('l')) === strtolower($targetResetDay);
-        $isPastCycleWindow   = $today->gte($startDate->copy()->addDays(7));
+        $nextResetDate = strtolower($startDate->format('l')) === strtolower($targetResetDay)
+            ? $startDate->copy()->addWeek()
+            : $startDate->copy()->next($targetResetDay);
 
-        return ($isScheduledResetDay && !$today->isSameDay($startDate)) || $isPastCycleWindow;
+        return $today->gte($nextResetDate);
     }
 
     /**
@@ -169,9 +175,19 @@ class BudgetCycleService
 
         $newResetDay = $user->default_reset_day ?? $targetResetDay;
 
-        $newCycleStart = strtolower($today->format('l')) === strtolower($newResetDay)
-            ? $today->copy()
-            : $today->copy()->previous($newResetDay);
+        if (strtolower($newResetDay) === strtolower($targetResetDay)) {
+            // Same reset day: stay calendar-aligned (also covers a missed reset day).
+            $newCycleStart = strtolower($today->format('l')) === strtolower($newResetDay)
+                ? $today->copy()
+                : $today->copy()->previous($newResetDay);
+        } else {
+            // Reset day changed: never start in the past, or last cycle's expenses leak in.
+            $newCycleStart = $today->copy();
+        }
+
+        $newNextReset = strtolower($newCycleStart->format('l')) === strtolower($newResetDay)
+            ? $newCycleStart->copy()->addWeek()
+            : $newCycleStart->copy()->next($newResetDay);
 
         return [
             'startDate'        => $startDate,
@@ -183,7 +199,7 @@ class BudgetCycleService
             'unspent'          => $unspent,
             'newResetDay'      => $newResetDay,
             'newCycleStart'    => $newCycleStart,
-            'newNextReset'     => $newCycleStart->copy()->addWeek(),
+            'newNextReset'     => $newNextReset,
         ];
     }
 
@@ -221,7 +237,8 @@ class BudgetCycleService
         });
 
         if ($result) {
-            $severity = ($result['endingPool'] > 0 && ($result['amountSpentTotal'] / $result['endingPool']) >= 0.9)
+            // Real spending only: moving money to savings must not make the week look "tight".
+            $severity = ($result['endingPool'] > 0 && ($result['amountSpent'] / $result['endingPool']) >= 0.9)
                 ? 'medium'
                 : 'success';
 

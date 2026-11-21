@@ -124,7 +124,7 @@ class EditExpense extends Component
                 $maxForGoal = $oldAmount + max(0, $linkedGoal->target_amount - $linkedGoal->current_saved);
 
                 if ($newAmount > $maxForGoal + 0.001) {
-                    $this->addError('amount', 'That is more than this goal still needs. Max for this entry is ₱' . number_format($maxForGoal, 2) . '.');
+                    $this->addError('amount', 'Insufficient allowance. You only have ₱' . number_format($insufficientLeft, 2) . ' available for this transaction. Use Add Funds if you received more money.');
                     return;
                 }
             }

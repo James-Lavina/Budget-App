@@ -17,6 +17,8 @@
             'depleted'    => ['label' => 'Budget used up',   'pill' => 'bg-rose-100 text-rose-700',       'bg' => 'from-rose-50',    'glow' => 'bg-rose-300/40',    'num' => 'text-rose-600',    'ring' => 'text-rose-500',    'icon' => 'exclamation-circle'],
             'final_day'   => ['label' => 'Last day',         'pill' => 'bg-slate-100 text-slate-600',     'bg' => 'from-slate-100',  'glow' => 'bg-slate-300/40',   'num' => 'text-slate-900',   'ring' => 'text-slate-500',   'icon' => 'clock'],
             'fresh_start' => ['label' => 'Fresh start',      'pill' => 'bg-slate-100 text-slate-600',     'bg' => 'from-slate-100',  'glow' => 'bg-slate-300/40',   'num' => 'text-slate-900',   'ring' => 'text-slate-500',   'icon' => 'sparkles'],
+            'over_quota' => ['label' => "Over today's limit",    'pill' => 'bg-rose-100 text-rose-700',   'bg' => 'from-rose-50',  'glow' => 'bg-rose-300/40',  'num' => 'text-rose-600',  'ring' => 'text-rose-500',  'icon' => 'exclamation'],
+            'quota_hit'  => ['label' => "Today's limit reached", 'pill' => 'bg-amber-100 text-amber-700', 'bg' => 'from-amber-50', 'glow' => 'bg-amber-300/40', 'num' => 'text-amber-600', 'ring' => 'text-amber-500', 'icon' => 'clock'],
         ];
         $th = $theme[$state] ?? $theme['on_track'];
 

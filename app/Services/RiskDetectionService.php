@@ -148,7 +148,7 @@ class RiskDetectionService
         // ---- 4-6. Remaining checks -----------------------------------------
         $this->checkCategoryConcentration($user, $cycleStart, $cycleEnd, $pool);
         $this->checkRapidSpending($user, $cycle['spentTodayDate'], $pool, $settings);
-        $this->syncLowAllowance($user, $remaining, $pool, $cycleStart, $settings);
+        $this->syncLowAllowance($user, $riskRemaining, $pool, $cycleStart, $settings);
     }
 
     private function generateFeedbackString(float $velocity, float $remaining, float $safePerDay, string $resetDay): string

@@ -94,17 +94,18 @@ class Dashboard extends Component
                 ->count();
         }
 
-        $categoryRows = Expense::join('expense_categories', 'expenses.expense_category_id', '=', 'expense_categories.id')
+        $allCategoryRows = Expense::join('expense_categories', 'expenses.expense_category_id', '=', 'expense_categories.id')
             ->whereMonth('transaction_date', $today->month)
             ->whereYear('transaction_date', $today->year)
             ->where('expense_categories.name', 'NOT LIKE', '%Savings%')
             ->select('expense_categories.name', DB::raw('SUM(expenses.amount) as total'))
             ->groupBy('expense_categories.name')
             ->orderByDesc('total')
-            ->take(4)
             ->get();
 
-        $categoryGrandTotal = $categoryRows->sum('total');
+        // Percentages are measured against ALL categories, not just the top four shown.
+        $categoryGrandTotal = $allCategoryRows->sum('total');
+        $categoryRows       = $allCategoryRows->take(4);
 
         $categoryDistribution = $categoryRows->map(function ($row) use ($categoryGrandTotal) {
             return [
