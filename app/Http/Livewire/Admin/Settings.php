@@ -14,6 +14,7 @@ class Settings extends Component
     use WithFileUploads, EnsuresAdmin;
 
     public const COLOR_PRESETS = [
+        'Royal Blue'  => ['label' => 'Royal Blue',  'value' => '#2563EB'],
         'Midnight Navy'  => ['label' => 'Midnight Navy',  'value' => '#1B2430'],
         'Fern Green'    => ['label' => 'Fern Green',    'value' => '#4E9A5B'],
         'Royal Amethyst' => ['label' => 'Royal Amethyst', 'value' => '#6E4FA3'],

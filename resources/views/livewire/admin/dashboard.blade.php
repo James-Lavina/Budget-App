@@ -23,9 +23,9 @@
                 <div class="flex items-baseline gap-1.5 mt-0.5">
                     <span class="text-xl font-black text-slate-900 font-mono">{{ number_format($totalUsers) }}</span>
                 </div>
-                <span class="text-[10px] font-bold {{ $userGrowthPct >= 0 ? 'text-emerald-600' : 'text-rose-500' }}">
+                {{-- <span class="text-[10px] font-bold {{ $userGrowthPct >= 0 ? 'text-emerald-600' : 'text-rose-500' }}">
                     {{ $userGrowthPct >= 0 ? '+' : '' }}{{ $userGrowthPct }}%
-                </span>
+                </span> --}}
             </div>
         </div>
 
@@ -39,9 +39,9 @@
                 <div class="flex items-baseline gap-1.5 mt-0.5">
                     <span class="text-xl font-black text-slate-900 font-mono">{{ number_format($activeToday) }}</span>
                 </div>
-                <span class="text-[10px] font-bold {{ $activeChangePct >= 0 ? 'text-emerald-600' : 'text-rose-500' }}">
+                {{-- <span class="text-[10px] font-bold {{ $activeChangePct >= 0 ? 'text-emerald-600' : 'text-rose-500' }}">
                     {{ $activeChangePct >= 0 ? '+' : '' }}{{ $activeChangePct }}%
-                </span>
+                </span> --}}
             </div>
         </div>
 

@@ -38,7 +38,6 @@ class UserManagement extends Component
     public $edit_name;
     public $edit_email;
     public $edit_school;
-    public $edit_default_allowance;
     public $edit_default_reset_day;
 
     public $confirmingSuspendId = null;
@@ -76,7 +75,6 @@ class UserManagement extends Component
         $this->edit_name              = $user->name;
         $this->edit_email             = $user->email;
         $this->edit_school            = $user->school;
-        $this->edit_default_allowance = $user->default_allowance;
         $this->edit_default_reset_day = $user->default_reset_day ?? 'Monday';
         $this->resetErrorBag();
     }
@@ -92,10 +90,7 @@ class UserManagement extends Component
             'edit_name'              => 'required|string|max:255',
             'edit_email'             => 'required|email|max:255|unique:users,email,' . $this->editingUserId,
             'edit_school'            => 'nullable|string|max:255',
-            'edit_default_allowance' => ['required', 'numeric', 'min:1', 'max:999999', 'regex:/^\d+(\.\d{1,2})?$/'],
             'edit_default_reset_day' => 'required|string|in:Monday,Tuesday,Wednesday,Thursday,Friday,Saturday,Sunday',
-        ], [
-            'edit_default_allowance.regex' => 'Use at most 2 decimal places.',
         ]);
 
         $user = User::where('role', 'student')->findOrFail($this->editingUserId);
@@ -114,10 +109,6 @@ class UserManagement extends Component
             $changes[] = "school: \"" . ($user->school ?? '—') . "\" → \"" . ($this->edit_school ?? '—') . "\"";
         }
 
-        if ((float) $user->default_allowance !== (float) $this->edit_default_allowance) {
-            $changes[] = "default allowance: ₱" . number_format($user->default_allowance, 2) . " → ₱" . number_format($this->edit_default_allowance, 2);
-        }
-
         if ($user->default_reset_day !== $this->edit_default_reset_day) {
             $changes[] = "reset day: {$user->default_reset_day} → {$this->edit_default_reset_day}";
         }
@@ -126,7 +117,6 @@ class UserManagement extends Component
             'name'              => $this->edit_name,
             'email'             => $this->edit_email,
             'school'            => $this->edit_school,
-            'default_allowance' => $this->edit_default_allowance,
             'default_reset_day' => $this->edit_default_reset_day,
         ]);
 
@@ -403,7 +393,7 @@ class UserManagement extends Component
 
                 $effectiveAllowance = $cycle
                     ? (float) $cycle['effectiveTotalAllowance']
-                    : (float) ($viewingUser->default_allowance ?? 0);
+                    : 0.0;
 
                 $percentUsed = 0;
 

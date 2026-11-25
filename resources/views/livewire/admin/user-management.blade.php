@@ -75,7 +75,7 @@
                             @foreach($users as $user)
                                 @php
                                     $budget    = $user->latestWeeklyBudget;
-                                    $base      = (float) ($budget->total_allowance ?? $user->default_allowance ?? 0);
+                                    $base      = (float) ($budget->total_allowance ?? 0);
                                     $remaining = $budget ? (float) $budget->remaining_allowance : null;
                                     $pct       = ($budget && $base > 0) ? max(0, min(100, (int) round(($remaining / $base) * 100))) : 0;
                                     $barColor  = $pct <= 15 ? 'bg-rose-500' : ($pct <= 40 ? 'bg-amber-500' : 'bg-emerald-500');
@@ -118,12 +118,9 @@
                                                     <div class="h-full rounded-full {{ $barColor }}" style="width: {{ $pct }}%"></div>
                                                 </div>
                                             </div>
-                                        @else
-                                            <div class="space-y-0.5">
-                                                <span class="font-mono font-bold text-slate-700 text-[13px]">₱{{ number_format($base, 2) }}</span>
-                                                <span class="block text-[11px] font-semibold text-slate-400">No budget set up yet</span>
-                                            </div>
-                                        @endif
+                                            @else
+                                                <span class="text-[11px] font-semibold text-slate-400">No budget set up yet</span>
+                                            @endif
                                     </td>
 
                                     {{-- Status --}}
@@ -177,7 +174,7 @@
                     @foreach($users as $user)
                         @php
                             $budget    = $user->latestWeeklyBudget;
-                            $base      = (float) ($budget->total_allowance ?? $user->default_allowance ?? 0);
+                            $base      = (float) ($budget->total_allowance ?? 0);
                             $remaining = $budget ? (float) $budget->remaining_allowance : null;
                             $pct       = ($budget && $base > 0) ? max(0, min(100, (int) round(($remaining / $base) * 100))) : 0;
                             $barColor  = $pct <= 15 ? 'bg-rose-500' : ($pct <= 40 ? 'bg-amber-500' : 'bg-emerald-500');
@@ -213,7 +210,7 @@
                                     </div>
                                 </div>
                             @else
-                                <p class="text-[11px] font-semibold text-slate-400">No budget set up yet · default ₱{{ number_format($base, 2) }}</p>
+                            <p class="text-[11px] font-semibold text-slate-400">No budget set up yet</p>
                             @endif
 
                             <div class="flex items-center justify-between pt-1">
@@ -370,6 +367,9 @@
 
     {{-- EDIT MODAL --}}
     @if($editingUserId)
+        @php
+            $field = 'w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:bg-white focus:outline-none focus:ring-2 focus:ring-[color-mix(in_srgb,var(--brand-primary)_25%,transparent)] focus:border-[var(--brand-primary)] transition-all';
+        @endphp
         <div class="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm" wire:click.self="closeEdit">
             <div class="bg-white rounded-3xl shadow-xl max-w-md w-full p-6 space-y-5">
                 <div class="flex items-start justify-between">
@@ -382,38 +382,33 @@
                 <form wire:submit.prevent="saveEdit" class="space-y-4">
                     <div class="space-y-1.5">
                         <label class="block text-xs font-bold text-slate-700">Full Name</label>
-                        <input type="text" wire:model.defer="edit_name" class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:bg-white focus:ring-2 focus:ring-indigo-500 transition-all">
+                        <input type="text" wire:model.defer="edit_name" class="{{ $field }}">
                         @error('edit_name') <span class="text-[10px] font-bold text-rose-600 block mt-1">{{ $message }}</span> @enderror
                     </div>
                     <div class="space-y-1.5">
                         <label class="block text-xs font-bold text-slate-700">Email</label>
-                        <input type="email" wire:model.defer="edit_email" class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:bg-white focus:ring-2 focus:ring-indigo-500 transition-all">
+                        <input type="email" wire:model.defer="edit_email" class="{{ $field }}">
                         @error('edit_email') <span class="text-[10px] font-bold text-rose-600 block mt-1">{{ $message }}</span> @enderror
                     </div>
                     <div class="space-y-1.5">
                         <label class="block text-xs font-bold text-slate-700">School</label>
-                        <input type="text" wire:model.defer="edit_school" class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:bg-white focus:ring-2 focus:ring-indigo-500 transition-all">
+                        <input type="text" wire:model.defer="edit_school" class="{{ $field }}">
                         @error('edit_school') <span class="text-[10px] font-bold text-rose-600 block mt-1">{{ $message }}</span> @enderror
                     </div>
-                    <div class="grid grid-cols-2 gap-3">
-                        <div class="space-y-1.5">
-                            <label class="block text-xs font-bold text-slate-700">Default Allowance</label>
-                            <input type="number" step="1" wire:model.defer="edit_default_allowance" class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:bg-white focus:ring-2 focus:ring-indigo-500 transition-all">
-                            @error('edit_default_allowance') <span class="text-[10px] font-bold text-rose-600 block mt-1">{{ $message }}</span> @enderror
-                        </div>
-                        <div class="space-y-1.5">
-                            <label class="block text-xs font-bold text-slate-700">Reset Day</label>
-                            <select wire:model.defer="edit_default_reset_day" class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:bg-white focus:ring-2 focus:ring-indigo-500 transition-all">
-                                @foreach(['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'] as $day)
-                                    <option value="{{ $day }}">{{ $day }}</option>
-                                @endforeach
-                            </select>
-                        </div>
+                    <div class="space-y-1.5">
+                        <label class="block text-xs font-bold text-slate-700">Reset Day</label>
+                        <select wire:model.defer="edit_default_reset_day" class="{{ $field }}">
+                            @foreach(['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'] as $day)
+                                <option value="{{ $day }}">{{ $day }}</option>
+                            @endforeach
+                        </select>
+                        <p class="text-[10px] font-medium text-slate-400 leading-snug">Takes effect at the student's next weekly reset.</p>
+                        @error('edit_default_reset_day') <span class="text-[10px] font-bold text-rose-600 block mt-1">{{ $message }}</span> @enderror
                     </div>
 
                     <div class="flex items-center gap-2 pt-2">
                         <button type="button" wire:click="closeEdit" class="flex-1 px-4 py-2.5 text-xs font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors">Cancel</button>
-                        <button type="submit" wire:loading.attr="disabled" class="flex-1 px-4 py-2.5 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl transition-colors">Save Changes</button>
+                        <button type="submit" wire:loading.attr="disabled" class="flex-1 px-4 py-2.5 text-xs font-bold text-white bg-[var(--brand-primary)] hover:opacity-90 rounded-xl transition-opacity disabled:opacity-50">Save Changes</button>
                     </div>
                 </form>
             </div>
