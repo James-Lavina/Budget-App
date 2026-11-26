@@ -50,10 +50,10 @@ class SpendingForecastService
             ->get();
 
         $allByDay       = []; // everything that left the budget, savings transfers included
-        $spendByDay     = []; // real spending only (drives pace)
         $byCategory     = []; // all outflow, savings included (what the student sees)
         $realByCategory = []; // real spending only (drives advice)
         $byItem         = [];
+        $realSpentTotal = 0.0;
 
         foreach ($cycleExpenses as $e) {
             $key     = $e->transaction_date->format('Y-m-d');
@@ -72,7 +72,7 @@ class SpendingForecastService
                 continue;
             }
 
-            $spendByDay[$key] = ($spendByDay[$key] ?? 0) + $amount;
+            $realSpentTotal += $amount;
 
             if (!isset($realByCategory[$catName])) {
                 $realByCategory[$catName] = ['name' => $catName, 'total' => 0.0, 'color' => $color];
@@ -80,11 +80,9 @@ class SpendingForecastService
             $realByCategory[$catName]['total'] += $amount;
 
             $itemKey = Str::lower(trim($e->item_name));
-
             if (!isset($byItem[$itemKey])) {
                 $byItem[$itemKey] = ['name' => trim($e->item_name), 'count' => 0, 'total' => 0.0];
             }
-
             $byItem[$itemKey]['count']++;
             $byItem[$itemKey]['total'] += $amount;
         }
@@ -102,11 +100,10 @@ class SpendingForecastService
             ->excludingSavings()
             ->sum('amount');
 
-        // ---- Series for the (legacy) chart payload -----------------------------------------
+        // ---- Actual balance series (solid line) --------------------------------------------
         $labels       = [];
         $actual       = [];
         $totalOutflow = 0.0; // spending + savings
-        $totalSpent   = 0.0; // spending only
         $running      = 0.0;
 
         for ($i = 0; $i < $cycleLength; $i++) {
@@ -115,19 +112,16 @@ class SpendingForecastService
             $labels[] = $date->format('D');
 
             if ($i + 1 <= $daysElapsed) {
-                $dayAll   = $allByDay[$key] ?? 0;
-                $daySpend = $spendByDay[$key] ?? 0;
-
+                $dayAll        = $allByDay[$key] ?? 0;
                 $running      += $dayAll;
                 $totalOutflow += $dayAll;
-                $totalSpent   += $daySpend;
-
-                $actual[] = round(max(0, $pool - $running), 2);
+                $actual[]      = round(max(0, $pool - $running), 2);
             } else {
                 $actual[] = null;
             }
         }
 
+        $totalSpent = $realSpentTotal;
         $totalSaved = max(0.0, $totalOutflow - $totalSpent);
 
         // ---- Projection (same pace logic as the Dashboard) ---------------------------------
@@ -144,8 +138,8 @@ class SpendingForecastService
         $projectedRemaining = max(0, $spendable - $projectedSpend);
         $shortfall          = max(0, $projectedSpend - $spendable);
 
+        // Dashed line: balance at the student's current daily pace.
         $projected = [];
-
         for ($i = 0; $i < $cycleLength; $i++) {
             $day = $i + 1;
 
@@ -155,6 +149,22 @@ class SpendingForecastService
                 $projected[] = round($remaining, 2);
             } else {
                 $projected[] = round(max(0, $remaining - $pace * ($day - $daysElapsed)), 2);
+            }
+        }
+
+        // Safe path: even spending that lands on ₱0 at reset. What the student should aim for.
+        $safePath = [];
+        $safeStep = $futureDays > 0 ? $remaining / $futureDays : 0;
+
+        for ($i = 0; $i < $cycleLength; $i++) {
+            $day = $i + 1;
+
+            if ($isFinalDay || $day < $daysElapsed) {
+                $safePath[] = null;
+            } elseif ($day === $daysElapsed) {
+                $safePath[] = round($remaining, 2);
+            } else {
+                $safePath[] = round(max(0, $remaining - $safeStep * ($day - $daysElapsed)), 2);
             }
         }
 
@@ -170,12 +180,15 @@ class SpendingForecastService
 
         // ---- When does the money run out? --------------------------------------------------
         $runsOutLabel = null;
+        $runsOutIndex = null;
         $shortDays    = 0;
 
         if (!$isFinalDay && $remaining > 0 && $pace > 0 && $overPace) {
             $covered      = (int) floor($remaining / $pace);
             $firstMissing = $daysElapsed + $covered + 1;
+
             $runsOutLabel = $startDate->copy()->addDays($firstMissing - 1)->format('l');
+            $runsOutIndex = min($cycleLength - 1, $firstMissing - 1);
             $shortDays    = max(1, ($cycleLength + 1) - $firstMissing);
         }
 
@@ -201,34 +214,6 @@ class SpendingForecastService
         } else {
             $state = 'on_track';
         }
-
-        // ---- Week strip: real spending + savings per day -----------------------------------
-        $days       = [];
-        $maxOutflow = 0.0;
-
-        for ($i = 0; $i < $cycleLength; $i++) {
-            $date   = $startDate->copy()->addDays($i);
-            $key    = $date->format('Y-m-d');
-            $day    = $i + 1;
-            $status = $day < $daysElapsed ? 'past' : ($day === $daysElapsed ? 'today' : 'future');
-
-            $spent    = $status === 'future' ? 0.0 : (float) ($spendByDay[$key] ?? 0);
-            $savedDay = $status === 'future'
-                ? 0.0
-                : max(0.0, (float) ($allByDay[$key] ?? 0) - (float) ($spendByDay[$key] ?? 0));
-
-            $maxOutflow = max($maxOutflow, $spent + $savedDay);
-
-            $days[] = [
-                'label'  => $date->format('D'),
-                'date'   => $date->format('M j'),
-                'status' => $status,
-                'spent'  => round($spent, 2),
-                'saved'  => round($savedDay, 2),
-            ];
-        }
-
-        $scale = max(1.0, $quota, $maxOutflow) * 1.15;
 
         // ---- Where the money went: savings shown as a category, like the Dashboard ---------
         $categories = collect($byCategory)
@@ -261,7 +246,6 @@ class SpendingForecastService
         $cut = in_array($state, ['runs_out', 'tight'], true) ? max(0, $pace - $advisedRate) : 0.0;
 
         $goal = null;
-
         if ($state === 'on_track') {
             $goal = SavingsGoal::where('user_id', $user->id)
                 ->where('status', 'active')
@@ -312,15 +296,15 @@ class SpendingForecastService
             ],
             'text'       => $this->narrative($state, $ctx),
             'advice'     => $this->advice($state, $ctx),
-            'days'       => $days,
-            'day_scale'  => round($scale, 2),
             'categories' => $categories,
             'chart'      => [
-                'labels'      => $labels,
-                'actual'      => $actual,
-                'projected'   => $projected,
-                'pool'        => round($pool, 2),
-                'today_index' => max(0, $daysElapsed - 1),
+                'labels'         => $labels,
+                'actual'         => $actual,
+                'projected'      => $projected,
+                'safe_path'      => $safePath,
+                'pool'           => round($pool, 2),
+                'today_index'    => max(0, $daysElapsed - 1),
+                'runs_out_index' => $runsOutIndex,
             ],
             'raw' => [
                 'remaining'           => $remaining,
@@ -441,7 +425,6 @@ class SpendingForecastService
         }
 
         $top = $c['top_category'];
-
         if ($top && $top['percent'] >= 40 && ($over || $top['percent'] >= 50)) {
             $perDay = $c['days_elapsed'] > 0 ? $top['total'] / $c['days_elapsed'] : 0;
 
@@ -462,13 +445,13 @@ class SpendingForecastService
         }
 
         $rep = $c['repeat'];
-
         if ($rep) {
             $items[] = [
                 'icon'  => 'refresh',
                 'tone'  => $over ? 'amber' : 'slate',
                 'title' => ucfirst($rep['name']) . " — bought {$rep['count']} times",
-                'body'  => "That's " . $fmt($rep['total']) . ' so far.' . ($over ? ' Skipping a couple would help.' : ' Small buys add up, so it\'s worth knowing.'),
+                'body'  => "That's " . $fmt($rep['total']) . ' so far.'
+                    . ($over ? ' Skipping a couple would help.' : ' Small buys add up, so it\'s worth knowing.'),
             ];
         }
 
@@ -531,8 +514,7 @@ class SpendingForecastService
                 : '');
 
         $cacheKey = 'forecast_ai:v4:' . $user->id . ':' . md5($userPrompt);
-
-        $cached = Cache::get($cacheKey);
+        $cached   = Cache::get($cacheKey);
 
         if ($cached !== null) {
             return $cached;
@@ -577,7 +559,6 @@ class SpendingForecastService
                     'status' => $response->status(),
                     'body'   => Str::limit($response->body(), 300),
                 ]);
-
                 return $fallback;
             }
 
@@ -614,7 +595,6 @@ class SpendingForecastService
             return $result;
         } catch (\Exception $e) {
             Log::warning('Spending Forecast AI offline: ' . $e->getMessage());
-
             return $fallback;
         }
     }

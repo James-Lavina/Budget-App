@@ -4,10 +4,9 @@
     if ($ok) {
         $m          = $forecastResult['metrics'];
         $t          = $forecastResult['text'];
-        $days       = $forecastResult['days'];
-        $scale      = max(1, (float) $forecastResult['day_scale']);
         $categories = $forecastResult['categories'];
         $advice     = $forecastResult['advice'];
+        $chart      = $forecastResult['chart'];
         $state      = $m['state'];
 
         $theme = [
@@ -20,7 +19,6 @@
             'final_day'   => ['label' => 'Last day',              'pill' => 'bg-slate-100 text-slate-600',     'bg' => 'from-slate-100',  'glow' => 'bg-slate-300/40',   'num' => 'text-slate-900',   'ring' => 'text-slate-500',   'icon' => 'clock'],
             'fresh_start' => ['label' => 'Fresh start',           'pill' => 'bg-slate-100 text-slate-600',     'bg' => 'from-slate-100',  'glow' => 'bg-slate-300/40',   'num' => 'text-slate-900',   'ring' => 'text-slate-500',   'icon' => 'sparkles'],
         ];
-
         $th = $theme[$state] ?? $theme['on_track'];
 
         $toneMap = [
@@ -34,7 +32,6 @@
 
         $peso      = fn ($n) => '₱' . number_format($n, 2);
         $pesoFloor = fn ($n) => '₱' . number_format(floor(round($n * 100, 4)) / 100, 2);
-        $pesoShort = fn ($n) => '₱' . number_format($n, 0);
 
         [$canWhole, $canCents] = explode('.', number_format(floor(round($m['safe_today'] * 100, 4)) / 100, 2));
 
@@ -46,8 +43,42 @@
         $ringC      = 2 * M_PI * 52;
         $ringOffset = $ringC * (1 - $todayPct / 100);
 
-        $limitPct  = min(100, (int) round(($limit / $scale) * 100));
-        $daysLabel = $m['is_final_day'] ? 'Last day' : $m['days_left'] . ' ' . Str::plural('day', $m['days_left']) . ' to go';
+        $daysLabel = $m['is_final_day']
+            ? 'Last day'
+            : $m['days_left'] . ' ' . Str::plural('day', $m['days_left']) . ' to go';
+
+        // ---- Balance projection chart ------------------------------------------------
+        $hasProjection = !$m['is_final_day']
+            && collect($chart['projected'])->filter(fn ($v) => $v !== null)->count() > 1;
+
+        $paceColor = '#059669';
+
+        if (in_array($state, ['runs_out', 'depleted', 'over_quota'], true)) {
+            $paceColor = '#e11d48';
+        } elseif (in_array($state, ['tight', 'quota_hit'], true)) {
+            $paceColor = '#d97706';
+        }
+
+        $emptySeries = array_fill(0, count($chart['labels']), null);
+
+        $balanceChartPayload = [
+            'labels'       => $chart['labels'],
+            'actual'       => $chart['actual'],
+            'projected'    => $hasProjection ? $chart['projected'] : $emptySeries,
+            'safePath'     => $hasProjection ? $chart['safe_path'] : $emptySeries,
+            'pool'         => $chart['pool'],
+            'todayIndex'   => $chart['today_index'],
+            'runsOutIndex' => $chart['runs_out_index'],
+            'paceColor'    => $paceColor,
+        ];
+
+        if ($m['runs_out_label']) {
+            $chartHeadline = "Money runs out {$m['runs_out_label']}";
+        } elseif ($m['is_final_day']) {
+            $chartHeadline = 'Final balance this week';
+        } else {
+            $chartHeadline = 'You make it to ' . $m['reset_day'];
+        }
     }
 @endphp
 
@@ -68,6 +99,7 @@
                 </a>
             </div>
         @else
+
             {{-- 1. HERO --}}
             <div class="relative overflow-hidden rounded-[2rem] border border-slate-100 bg-gradient-to-br {{ $th['bg'] }} via-white to-white shadow-[0_20px_50px_-20px_rgba(15,23,42,0.18)] p-5 sm:p-8">
                 <div class="pointer-events-none absolute -top-24 -right-24 h-64 w-64 rounded-full blur-3xl {{ $th['glow'] }}"></div>
@@ -108,7 +140,6 @@
                                         class="{{ $th['ring'] }} transition-all duration-700"
                                         style="stroke-dasharray: {{ $ringC }}; stroke-dashoffset: {{ $ringOffset }};" />
                             </svg>
-
                             <div class="absolute inset-0 flex flex-col items-center justify-center">
                                 <span class="text-xl sm:text-3xl font-black text-slate-900 tabular-nums leading-none">{{ $todayPct }}%</span>
                                 <span class="text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-slate-400 mt-1">of today</span>
@@ -122,7 +153,6 @@
                             <div class="h-9 w-9 rounded-xl bg-white shadow-sm flex items-center justify-center shrink-0 {{ $th['ring'] }}">
                                 <x-dynamic-component :component="'heroicon-o-' . $th['icon']" class="w-4 h-4" />
                             </div>
-
                             <div class="min-w-0 space-y-0.5">
                                 <h2 class="text-base sm:text-lg font-extrabold text-slate-900 leading-snug">{{ $t['headline'] }}</h2>
                                 <p class="text-xs sm:text-sm font-medium text-slate-500 leading-relaxed">{{ $t['sub'] }}</p>
@@ -131,7 +161,6 @@
 
                         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-3 border-t border-slate-200/70">
                             <p class="text-xs sm:text-sm font-bold text-slate-700 leading-snug">{{ $t['action'] }}</p>
-
                             <a href="{{ route('student.simulation') }}" class="text-xs font-bold whitespace-nowrap text-[var(--brand)] hover:opacity-75 transition-opacity self-end sm:self-auto">
                                 Plan a purchase →
                             </a>
@@ -140,62 +169,71 @@
                 </div>
             </div>
 
-            {{-- 2. WEEK --}}
+            {{-- 2. BALANCE PROJECTION --}}
             <div class="{{ $card }} p-5 sm:p-7 space-y-5">
-                <div class="flex items-start justify-between gap-3">
-                    <div>
-                        <h3 class="text-sm sm:text-base font-extrabold text-slate-900">Your week so far</h3>
-                        <p class="text-[11px] sm:text-xs text-slate-400 font-medium mt-0.5">Bars show everything that left your budget each day.</p>
-                    </div>
-
-                    <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-100 text-[11px] font-bold text-slate-500 shrink-0">
-                        <span class="w-3 inline-block border-t-2 border-dashed border-slate-400"></span>
-                        Limit {{ $pesoFloor($limit) }}
-                    </span>
+                <div class="space-y-1">
+                    <h3 class="text-sm sm:text-base font-extrabold text-slate-900">Where your balance is heading</h3>
+                    <p class="text-[11px] sm:text-xs text-slate-400 font-medium">
+                        Solid line is what you have left. Dashed lines show where it goes from here.
+                    </p>
                 </div>
 
-                <div class="flex items-end gap-1.5 sm:gap-2.5">
-                    @foreach($days as $d)
-                        @php
-                            $isFuture = $d['status'] === 'future';
-                            $isToday  = $d['status'] === 'today';
-                            $saved    = (float) ($d['saved'] ?? 0);
-                            $total    = $d['spent'] + $saved;
-                            $barH     = $d['spent'] > 0 ? max(6, (int) round(($d['spent'] / $scale) * 100)) : 0;
-                            $saveH    = $saved > 0 ? max(6, (int) round(($saved / $scale) * 100)) : 0;
-                            $wentOver = !$isFuture && $limit > 0 && $total > $limit;
-                            $barColor = $wentOver
-                                ? 'bg-gradient-to-t from-rose-500 to-rose-300'
-                                : 'bg-gradient-to-t from-[var(--brand)] to-[rgba(var(--brand-rgb),0.55)]';
-                        @endphp
+                {{-- Legend --}}
+                <div class="flex flex-wrap items-center gap-x-4 gap-y-2 text-[11px] font-bold text-slate-500">
+                    <span class="inline-flex items-center gap-1.5">
+                        <span class="inline-block w-5 border-t-[3px] border-[var(--brand)] rounded"></span>
+                        Your balance
+                    </span>
+                    @if($hasProjection)
+                        <span class="inline-flex items-center gap-1.5">
+                            <span class="inline-block w-5 border-t-[3px] border-dashed rounded" style="border-color: {{ $paceColor }};"></span>
+                            At your pace
+                        </span>
+                        <span class="inline-flex items-center gap-1.5">
+                            <span class="inline-block w-5 border-t-2 border-dashed border-slate-400 rounded"></span>
+                            Safe path (₱0 on reset day)
+                        </span>
+                    @endif
+                </div>
 
-                        <div class="flex-1 min-w-0 flex flex-col items-center gap-2 rounded-2xl py-2 px-0.5 {{ $isToday ? 'bg-[rgba(var(--brand-rgb),0.06)]' : '' }}">
-                            <div class="relative w-full h-28 flex items-end justify-center">
-                                <div class="relative w-full max-w-[26px] h-full rounded-full bg-slate-100/80 overflow-hidden flex flex-col justify-end">
-                                    @if(!$isFuture && $saveH > 0)
-                                        <div class="w-full shrink-0 bg-gradient-to-t from-emerald-500 to-emerald-300 {{ $isToday ? '' : 'opacity-80' }}" style="height: {{ $saveH }}%"></div>
-                                    @endif
-                                    @if(!$isFuture && $barH > 0)
-                                        <div class="w-full shrink-0 {{ $barColor }} {{ $isToday ? '' : 'opacity-80' }}" style="height: {{ $barH }}%"></div>
-                                    @endif
-                                </div>
+                <div wire:ignore>
+                    <div class="relative h-56 sm:h-72 w-full">
+                        <canvas id="balanceForecastChart"></canvas>
+                    </div>
+                </div>
 
-                                <div class="absolute inset-x-0 border-t border-dashed border-slate-300/90" style="bottom: {{ $limitPct }}%"></div>
-                            </div>
+                <script type="application/json" id="balanceForecastData">{!! json_encode($balanceChartPayload) !!}</script>
 
-                            <span class="text-[11px] font-bold {{ $isToday ? 'text-[var(--brand)]' : 'text-slate-500' }}">{{ $isToday ? 'Today' : $d['label'] }}</span>
+                {{-- Prediction summary --}}
+                <div class="grid grid-cols-3 gap-2.5 sm:gap-3">
+                    <div class="rounded-2xl bg-slate-50 border border-slate-100 p-3 sm:p-4 min-w-0">
+                        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Left now</span>
+                        <span class="text-sm sm:text-lg font-black text-slate-900 tabular-nums block mt-1 truncate">{{ $peso($m['remaining']) }}</span>
+                    </div>
 
-                            <span class="text-[10px] font-semibold tabular-nums {{ $isFuture ? 'text-slate-300' : ($wentOver ? 'text-rose-500' : 'text-slate-500') }}">
-                                {{ $isFuture ? '—' : $pesoShort($total) }}
-                            </span>
-                        </div>
-                    @endforeach
+                    <div class="rounded-2xl border p-3 sm:p-4 min-w-0 {{ $m['runs_out_label'] ? 'bg-rose-50 border-rose-100' : 'bg-slate-50 border-slate-100' }}">
+                        <span class="text-[10px] font-bold uppercase tracking-wider block {{ $m['runs_out_label'] ? 'text-rose-400' : 'text-slate-400' }}">
+                            {{ $m['is_final_day'] ? 'Rolls over' : 'At reset' }}
+                        </span>
+                        <span class="text-sm sm:text-lg font-black tabular-nums block mt-1 truncate {{ $m['runs_out_label'] ? 'text-rose-600' : 'text-slate-900' }}">
+                            {{ $m['runs_out_label'] ? $peso(0) : $peso($m['is_final_day'] ? $m['remaining'] : $m['projected_remaining']) }}
+                        </span>
+                    </div>
+
+                    <div class="rounded-2xl border p-3 sm:p-4 min-w-0 {{ $m['runs_out_label'] ? 'bg-rose-50 border-rose-100' : 'bg-emerald-50 border-emerald-100' }}">
+                        <span class="text-[10px] font-bold uppercase tracking-wider block {{ $m['runs_out_label'] ? 'text-rose-400' : 'text-emerald-500' }}">
+                            Verdict
+                        </span>
+                        <span class="text-xs sm:text-sm font-extrabold leading-snug block mt-1 {{ $m['runs_out_label'] ? 'text-rose-600' : 'text-emerald-700' }}">
+                            {{ $chartHeadline }}
+                        </span>
+                    </div>
                 </div>
 
                 @if($m['saved'] > 0)
                     <p class="flex items-center gap-2 text-[11px] font-medium text-slate-400">
                         <span class="inline-block w-2.5 h-2.5 rounded-full bg-emerald-400 shrink-0"></span>
-                        {{ $peso($m['saved']) }} moved to savings counts toward your daily limit, but not toward your spending pace.
+                        {{ $peso($m['saved']) }} moved to savings lowers your balance but not your spending pace.
                     </p>
                 @endif
             </div>
@@ -215,13 +253,11 @@
                                         </span>
                                         <span class="text-sm font-bold text-slate-800 truncate">{{ $cat['name'] }}</span>
                                     </div>
-
                                     <div class="text-right shrink-0">
                                         <span class="text-sm font-extrabold text-slate-900 tabular-nums block leading-tight">{{ $peso($cat['total']) }}</span>
                                         <span class="text-[11px] font-semibold text-slate-400">{{ $cat['percent'] }}%</span>
                                     </div>
                                 </div>
-
                                 <div class="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
                                     <div class="h-full rounded-full" style="width: {{ $cat['percent'] }}%; background-color: {{ $cat['color'] }};"></div>
                                 </div>
@@ -240,7 +276,6 @@
                         <div class="h-10 w-10 rounded-2xl {{ $toneMap[$item['tone']] ?? $toneMap['slate'] }} flex items-center justify-center shrink-0">
                             <x-dynamic-component :component="'heroicon-o-' . $item['icon']" class="w-5 h-5" />
                         </div>
-
                         <div class="min-w-0 space-y-0.5 pt-0.5">
                             <p class="text-sm font-extrabold text-slate-800 leading-snug">{{ $item['title'] }}</p>
                             <p class="text-xs sm:text-[13px] font-medium text-slate-500 leading-relaxed">{{ $item['body'] }}</p>
@@ -254,7 +289,6 @@
                             <div class="h-10 w-10 rounded-2xl bg-white shadow-sm text-[var(--brand)] flex items-center justify-center shrink-0">
                                 <x-heroicon-o-sparkles class="w-5 h-5" />
                             </div>
-
                             <div class="min-w-0 space-y-0.5 pt-0.5">
                                 <p class="text-[10px] font-extrabold uppercase tracking-[0.15em] text-[var(--brand)]">Extra tip</p>
                                 <p class="text-xs sm:text-[13px] font-semibold text-slate-600 leading-relaxed">{{ $tip }}</p>
@@ -263,6 +297,168 @@
                     @endforeach
                 @endif
             </div>
+
+            {{-- Balance chart script --}}
+            <script>
+                (function () {
+                    let balanceChart = null;
+
+                    function peso(n) {
+                        return '₱' + Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                    }
+
+                    function initBalanceChart() {
+                        const canvas = document.getElementById('balanceForecastChart');
+                        const dataEl = document.getElementById('balanceForecastData');
+                        if (!canvas || !dataEl || typeof Chart === 'undefined') return;
+
+                        if (balanceChart) { balanceChart.destroy(); balanceChart = null; }
+
+                        const p        = JSON.parse(dataEl.textContent);
+                        const styles   = getComputedStyle(document.documentElement);
+                        const brand    = styles.getPropertyValue('--brand').trim() || '#4f39fa';
+                        const brandRgb = styles.getPropertyValue('--brand-rgb').trim() || '79, 57, 250';
+
+                        // Draws the "today" divider and the run-out marker. No annotation plugin needed.
+                        const markers = {
+                            id: 'forecastMarkers',
+                            afterDatasetsDraw(chart) {
+                                const { ctx, chartArea, scales } = chart;
+                                const x = scales.x, y = scales.y;
+                                ctx.save();
+
+                                if (p.todayIndex !== null) {
+                                    const tx = x.getPixelForValue(p.todayIndex);
+                                    ctx.setLineDash([4, 4]);
+                                    ctx.lineWidth = 1;
+                                    ctx.strokeStyle = 'rgba(100, 116, 139, 0.45)';
+                                    ctx.beginPath();
+                                    ctx.moveTo(tx, chartArea.top);
+                                    ctx.lineTo(tx, chartArea.bottom);
+                                    ctx.stroke();
+                                    ctx.setLineDash([]);
+                                    ctx.fillStyle = '#64748b';
+                                    ctx.font = '700 10px sans-serif';
+                                    ctx.textAlign = 'center';
+                                    ctx.fillText('TODAY', tx, chartArea.top - 6);
+                                }
+
+                                if (p.runsOutIndex !== null) {
+                                    const rx = x.getPixelForValue(p.runsOutIndex);
+                                    const ry = y.getPixelForValue(0);
+
+                                    // Shade the days with no money left.
+                                    ctx.fillStyle = 'rgba(225, 29, 72, 0.07)';
+                                    ctx.fillRect(rx, chartArea.top, chartArea.right - rx, chartArea.bottom - chartArea.top);
+
+                                    // Marker dot.
+                                    ctx.beginPath();
+                                    ctx.arc(rx, ry, 6, 0, Math.PI * 2);
+                                    ctx.fillStyle = '#e11d48';
+                                    ctx.fill();
+                                    ctx.lineWidth = 2;
+                                    ctx.strokeStyle = '#ffffff';
+                                    ctx.stroke();
+
+                                    // Label (kept inside the chart on the right edge).
+                                    const nearRight = rx > chartArea.right - 60;
+                                    ctx.fillStyle = '#e11d48';
+                                    ctx.font = '800 11px sans-serif';
+                                    ctx.textAlign = nearRight ? 'right' : 'left';
+                                    ctx.fillText('Money runs out', nearRight ? rx - 10 : rx + 10, ry - 12);
+                                }
+
+                                ctx.restore();
+                            },
+                        };
+
+                        balanceChart = new Chart(canvas.getContext('2d'), {
+                            type: 'line',
+                            data: {
+                                labels: p.labels,
+                                datasets: [
+                                    {
+                                        label: 'Your balance',
+                                        data: p.actual,
+                                        borderColor: brand,
+                                        backgroundColor: 'rgba(' + brandRgb + ', 0.10)',
+                                        fill: 'origin',
+                                        borderWidth: 3,
+                                        tension: 0.25,
+                                        pointRadius: 3,
+                                        pointBackgroundColor: brand,
+                                        spanGaps: false,
+                                        order: 1,
+                                    },
+                                    {
+                                        label: 'At your pace',
+                                        data: p.projected,
+                                        borderColor: p.paceColor,
+                                        borderWidth: 3,
+                                        borderDash: [8, 6],
+                                        tension: 0,
+                                        pointRadius: 0,
+                                        pointHoverRadius: 4,
+                                        spanGaps: false,
+                                        fill: false,
+                                        order: 0,
+                                    },
+                                    {
+                                        label: 'Safe path',
+                                        data: p.safePath,
+                                        borderColor: '#94a3b8',
+                                        borderWidth: 2,
+                                        borderDash: [3, 5],
+                                        tension: 0,
+                                        pointRadius: 0,
+                                        pointHoverRadius: 3,
+                                        spanGaps: false,
+                                        fill: false,
+                                        order: 2,
+                                    },
+                                ],
+                            },
+                            options: {
+                                responsive: true,
+                                maintainAspectRatio: false,
+                                layout: { padding: { top: 18, right: 8 } },
+                                interaction: { mode: 'index', intersect: false },
+                                plugins: {
+                                    legend: { display: false },
+                                    tooltip: {
+                                        padding: 10,
+                                        bodyFont: { size: 11, weight: 'bold' },
+                                        filter: (item) => item.raw !== null && item.raw !== undefined,
+                                        callbacks: {
+                                            label: (ctx) => ' ' + ctx.dataset.label + ': ' + peso(ctx.raw),
+                                        },
+                                    },
+                                },
+                                scales: {
+                                    x: {
+                                        grid: { display: false },
+                                        ticks: { font: { size: 10, weight: '600' }, color: '#64748b' },
+                                    },
+                                    y: {
+                                        min: 0,
+                                        suggestedMax: p.pool,
+                                        grid: { color: '#eef1f5' },
+                                        ticks: {
+                                            font: { size: 9 },
+                                            color: '#64748b',
+                                            maxTicksLimit: 5,
+                                            callback: (v) => '₱' + Number(v).toLocaleString('en-US'),
+                                        },
+                                    },
+                                },
+                            },
+                            plugins: [markers],
+                        });
+                    }
+
+                    document.addEventListener('livewire:load', initBalanceChart);
+                })();
+            </script>
         @endif
     </div>
 </div>
