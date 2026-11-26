@@ -179,7 +179,7 @@
                 <div class="text-base sm:text-xl font-black text-slate-900 tabular-nums mt-0.5 truncate">{{ $peso($currentBudget->remaining_allowance) }}</div>
                 <p class="text-[10px] sm:text-[11px] font-medium text-slate-400 mt-0.5 truncate">
                     of {{ $peso($weeklyAllowanceDisplay) }}
-                    <a href="{{ route('student.settings') }}" class="font-bold text-slate-500 hover:text-[var(--brand)]">· Edit</a>
+                    {{-- <a href="{{ route('student.settings') }}" class="font-bold text-slate-500 hover:text-[var(--brand)]">· Edit</a> --}}
                 </p>
             </div>
 

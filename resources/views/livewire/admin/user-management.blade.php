@@ -395,7 +395,7 @@
                         <input type="text" wire:model.defer="edit_school" class="{{ $field }}">
                         @error('edit_school') <span class="text-[10px] font-bold text-rose-600 block mt-1">{{ $message }}</span> @enderror
                     </div>
-                    <div class="space-y-1.5">
+                    {{-- <div class="space-y-1.5">
                         <label class="block text-xs font-bold text-slate-700">Reset Day</label>
                         <select wire:model.defer="edit_default_reset_day" class="{{ $field }}">
                             @foreach(['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'] as $day)
@@ -404,7 +404,7 @@
                         </select>
                         <p class="text-[10px] font-medium text-slate-400 leading-snug">Takes effect at the student's next weekly reset.</p>
                         @error('edit_default_reset_day') <span class="text-[10px] font-bold text-rose-600 block mt-1">{{ $message }}</span> @enderror
-                    </div>
+                    </div> --}}
 
                     <div class="flex items-center gap-2 pt-2">
                         <button type="button" wire:click="closeEdit" class="flex-1 px-4 py-2.5 text-xs font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors">Cancel</button>
