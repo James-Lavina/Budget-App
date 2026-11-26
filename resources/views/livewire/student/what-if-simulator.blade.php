@@ -179,7 +179,7 @@
                         </div>
 
                         {{-- Savings goal (only if they have one) --}}
-                        @if($hasGoal)
+                        {{-- @if($hasGoal)
                             <div class="flex items-center justify-between gap-4 py-3.5">
                                 <div class="flex items-center gap-3 min-w-0">
                                     <div class="h-10 w-10 rounded-2xl bg-emerald-100 text-emerald-600 flex items-center justify-center shrink-0">
@@ -196,7 +196,7 @@
                                     @endif
                                 </div>
                             </div>
-                        @endif
+                        @endif --}}
                     </div>
 
                     {{-- This week: before / after --}}
